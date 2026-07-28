@@ -1,0 +1,6 @@
+-r requirements.txt
+openai>=1.30
+anthropic>=0.30
+sentence-transformers>=2.2
+transformers>=4.40
+bert-score>=0.3.13

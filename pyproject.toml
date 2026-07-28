@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "recyclebench"
+version = "0.1.0"
+description = "Pre-registered instrument for measuring cross-generational recycling of jailbreaks (RSR) and paraphrase robustness (PBR) in open-weight LLM lineages"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "statsmodels>=0.14",
+    "pyyaml>=6.0",
+    "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+real = ["openai>=1.30", "anthropic>=0.30", "sentence-transformers>=2.2",
+        "transformers>=4.40", "bert-score>=0.3.13"]
+# The intent-preservation gate. sentence-transformers + transformers cover the embedding
+# cosine and the DeBERTa NLI cross-encoder; bert-score covers the BERTScore floor. TextAttack
+# is optional on top and provides the Universal Sentence Encoder / BERTScore *constraints* as
+# an alternative meaning-preservation floor (it pulls a large TensorFlow dependency, hence a
+# separate extra).
+gate      = ["sentence-transformers>=2.2", "transformers>=4.40", "bert-score>=0.3.13"]
+gate-full = ["sentence-transformers>=2.2", "transformers>=4.40", "bert-score>=0.3.13",
+             "textattack>=0.3.10"]
+# Reformulation tools. transformers+sentencepiece cover DIPPER (T5) and Opus-MT
+# back-translation; sacremoses is required by many Opus-MT models; parrot is the sentence-level
+# paraphraser for short prompts.
+reformulate = ["transformers>=4.40", "sentencepiece>=0.1.99", "sacremoses>=0.1.1",
+               "torch>=2.0"]
+reformulate-parrot = ["parrot @ git+https://github.com/PrithivirajDamodaran/Parrot_Paraphraser.git"]
+dev  = ["pytest>=7.4"]
+
+[project.scripts]
+recyclebench = "recyclebench.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

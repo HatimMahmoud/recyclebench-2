@@ -1,0 +1,75 @@
+# =====================================================================
+# REAL cross-generational lineage on Ollama: Llama 2 -> Llama 3 -> Llama 3.1
+#
+# This is the actual thesis comparison (the 1B/3B run was the smoke test).
+# llama2:7b -> llama3:8b is a genuine GENERATION jump at matched ~7-8B scale.
+#
+# Prereqs:
+#   ollama pull llama2:7b        # Llama-2-7b-chat   (~3.8 GB)
+#   ollama pull llama3:8b        # Llama-3-8b-instruct (~4.7 GB)
+#   ollama pull llama3.1:8b      # Llama-3.1-8b-instruct (optional 3rd rung)
+#   ollama pull qwen2.5:3b       # decorrelated paraphraser (already pulled)
+#
+# CAVEATS carried from the smoke test:
+#   * Ollama serves ~Q4 weights. That is at least UNIFORM across this lineage
+#     (all Q4), which is the acceptable tier -- state it as a limitation. Verify
+#     with `ollama show llama2:7b` / `ollama show llama3:8b` that both are Q4.
+#   * The offline rule-based judge is still uncalibrated. Fine for a PILOT (sizing
+#     |P^-|); a real headline needs a calibrated non-Llama judge (add under judges:
+#     and calibrate via judge-export/judge-ingest).
+#   * 7-8B models are much slower than 1B/3B on a laptop; expect longer screening.
+# =====================================================================
+seed: 20260101
+
+lineage:
+  - llama2-7b          # M_n     (Llama 2, older generation)
+  - llama3-8b          # M_n+1   (Llama 3)
+  - llama31-8b         # M_n+2   (Llama 3.1) -- optional third rung
+
+real:
+  llama2-7b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama2:7b
+    temperature: 0.0
+    max_tokens: 512
+  llama3-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3:8b
+    temperature: 0.0
+    max_tokens: 512
+  llama31-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.1:8b
+    temperature: 0.0
+    max_tokens: 512
+
+# offline RuleBasedJudge fallback (no 'judges:' block) -- pilot-grade, not headline-grade.
+
+paraphraser:
+  provider: openai_compatible
+  base_url: http://localhost:11434/v1
+  model_id: qwen2.5:14b        # non-Llama -> decorrelated from the target lineage
+  temperature: 0.7
+  max_tokens: 256
+
+gate:
+  cosine: 0.75
+  bertscore: 0.85
+  nli_entail: 0.60
+  llm_intent: 0.50
+
+budget:
+  k_canonical_samples: 3
+  paraphrases_per_behaviour: 8
+  samples_per_variant: 1
+
+decision:
+  min_p_minus: 30
+  pi_star: 0.15
+  kappa_floor: 0.60
+  delta_util: 0.05
+
+store_raw: false

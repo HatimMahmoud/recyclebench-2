@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+results/
+audit/
+data/*.csv
+!data/README.md
+.venv/
+*.egg-info/
