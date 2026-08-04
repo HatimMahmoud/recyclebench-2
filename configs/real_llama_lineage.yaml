@@ -45,6 +45,12 @@ real:
     model_id: llama3.1:8b
     temperature: 0.0
     max_tokens: 512
+  llama2-13b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama2:13b
+    temperature: 0.0
+    max_tokens: 512
 
 # offline RuleBasedJudge fallback (no 'judges:' block) -- pilot-grade, not headline-grade.
 
