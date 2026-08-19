@@ -63,8 +63,12 @@ class _Lazy:
         return float(np.dot(e[0], e[1]))
 
     def bertscore(self, a: str, b: str) -> float:
-        from bert_score import score as bs
-        _, _, f1 = bs([b], [a], lang="en", verbose=False)
+        # Cache a persistent BERTScorer instead of the one-shot score() which reloads
+        # RoBERTa-large on EVERY call -- the dominant cost of a recycling run on CPU.
+        if getattr(self, "_bertscorer", None) is None:
+            from bert_score import BERTScorer
+            self._bertscorer = BERTScorer(lang="en", rescale_with_baseline=False)
+        _, _, f1 = self._bertscorer.score([b], [a])
         return float(f1[0])
 
     # -- bidirectional NLI with a proper text-pair (the correct cross-encoder call) ----------

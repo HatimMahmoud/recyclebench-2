@@ -69,7 +69,12 @@ class ResponseCache:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         if self._fh is None:
             self._fh = self.path.open("a")
-        self._fh.write(json.dumps({"k": k, "t": text}) + "\n")
+        # Store readable fields alongside the hash so the cache can be inspected, filtered by
+        # model, and split per run. `k` remains the lookup key (loader reads only k/t), so this
+        # is backward-compatible: old lines with just {k,t} still load fine.
+        rec = {"k": k, "t": text, "model": model, "seed": seed,
+               "prompt": prompt[:200]}
+        self._fh.write(json.dumps(rec) + "\n")
         self._fh.flush()
 
     def close(self):

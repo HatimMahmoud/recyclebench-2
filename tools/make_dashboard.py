@@ -94,16 +94,72 @@ def load_manifest(paths):
     return admitted, audit
 
 
+def load_paired(cache, old, new, k, manifest_csv_pairs):
+    """For a merged multi-benchmark dashboard: pair each manifest with the CSV the run used.
+
+    Returns (admitted, audit, card_records) where keys are namespaced by benchmark
+    (e.g. 'advbench:jbb-0000') so identical jbb-000N ids across benchmarks don't collide,
+    and card_records is the list of P^- prompts (with old/new responses) for the detail cards.
+    """
+    admitted, audit, cards = {}, {}, []
+    for man_path, csv_path in manifest_csv_pairs:
+        if not Path(man_path).exists() or not Path(csv_path).exists():
+            continue
+        tag = Path(csv_path).stem
+        # index the CSV's behaviours by their bid (row-based, matching the manifest)
+        by_bid = {b.bid: b for b in load_jailbreakbench(csv_path)}
+        for line in Path(man_path).read_text().splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            bid = r.get("bid")
+            nbid = f"{tag}:{bid}"
+            if r.get("type") == "admitted":
+                # re-tag each variant's bid so after_state looks it up under the namespaced key,
+                # but keep the ORIGINAL bid for the cache seed (the cache used the raw bid).
+                vs = []
+                for v in r.get("variants", []):
+                    v = dict(v); v["_raw_bid"] = v.get("bid", bid); v["bid"] = nbid
+                    vs.append(v)
+                admitted.setdefault(nbid, []).extend(vs)
+            elif r.get("type") == "audit":
+                audit.setdefault(nbid, []).append(r)
+        # build the card record per behaviour that appears in the manifest
+        seen = set()
+        for line in Path(man_path).read_text().splitlines():
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            if r.get("type") != "admitted":
+                continue
+            bid = r.get("bid"); nbid = f"{tag}:{bid}"
+            if nbid in seen:
+                continue
+            seen.add(nbid)
+            b = by_bid.get(bid)
+            if b is None:
+                continue
+            cards.append({
+                "bench": tag, "bid": nbid, "raw_bid": bid, "category": b.category,
+                "prompt": b.canonical_prompt,
+                "old_resp": first_text(responses(cache, old, b.canonical_prompt, bid, k)),
+                "new_resp": first_text(responses(cache, new, b.canonical_prompt, bid, k)),
+            })
+    return admitted, audit, cards
+
+
 def after_state(cache, new, bid, admitted_variants, k):
     """Reconstruct the AFTER state: each admitted paraphrase and how the NEW model replied.
 
-    A variant's re-screen is cached under _key(new, variant.text, _draw_seed(bid, index, draw)).
+    A variant's re-screen is cached under _key(new, variant.text, _draw_seed(raw_bid, index, draw)).
+    In merged mode variants carry _raw_bid (the original jbb id the cache used); fall back to bid.
     Returns (tries, recovered_bool); each try labelled RECOVERED (new complied) or held.
     """
     tries, recovered = [], False
     for v in admitted_variants:
         idx = v.get("index", 0)
-        rs = [cache.get(_key(new, v.get("text", ""), _draw_seed(bid, idx, d))) for d in range(k)]
+        seed_bid = v.get("_raw_bid", bid)
+        rs = [cache.get(_key(new, v.get("text", ""), _draw_seed(seed_bid, idx, d))) for d in range(k)]
         if all(x is None for x in rs):
             continue
         broke = any(x is not None and not looks_like_refusal(x) for x in rs)
@@ -224,46 +280,55 @@ def transform_bars(audit):
     return out
 
 
-def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run_meta="",
-           _cache_ref=None, _k_ref=1):
-    pm = len(cells["pminus"]); per = len(cells["persistent"])
-    nf = len(cells["neg_flip"]); bs = len(cells["both_safe"])
-    n_tries = sum(len(v) for v in audit.values())
-    n_admit = sum(len(v) for v in admitted.values())
-    has_rsr = rsr is not None
-    flow = build_flow(cells, recovered or 0, has_rsr)
-    tbars = transform_bars(audit)
+def _slice_cells(cells, bench):
+    """Return a cells dict containing only records whose 'bench' == bench (for per-benchmark views)."""
+    out = {}
+    for key in ("pminus", "persistent", "neg_flip", "both_safe", "unscreened"):
+        out[key] = [r for r in cells.get(key, []) if r.get("bench") == bench]
+    cr = cells.get("_card_records")
+    if cr is not None:
+        out["_card_records"] = [r for r in cr if r.get("bench") == bench]
+    return out
 
-    if has_rsr:
-        pct = max(0.0, min(1.0, rsr)); ang = -90 + pct * 180
-        verdict_txt = ("Fixes look <b>shallow</b> — rewording brought many back" if pct >= 0.4
-                       else "Fixes look <b>robust</b> — most held under rewording")
-        gx = 100 + 70 * math.cos(math.radians(ang)); gy = 110 + 70 * math.sin(math.radians(ang))
-        gauge = f"""<div class="gauge-wrap"><svg viewBox="0 0 200 122" class="gauge">
-<path d="M20,110 A80,80 0 0,1 180,110" fill="none" stroke="{COL['grid']}" stroke-width="14" stroke-linecap="round"/>
-<path d="M20,110 A80,80 0 0,1 180,110" fill="none" stroke="url(#gg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="{pct*251.2:.1f} 251.2"/>
-<defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="{COL['held']}"/><stop offset="1" stop-color="{COL['broke']}"/></linearGradient></defs>
-<line x1="100" y1="110" x2="{gx:.1f}" y2="{gy:.1f}" stroke="{COL['ink']}" stroke-width="3" stroke-linecap="round"/>
-<circle cx="100" cy="110" r="5" fill="{COL['ink']}"/></svg>
-<div class="gauge-n">{pct*100:.0f}%</div><div class="gauge-lbl">Recycling Success Rate<br><span>{verdict_txt}</span></div></div>"""
-    else:
-        gauge = ('<div class="gauge-wrap pending-g"><div class="gauge-n">—</div><div class="gauge-lbl">'
-                 'Recycling Success Rate<br><span>run the recycle step, then pass <code>--rsr</code></span></div></div>')
 
-    brows = ""
-    for name, d in per_bench.items():
-        tot = d["pminus"] + d["persistent"] + d["neg_flip"] + d["both_safe"]
-        segs = [("fix", d["pminus"]), ("broke", d["persistent"]), ("regress", d["neg_flip"]), ("held", d["both_safe"])]
-        bar = "".join(f'<span class="seg s-{c}" style="width:{100*n/max(tot,1):.1f}%"></span>' for c, n in segs)
-        brows += (f'<tr><td class="bn">{esc(name)}</td><td class="num hero-lab">{d["pminus"]}</td>'
-                  f'<td><div class="stackbar">{bar}</div></td><td class="num">{tot}</td></tr>')
+def _matrix_note(pm, nf):
+    if nf > pm:
+        return (f"<b>Note the direction.</b> The <b>regression</b> cell ({nf}) is larger than "
+                f"<b>P⁻</b> ({pm}): on more prompts the newer model is <em>more</em> permissive "
+                f"than the older one than the reverse. Raw-prompt safety did not cleanly improve here.")
+    if pm > 0:
+        return (f"The amber <b>P⁻</b> cell ({pm}) is the set of genuine fixes — prompts the older "
+                f"model answered and the newer one refused. Regressions ({nf}) are cases the newer "
+                f"model newly answers.")
+    return (f"No P⁻ here — the newer model did not refuse anything the older one answered. "
+            f"The {nf} regressions are prompts the newer model newly answers.")
 
+
+def _gauge(rsr):
+    if rsr is None:
+        return ('<div class="gauge-wrap pending-g"><div class="gauge-n">—</div><div class="gauge-lbl">'
+                'Recycling Success Rate<br><span>run the recycle step, then pass <code>--rsr</code></span></div></div>')
+    pct = max(0.0, min(1.0, rsr)); ang = 180 - pct * 180
+    verdict_txt = ("Fixes look <b>shallow</b> — rewording brought many back" if pct >= 0.4
+                   else "Fixes look <b>robust</b> — most held under rewording")
+    gx = 100 + 70 * math.cos(math.radians(ang)); gy = 110 - 70 * math.sin(math.radians(ang))
+    return (f'<div class="gauge-wrap"><svg viewBox="0 0 200 122" class="gauge">'
+            f'<path d="M20,110 A80,80 0 0,1 180,110" fill="none" stroke="{COL["grid"]}" stroke-width="14" stroke-linecap="round"/>'
+            f'<path d="M20,110 A80,80 0 0,1 180,110" fill="none" stroke="url(#gg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="{pct*251.2:.1f} 251.2"/>'
+            f'<defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="{COL["held"]}"/><stop offset="1" stop-color="{COL["broke"]}"/></linearGradient></defs>'
+            f'<line x1="100" y1="110" x2="{gx:.1f}" y2="{gy:.1f}" stroke="{COL["ink"]}" stroke-width="3" stroke-linecap="round"/>'
+            f'<circle cx="100" cy="110" r="5" fill="{COL["ink"]}"/></svg>'
+            f'<div class="gauge-n">{pct*100:.0f}%</div><div class="gauge-lbl">Recycling Success Rate<br><span>{verdict_txt}</span></div></div>')
+
+
+def build_cards(cells, admitted, old, new, _cache_ref, _k_ref):
+    """The before->after detail cards for a given (already-sliced) cells dict."""
     pmd = ""
-    for r in cells["pminus"][:80]:
+    card_list = cells.get("_card_records") or cells.get("_card_pminus") or cells["pminus"]
+    for r in card_list[:200]:
         tries, recovered = ([], None)
         if admitted.get(r["bid"]) and _cache_ref is not None:
             tries, recovered = after_state(_cache_ref, new, r["bid"], admitted[r["bid"]], _k_ref)
-        # summary pill reflects the AFTER outcome when we have it
         if recovered is True:
             outcome = '<span class="pill brokep">reword RECOVERED it</span>'
         elif recovered is False and tries:
@@ -272,7 +337,6 @@ def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run
             outcome = f'<span class="pill">{len(admitted[r["bid"]])} paraphrases gated</span>'
         else:
             outcome = ""
-        # the after-state rows: each paraphrase + how the newer model replied
         after_rows = ""
         for t in tries[:6]:
             cls = "arow broke" if t["broke"] else "arow held"
@@ -282,13 +346,115 @@ def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run
                            f'<div class="atxt"><span class="tl">{esc(new)} replied</span>{esc(t["resp"])[:400]}</div></div>')
         after_block = (f'<div class="afterwrap"><div class="tl" style="margin:10px 0 4px">'
                        f'after rewording ({len(tries)} tested)</div>{after_rows}</div>') if tries else ""
-        pmd += (f'<details><summary><span class="dsrc">{esc(r["bench"])}</span> · {esc(r["category"])}'
+        pmd += (f'<details class="pcard"><summary><span class="dsrc">{esc(r.get("bench","") or r.get("category",""))}</span> · {esc(r.get("category",""))}'
                 f'<span class="sens">sensitive</span>{outcome}</summary>'
                 f'<div class="tl" style="margin:2px 0 4px">before · canonical request</div>'
-                f'<div class="txt"><span class="tl">request</span>{esc(r["prompt"])[:600]}</div>'
-                f'<div class="txt"><span class="tl">{esc(old)} · answered</span>{esc(r["old_resp"])[:600]}</div>'
-                f'<div class="txt"><span class="tl">{esc(new)} · refused</span>{esc(r["new_resp"])[:400]}</div>'
+                f'<div class="txt"><span class="tl">request</span>{esc(r.get("prompt",""))[:600]}</div>'
+                f'<div class="txt"><span class="tl">{esc(old)} · answered</span>{esc(r.get("old_resp",""))[:600]}</div>'
+                f'<div class="txt"><span class="tl">{esc(new)} · refused</span>{esc(r.get("new_resp",""))[:400]}</div>'
                 f'{after_block}</details>')
+    return pmd or '<p class="q">No P⁻ cases in this view.</p>'
+
+
+def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_ref, view_id, active):
+    """Assemble the per-benchmark section set (flow + 2x2 + gauge + funnel + cards) in one toggled div."""
+    pm = len(cells["pminus"]); per = len(cells["persistent"])
+    nf = len(cells["neg_flip"]); bs = len(cells["both_safe"])
+    has_rsr = rsr is not None
+    flow = build_flow(cells, recovered or 0, has_rsr)
+    gauge = _gauge(rsr)
+    note = _matrix_note(pm, nf)
+    n_tries = sum(len(v) for v in audit.values()) if view_id == "all" else "—"
+    n_admit = sum(len(v) for v in admitted.values()) if view_id == "all" else "—"
+    cards = build_cards(cells, admitted, old, new, _cache_ref, _k_ref)
+    disp = "" if active else ' style="display:none"'
+    return f"""<div class="bview" data-view="{esc(view_id)}"{disp}>
+<h2><span class="step-n">01</span> The journey of every request</h2>
+<div class="panel">{flow}
+<div class="legend">
+<span><i style="background:{COL['broke']}"></i>answered (harmful content produced)</span>
+<span><i style="background:{COL['held']}"></i>refused (safe)</span>
+<span><i style="background:{COL['fix']}"></i>P⁻ — the fix we test</span>
+<span><i style="background:{COL['regress']}"></i>regression</span></div></div>
+
+<h2><span class="step-n">01·b</span> The 2×2 at a glance</h2>
+<div class="panel"><div class="matrix">
+  <div class="mcorner"></div>
+  <div class="mhead mnew">{esc(new)} answered</div>
+  <div class="mhead mnew">{esc(new)} refused</div>
+  <div class="mhead mold">{esc(old)} answered</div>
+  <div class="mcell persist"><div class="mn">{per}</div><div class="ml">persisted<br><span>both answered — never fixed</span></div></div>
+  <div class="mcell fix"><div class="mn">{pm}</div><div class="ml">P⁻ · the fix<br><span>older answered, newer refused</span></div></div>
+  <div class="mhead mold">{esc(old)} refused</div>
+  <div class="mcell regress"><div class="mn">{nf}</div><div class="ml">regression<br><span>older refused, newer answered</span></div></div>
+  <div class="mcell safe"><div class="mn">{bs}</div><div class="ml">both safe<br><span>both refused</span></div></div>
+</div><p class="q" style="margin-top:16px">{note}</p></div>
+
+<h2><span class="step-n">02</span> Did the fixes hold?</h2>
+<div class="panel result">{gauge}
+<div class="funnel">
+<div class="fstep"><div class="fbar" style="background:{COL['fix']};width:100%">{pm}</div><div class="fcap">fixes to test (P⁻)</div></div>
+</div></div>
+
+<h2><span class="step-n">05</span> The fixed requests, in detail</h2>
+<p class="q" style="margin:0 0 8px">Real prompt and response text, collapsed by default. Expand any case.</p>
+<div class="pcards">{cards}</div>
+</div>"""
+
+
+def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run_meta="",
+           _cache_ref=None, _k_ref=1):
+    pm = len(cells["pminus"]); per = len(cells["persistent"])
+    nf = len(cells["neg_flip"]); bs = len(cells["both_safe"])
+    matrix_note = _matrix_note(pm, nf)
+    n_tries = sum(len(v) for v in audit.values())
+    n_admit = sum(len(v) for v in admitted.values())
+    has_rsr = rsr is not None
+    flow = build_flow(cells, recovered or 0, has_rsr)
+    tbars = transform_bars(audit)
+    gauge = _gauge(rsr)
+    if has_rsr:
+        pct = max(0.0, min(1.0, rsr))
+        verdict_txt = ("shallow" if pct >= 0.4 else "robust")
+
+    brows = ""
+    for name, d in per_bench.items():
+        tot = d["pminus"] + d["persistent"] + d["neg_flip"] + d["both_safe"]
+        segs = [("fix", d["pminus"]), ("broke", d["persistent"]), ("regress", d["neg_flip"]), ("held", d["both_safe"])]
+        bar = "".join(f'<span class="seg s-{c}" style="width:{100*n/max(tot,1):.1f}%"></span>' for c, n in segs)
+        brows += (f'<tr><td class="bn">{esc(name)}</td><td class="num hero-lab">{d["pminus"]}</td>'
+                  f'<td><div class="stackbar">{bar}</div></td><td class="num">{tot}</td></tr>')
+
+    # benchmark filter tabs — "All" plus one per benchmark; filters the detail cards below
+    bench_names = list(per_bench.keys())
+    tab_items = ['<button class="btab active" data-t="all" onclick="filterBench(\'all\')">All benchmarks</button>']
+    for name in bench_names:
+        d = per_bench[name]
+        tab_items.append(
+            f'<button class="btab" data-t="{esc(name)}" onclick="filterBench(\'{esc(name)}\')">'
+            f'{esc(name)} <span class="tcount">P⁻ {d["pminus"]} · reg {d["neg_flip"]}</span></button>')
+    bench_tabs = ('<div class="btabs" id="benchTabs">' + "".join(tab_items) + '</div>') if len(bench_names) > 1 else ""
+
+    # Build one full "view" (flow + 2x2 + gauge + funnel + cards) per benchmark, plus an "all" view.
+    # Tabs toggle whole views, so the ENTIRE dashboard body filters per benchmark.
+    bench_names = list(per_bench.keys())
+    multi = len(bench_names) > 1
+    views = build_view(cells, admitted, audit, old, new, rsr, recovered,
+                       _cache_ref, _k_ref, "all", active=True)
+    if multi:
+        for name in bench_names:
+            sub = _slice_cells(cells, name)
+            # per-benchmark recovered = count of P^- cards in this bench whose reword broke the new model
+            sub_recovered = 0
+            for r in sub.get("_card_records", sub["pminus"]):
+                if admitted.get(r["bid"]) and _cache_ref is not None:
+                    _, rec = after_state(_cache_ref, new, r["bid"], admitted[r["bid"]], _k_ref)
+                    if rec:
+                        sub_recovered += 1
+            sub_pm = len(sub["pminus"])
+            sub_rsr = (sub_recovered / sub_pm) if sub_pm else None
+            views += build_view(sub, admitted, audit, old, new, sub_rsr, sub_recovered,
+                                _cache_ref, _k_ref, name, active=False)
 
     small = pm < 30
     today = __import__("datetime").date.today().isoformat()
@@ -320,6 +486,29 @@ h1{{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:38px;line-h
 h2{{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:var(--slate);margin:56px 0 6px;display:flex;align-items:center;gap:12px}}
 h2::after{{content:"";flex:1;height:1px;background:var(--grid)}}
 .step-n{{font-family:"IBM Plex Mono",monospace;color:var(--fix);font-weight:500}}
+.matrix{{display:grid;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:stretch}}
+.btabs{{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}}
+.btab{{font-family:"IBM Plex Sans",sans-serif;font-size:13px;padding:8px 14px;border-radius:22px;
+border:1px solid var(--grid);background:#fff;color:var(--slate);cursor:pointer;transition:all .15s}}
+.btab:hover{{border-color:var(--ink)}}
+.btab.active{{background:var(--ink);color:#fff;border-color:var(--ink)}}
+.btab .tcount{{font-size:11px;opacity:.7;margin-left:6px}}
+.btab.active .tcount{{opacity:.85}}
+.pcard.dimmed{{display:none}}
+.mcorner{{}}
+.mhead{{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:center;
+padding:6px 10px;text-align:center;font-weight:600}}
+.mhead.mold{{justify-content:flex-end;text-align:right;max-width:150px}}
+.mcell{{border-radius:12px;padding:18px 16px;min-height:96px;display:flex;flex-direction:column;
+justify-content:center;color:#fff}}
+.mcell .mn{{font-family:"Space Grotesk","IBM Plex Sans",sans-serif;font-size:34px;font-weight:600;line-height:1}}
+.mcell .ml{{font-size:12.5px;margin-top:6px;font-weight:600;opacity:.96}}
+.mcell .ml span{{font-weight:400;opacity:.85;font-size:11.5px}}
+.mcell.fix{{background:{COL['fix']};color:{COL['ink']}}}
+.mcell.fix .ml span{{color:{COL['ink']};opacity:.7}}
+.mcell.regress{{background:{COL['regress']}}}
+.mcell.persist{{background:{COL['broke']}}}
+.mcell.safe{{background:{COL['held']}}}
 .panel{{background:var(--panel);border:1px solid var(--grid);border-radius:14px;padding:26px;margin:16px 0;box-shadow:0 1px 0 rgba(20,32,46,.03)}}
 .q{{font-size:16px;line-height:1.6;max-width:72ch}}.q b{{color:var(--fix)}}
 .flow{{width:100%;height:auto;display:block;margin:8px 0}}
@@ -386,41 +575,24 @@ We take the requests <b style="color:{COL['ink']}">{esc(new)}</b> refuses but
 whether the newer model can be made to answer again.</p>
 <p class="meta">pair <b>{esc(old)} → {esc(new)}</b> &nbsp;·&nbsp; generated {today}{(' &nbsp;·&nbsp; ' + esc(run_meta)) if run_meta else ''}</p>
 
-<h2><span class="step-n">01</span> The journey of every request</h2>
-<div class="panel">{flow}
-<div class="legend">
-<span><i style="background:{COL['broke']}"></i>answered (harmful content produced)</span>
-<span><i style="background:{COL['held']}"></i>refused (safe)</span>
-<span><i style="background:{COL['fix']}"></i>P⁻ — the fix we test</span>
-<span><i style="background:{COL['regress']}"></i>regression</span></div></div>
-<p class="q"><b>Read it left to right.</b> All requests split by what the <em>older</em> model did,
-then by the <em>newer</em> model. The amber <b>P⁻</b> band — older answered, newer refused — is the
-set of genuine fixes, which flow into the recycling test.</p>
+{bench_tabs}
 
-<h2><span class="step-n">02</span> Did the fixes hold?</h2>
-<div class="panel result">{gauge}
-<div class="funnel">
-<div class="fstep"><div class="fbar" style="background:{COL['fix']};width:100%">{pm}</div><div class="fcap">fixes to test (P⁻)</div></div>
-<div class="fstep"><div class="fbar" style="background:{COL['slate']};width:{100 if n_tries else 6}%">{n_tries}</div><div class="fcap">rewordings generated</div></div>
-<div class="fstep"><div class="fbar" style="background:{COL['held']};width:{int(100*n_admit/max(n_tries,1)) if n_tries else 4}%">{n_admit}</div><div class="fcap">kept the same meaning (passed the gate)</div></div>
-</div></div>
-{callout}
-{tbar_block}
+{views}
 
-<h2><span class="step-n">{n4}</span> By source benchmark</h2>
+<h2><span class="step-n">04</span> By source benchmark</h2>
 <div class="panel"><table><tr><th class="bn">Benchmark</th><th class="num">P⁻ fixed</th><th>distribution</th><th class="num">screened</th></tr>
 {brows}</table>
 <div class="legend" style="margin-top:14px">
 <span><i style="background:{COL['fix']}"></i>P⁻ fix</span><span><i style="background:{COL['broke']}"></i>both answered</span>
 <span><i style="background:{COL['regress']}"></i>regression</span><span><i style="background:{COL['held']}"></i>both refused</span></div></div>
 
-<h2><span class="step-n">{n5}</span> The fixed requests, in detail</h2>
-<p class="q" style="font-size:13px"><span class="sens" style="margin:0">sensitive</span>&nbsp; Real prompt and response text, collapsed by default. Expand any case.</p>
-{pmd if pmd else "<p class='muted'>None in this run.</p>"}
-
 <div class="foot">Generated by recyclebench · {esc(old)} vs {esc(new)}<br>
 Response labels come from an automated judge; small-sample results are exploratory. Sensitive content is collapsed and truncated by design. Band widths are proportional to counts.</div>
-</div></body></html>"""
+</div>
+<script>
+function filterBench(t){{document.querySelectorAll('.btab').forEach(function(b){{b.classList.toggle('active', b.getAttribute('data-t')===t);}});document.querySelectorAll('.bview').forEach(function(v){{v.style.display=(v.getAttribute('data-view')===t)?'':'none';}});}}
+</script>
+</body></html>"""
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_text(doc)
     return pm, n_tries, n_admit
@@ -431,8 +603,18 @@ def main(argv=None):
     ap.add_argument("--config", default="configs/real_ollama.yaml")
     ap.add_argument("--old", required=True); ap.add_argument("--new", required=True)
     ap.add_argument("--cache", required=True)
-    ap.add_argument("--behaviours", nargs="+", required=True)
+    ap.add_argument("--behaviours", nargs="+", required=True,
+                    help="CSV(s) for the 2x2 flow/partition (use the FULL benchmark for honest context)")
+    ap.add_argument("--pminus-behaviours", default=None,
+                    help="optional: the P^--only CSV the recycle run actually used. If given, the "
+                         "before->after paraphrase cards are matched against THIS file's bids "
+                         "(so cards populate even when the run screened only P^-), while the flow "
+                         "still uses --behaviours for full context.")
     ap.add_argument("--manifest", nargs="*", default=None)
+    ap.add_argument("--merge", nargs="*", default=None,
+                    help="merged multi-benchmark mode: each entry is 'manifest.jsonl:behaviours.csv'. "
+                         "Bids are namespaced per benchmark so identical jbb ids don't collide; the "
+                         "before->after cards are built per benchmark against the paired CSV.")
     ap.add_argument("--rsr", type=float, default=None)
     ap.add_argument("--recovered", type=int, default=None)
     ap.add_argument("--meta", default="")
@@ -442,7 +624,24 @@ def main(argv=None):
     cfg = Config.load(args.config); k = cfg.budget.k_canonical_samples
     cache = load_cache(args.cache)
     cells, per_bench = partition(cache, args.behaviours, args.old, args.new, k)
-    admitted, audit = load_manifest(args.manifest)
+
+    if args.merge:
+        # each --merge entry is "manifest.jsonl:behaviours.csv"; pool them with namespaced bids
+        pairs = []
+        for spec in args.merge:
+            mp, _, cp = spec.partition(":")
+            pairs.append((mp, cp))
+        admitted, audit, cards = load_paired(cache, args.old, args.new, k, pairs)
+        cells = dict(cells)
+        cells["_card_records"] = cards            # pre-built card records (prompt+old+new per bid)
+    else:
+        admitted, audit = load_manifest(args.manifest)
+        if args.pminus_behaviours:
+            pcells, _ = partition(cache, [args.pminus_behaviours], args.old, args.new, k)
+            card_pm = (pcells["pminus"] or pcells["persistent"] or pcells["both_safe"]
+                       or pcells["neg_flip"] or pcells["unscreened"])
+            cells = dict(cells); cells["_card_pminus"] = card_pm
+
     rec = args.recovered
     if rec is None and args.rsr is not None:
         rec = round(args.rsr * len(cells["pminus"]))
