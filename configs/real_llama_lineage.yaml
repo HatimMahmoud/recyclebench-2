@@ -54,6 +54,14 @@ real:
 
 # offline RuleBasedJudge fallback (no 'judges:' block) -- pilot-grade, not headline-grade.
 
+judges:
+  rubric:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: qwen2.5:14b        # decorrelated judge (non-target, non-RPE-engine)
+    temperature: 0.0
+    max_tokens: 16
+
 paraphraser:
   provider: openai_compatible
   base_url: http://localhost:11434/v1
