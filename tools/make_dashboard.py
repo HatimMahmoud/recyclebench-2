@@ -26,9 +26,6 @@ from recyclebench.realrun import _key
 from recyclebench.screening import _draw_seed
 from recyclebench.judge import looks_like_refusal
 
-RPE_OUT_DIR = None  # set by main() --rpe-out; read by build_view
-CFG_REF = None
-
 
 def load_cache(path):
     d = {}
@@ -371,34 +368,6 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
     n_admit = sum(len(v) for v in admitted.values()) if view_id == "all" else "—"
     cards = build_cards(cells, admitted, old, new, _cache_ref, _k_ref)
     disp = "" if active else ' style="display:none"'
-    try:
-        from rpe_section import render_rpe_section, render_rpe_cards
-        import json as _json, importlib.util as _il
-        _rlp = __import__('pathlib').Path(__file__).resolve().parents[0] / 'rpe_log.py'
-        _sp = _il.spec_from_file_location('rpe_log', _rlp)
-        _rlmod = _il.module_from_spec(_sp); _sp.loader.exec_module(_rlmod)
-        _mf = (__import__('pathlib').Path(globals().get('RPE_OUT_DIR')) / f'rpe_manifest_{view_id}.jsonl') if globals().get('RPE_OUT_DIR') else None
-        if _mf and _mf.exists():
-            _rows = _rlmod.load_rows(_mf)
-            _thr = getattr(getattr(globals().get('CFG_REF', None), 'gate', None), '__dict__', {}) or {}
-            _thr = {k: getattr(globals()['CFG_REF'].gate, k) for k in ('cosine','bertscore','nli_entail','llm_intent')} if globals().get('CFG_REF') else {'cosine':0.75,'bertscore':0.85,'nli_entail':0.60,'llm_intent':0.50}
-            _full = _rlmod.render_page(_rows, _thr, old, new, view_id)
-            import re as _re2
-            _mb = _re2.search(r'<body>(.*)</body>', _full, _re2.DOTALL)
-            _body = _mb.group(1) if _mb else _full
-            _ms = _re2.search(r'<style>(.*?)</style>', _full, _re2.DOTALL)
-            _css = _ms.group(1) if _ms else ''
-            _rpe_log = ('<h2><span class="step-n">01·e</span> The RPE process log</h2>'
-                        '<div class="rl-scope"><style>' + _css + '</style>' + _body + '</div>')
-        else:
-            _rpe_log = ''
-        _rpe_out = globals().get('RPE_OUT_DIR')
-        _rpe_section = render_rpe_section(view_id, _rpe_out, section_no='01\u00b7c')
-        _rpe_cards = render_rpe_cards(view_id, _rpe_out, section_no='01\u00b7d')
-    except Exception:
-        _rpe_section = ''
-        _rpe_cards = ''
-        _rpe_log = ''
     return f"""<div class="bview" data-view="{esc(view_id)}"{disp}>
 <h2><span class="step-n">01</span> The journey of every request</h2>
 <div class="panel">{flow}
@@ -421,11 +390,6 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
   <div class="mcell safe"><div class="mn">{bs}</div><div class="ml">both safe<br><span>both refused</span></div></div>
 </div><p class="q" style="margin-top:16px">{note}</p></div>
 
-{_rpe_section}
-{_rpe_cards}
-
-{_rpe_log}
-
 <h2><span class="step-n">02</span> Did the fixes hold?</h2>
 <div class="panel result">{gauge}
 <div class="funnel">
@@ -439,7 +403,7 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
 
 
 def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run_meta="",
-           _cache_ref=None, _k_ref=1):
+           rpe_manifest=None, corrected=None, attack_transfer=None, _cache_ref=None, _k_ref=1):
     pm = len(cells["pminus"]); per = len(cells["persistent"])
     nf = len(cells["neg_flip"]); bs = len(cells["both_safe"])
     matrix_note = _matrix_note(pm, nf)
@@ -613,6 +577,8 @@ whether the newer model can be made to answer again.</p>
 
 {bench_tabs}
 
+{bench_tabs}
+
 {views}
 
 <h2><span class="step-n">04</span> By source benchmark</h2>
@@ -629,6 +595,44 @@ Response labels come from an automated judge; small-sample results are explorato
 function filterBench(t){{document.querySelectorAll('.btab').forEach(function(b){{b.classList.toggle('active', b.getAttribute('data-t')===t);}});document.querySelectorAll('.bview').forEach(function(v){{v.style.display=(v.getAttribute('data-view')===t)?'':'none';}});}}
 </script>
 </body></html>"""
+    # --- Appended dashboard sections (self-contained; order: 01·e, 01·f, 02) ---
+    # Each is wrapped so a missing module can never break the dashboard build.
+    try:
+        _here = str(Path(__file__).resolve().parent)
+        if _here not in sys.path:
+            sys.path.insert(0, _here)
+    except Exception:
+        pass
+    try:
+        if corrected:
+            from calibration_section import inject as add_calib
+            doc = add_calib(doc, corrected)        # 00 · calibrated headline (judge-corrected)
+    except Exception as _e:
+        print(f"  [calibration_section] skipped: {_e}")
+    try:
+        if rpe_manifest:
+            from rpe_dashboard_section import inject as add_rpe
+            doc = add_rpe(doc, rpe_manifest)       # 01·e · RPE independent probe
+    except Exception as _e:
+        print(f"  [rpe_dashboard_section] skipped: {_e}")
+    try:
+        from style_arcs_section import inject as add_style_arcs
+        # audit records carry transform_class + nli_entail per variant (admitted lines don't),
+        # so feed `audit` to get the mean-NLI radius, not the thin admitted variants.
+        doc = add_style_arcs(doc, audit)           # 01·f · paraphrase style arcs (gate quality)
+    except Exception as _e:
+        print(f"  [style_arcs_section] skipped: {_e}")
+    try:
+        if attack_transfer:
+            from attack_transfer_section import inject as add_attack
+            doc = add_attack(doc, attack_transfer)  # 01·g · known-attack transfer (Arm 3)
+    except Exception as _e:
+        print(f"  [attack_transfer_section] skipped: {_e}")
+    try:
+        from positioning_section import inject as add_positioning
+        doc = add_positioning(doc, anchor_pair=f"{old} → {new}", mcnemar_p="6×10⁻⁵")   # 02
+    except Exception as _e:
+        print(f"  [positioning_section] skipped: {_e}")
     Path(out).parent.mkdir(parents=True, exist_ok=True)
     Path(out).write_text(doc)
     return pm, n_tries, n_admit
@@ -655,16 +659,19 @@ def main(argv=None):
     ap.add_argument("--recovered", type=int, default=None)
     ap.add_argument("--meta", default="")
     ap.add_argument("--out", default="results/dashboard.html")
-    ap.add_argument("--rpe-out", default=None,
-                    help="dir with rpe_agreement.json + rpe_manifest_<bench>.jsonl "
-                         "(adds the independent-probe section + detail cards)")
+    ap.add_argument("--rpe-manifest", default=None,
+                    help="RPE independent-probe manifest (rpe_manifest_<bench>.jsonl) -> renders section 01·e")
+    ap.add_argument("--corrected", default=None,
+                    help="corrected_<bench>.json from apply_calibration.py -> renders section 00 "
+                         "(judge-corrected RSR/PBR + the calibrated se/sp/kappa). When given and --rsr "
+                         "is omitted, the gauge is seeded with the run's OBSERVED raw RSR and recovered "
+                         "count from this file, so the dashboard can never drift from the run.")
+    ap.add_argument("--attack-transfer", nargs="*", default=None,
+                    help="one or more result JSONs from run_attack_transfer.py -> renders section "
+                         "01·g (known-attack transfer, Arm 3); classes are merged across the files.")
     args = ap.parse_args(argv)
-    global RPE_OUT_DIR, CFG_REF, OUT_REF
-    RPE_OUT_DIR = args.rpe_out
 
-    cfg = Config.load(args.config)
-    CFG_REF = cfg
-    OUT_REF = args.out; k = cfg.budget.k_canonical_samples
+    cfg = Config.load(args.config); k = cfg.budget.k_canonical_samples
     cache = load_cache(args.cache)
     cells, per_bench = partition(cache, args.behaviours, args.old, args.new, k)
 
@@ -685,13 +692,29 @@ def main(argv=None):
                        or pcells["neg_flip"] or pcells["unscreened"])
             cells = dict(cells); cells["_card_pminus"] = card_pm
 
+    # corrected JSON (apply_calibration): seeds the gauge with the OBSERVED raw rate + exact
+    # recovered count, and feeds section 00. --rsr / --recovered still override if passed.
+    corrected = None
+    if args.corrected:
+        import json as _json
+        corrected = _json.loads(Path(args.corrected).read_text())
+        _rsr_block = corrected.get("RSR") or {}
+        if args.rsr is None and _rsr_block.get("RSR_raw") is not None:
+            args.rsr = float(_rsr_block["RSR_raw"])
+        if args.recovered is None and _rsr_block.get("k_recovered") is not None:
+            args.recovered = int(_rsr_block["k_recovered"])
+
     rec = args.recovered
     if rec is None and args.rsr is not None:
         rec = round(args.rsr * len(cells["pminus"]))
     pm, tries, adm = render(cells, per_bench, admitted, audit, args.old, args.new, args.rsr, rec,
-                            args.out, args.meta, _cache_ref=cache, _k_ref=k)
+                            args.out, args.meta, rpe_manifest=args.rpe_manifest,
+                            corrected=corrected, attack_transfer=args.attack_transfer,
+                            _cache_ref=cache, _k_ref=k)
     print(f"wrote {args.out}")
     print(f"  P^-={pm}  paraphrase_tries={tries}  gated_admitted={adm}" + (f"  RSR={args.rsr}" if args.rsr is not None else ""))
+    if corrected and (corrected.get("RSR") or {}).get("RSR_corrected") is not None:
+        print(f"  corrected RSR={corrected['RSR']['RSR_corrected']}  (section 00 wired from {args.corrected})")
     print(f"  open: open {args.out}")
     return 0
 

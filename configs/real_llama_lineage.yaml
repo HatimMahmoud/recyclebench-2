@@ -1,36 +1,44 @@
 # =====================================================================
-# REAL cross-generational lineage on Ollama: Llama 2 -> Llama 3 -> Llama 3.1
+# REAL cross-generational lineage on Ollama — ALL <70B instruct models.
 #
-# This is the actual thesis comparison (the 1B/3B run was the smoke test).
-# llama2:7b -> llama3:8b is a genuine GENERATION jump at matched ~7-8B scale.
+# Extends real_llama_lineage.yaml to the full local roster so one shared cache
+# holds every model's canonical screen. Ollama serves one model at a time, so a
+# sequential run (run_all_models.sh) walks this lineage, screening each model once
+# across every benchmark; every pair's 2x2 is then a free cache-diff.
 #
-# Prereqs:
-#   ollama pull llama2:7b        # Llama-2-7b-chat   (~3.8 GB)
-#   ollama pull llama3:8b        # Llama-3-8b-instruct (~4.7 GB)
-#   ollama pull llama3.1:8b      # Llama-3.1-8b-instruct (optional 3rd rung)
-#   ollama pull qwen2.5:3b       # decorrelated paraphraser (already pulled)
+# Prereqs (pull each once; ~70B models are intentionally excluded):
+#   ollama pull llama2:7b        # Llama-2-7b-chat        (~3.8 GB)
+#   ollama pull llama2:13b       # Llama-2-13b-chat       (~7.4 GB)
+#   ollama pull llama3:8b        # Llama-3-8b-instruct    (~4.7 GB)
+#   ollama pull llama3.1:8b      # Llama-3.1-8b-instruct  (~4.7 GB)
+#   ollama pull llama3.2:1b      # Llama-3.2-1b-instruct  (~1.3 GB)
+#   ollama pull llama3.2:3b      # Llama-3.2-3b-instruct  (~2.0 GB)
+#   ollama pull qwen2.5:3b       # decorrelated paraphraser
 #
-# CAVEATS carried from the smoke test:
-#   * Ollama serves ~Q4 weights. That is at least UNIFORM across this lineage
-#     (all Q4), which is the acceptable tier -- state it as a limitation. Verify
-#     with `ollama show llama2:7b` / `ollama show llama3:8b` that both are Q4.
-#   * The offline rule-based judge is still uncalibrated. Fine for a PILOT (sizing
-#     |P^-|); a real headline needs a calibrated non-Llama judge (add under judges:
-#     and calibrate via judge-export/judge-ingest).
-#   * 7-8B models are much slower than 1B/3B on a laptop; expect longer screening.
+# Keep these cfg KEYS stable (llama2-7b, llama3-8b, …): the cache is keyed by the
+# cfg key, not the model-id, so reusing the same keys reuses the existing cache.
 # =====================================================================
 seed: 20260101
 
-lineage:
-  - llama2-7b          # M_n     (Llama 2, older generation)
-  - llama3-8b          # M_n+1   (Llama 3)
-  - llama31-8b         # M_n+2   (Llama 3.1) -- optional third rung
+lineage:               # release order, smallest-first within a generation
+  - llama2-7b          # Llama 2
+  - llama2-13b         # Llama 2
+  - llama3-8b          # Llama 3
+  - llama31-8b         # Llama 3.1
+  - llama32-1b         # Llama 3.2
+  - llama32-3b         # Llama 3.2
 
 real:
   llama2-7b:
     provider: openai_compatible
     base_url: http://localhost:11434/v1
     model_id: llama2:7b
+    temperature: 0.0
+    max_tokens: 512
+  llama2-13b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama2:13b
     temperature: 0.0
     max_tokens: 512
   llama3-8b:
@@ -45,27 +53,26 @@ real:
     model_id: llama3.1:8b
     temperature: 0.0
     max_tokens: 512
-  llama2-13b:
+  llama32-1b:
     provider: openai_compatible
     base_url: http://localhost:11434/v1
-    model_id: llama2:13b
+    model_id: llama3.2:1b
+    temperature: 0.0
+    max_tokens: 512
+  llama32-3b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.2:3b
     temperature: 0.0
     max_tokens: 512
 
-# offline RuleBasedJudge fallback (no 'judges:' block) -- pilot-grade, not headline-grade.
-
-judges:
-  rubric:
-    provider: openai_compatible
-    base_url: http://localhost:11434/v1
-    model_id: qwen2.5:14b        # decorrelated judge (non-target, non-RPE-engine)
-    temperature: 0.0
-    max_tokens: 16
+# offline RuleBasedJudge fallback (no 'judges:' block) — pilot-grade screening.
+# A headline needs a calibrated non-Llama judge (add judges: + judge-export/ingest).
 
 paraphraser:
   provider: openai_compatible
   base_url: http://localhost:11434/v1
-  model_id: qwen2.5:14b        # non-Llama -> decorrelated from the target lineage
+  model_id: qwen2.5:3b        # non-Llama -> decorrelated from the target lineage
   temperature: 0.7
   max_tokens: 256
 

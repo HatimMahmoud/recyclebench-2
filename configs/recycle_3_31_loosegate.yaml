@@ -1,0 +1,80 @@
+# =====================================================================
+# LOOSE-GATE variant of recycle_3_31.yaml — for the RPE independent probe only.
+#
+# Same pair + inverter as recycle_3_31.yaml, but the intent gate is relaxed so more
+# inversion candidates get admitted. Kept as a SEPARATE file so the strict-gate
+# recycle result (RSR=0.508) retains its provenance.
+#
+# CAVEAT: a looser gate weakens the intent-preservation guarantee — admitted
+# reconstructions are less certainly "the same request", so RSR_rpe here is an
+# upper bound and must be reported WITH these thresholds (and spot-checked by eye).
+# =====================================================================
+seed: 20260101
+
+lineage:
+  - llama3-8b
+  - llama31-8b
+
+real:
+  llama3-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3:8b
+    temperature: 0.0
+    max_tokens: 512
+  llama31-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.1:8b
+    temperature: 0.0
+    max_tokens: 512
+  qwen25-14b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: qwen2.5:14b
+    temperature: 0.8
+    max_tokens: 256
+
+transform_classes:
+  - paraphrase
+  - syntactic
+  - lexical
+  - back_translation
+  - tense_shift
+  - register
+
+paraphraser:
+  provider: openai_compatible
+  base_url: http://localhost:11434/v1
+  model_id: qwen2.5:3b
+  temperature: 0.7
+  max_tokens: 256
+
+# Same decorrelated judge as the strict config — the gate threshold changes, not the judge.
+judges:
+  rubric:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: qwen2.5:14b
+    temperature: 0.0
+    max_tokens: 4
+
+# --- RELAXED intent gate (strict was cosine .75 / bert .85 / nli .60) ---
+gate:
+  cosine: 0.60
+  bertscore: 0.80
+  nli_entail: 0.30
+  llm_intent: 0.50
+
+budget:
+  k_canonical_samples: 3
+  paraphrases_per_behaviour: 8
+  samples_per_variant: 1
+
+decision:
+  min_p_minus: 30
+  pi_star: 0.15
+  kappa_floor: 0.60
+  delta_util: 0.05
+
+store_raw: false

@@ -158,6 +158,15 @@ def run_real_study(cfg: Config, behaviours: list[Behaviour], models: list,
     wrapped = [CachedModel(m, cache) for m in models]
     runs = [run_model(m, behaviours, manifest, judge, cfg, collect_calib=False,
                       store_responses=True) for m in wrapped]
+    # persist per-variant trials (transform_class + success) for per-style analysis/diagrams
+    import os as _os
+    _tp = _os.environ.get("RECYCLEBENCH_TRIALS_DIR")
+    if _tp:
+        from pathlib import Path as _P
+        _P(_tp).mkdir(parents=True, exist_ok=True)
+        for _m, _r in zip(wrapped, runs):
+            if getattr(_r, "trials", None) is not None:
+                _r.trials.to_csv(_P(_tp) / f"trials_{_m.name}.csv", index=False)
 
     pilot = run_pilot(runs, cfg.decision.min_p_minus)
     # identity "judge" => corrected == raw; the real correction waits for human labels
