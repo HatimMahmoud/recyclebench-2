@@ -41,7 +41,7 @@ from pathlib import Path
 __all__ = ["aggregate", "render_fragment", "render_page", "inject"]
 
 # ---- palette (matches the results dashboard) ----
-_PAPER = "#F5F4F0"; _PANEL = "#FFFFFF"; _INK = "#14202E"; _SLATE = "#6B7A88"
+_PAPER = "#FAFAFA"; _PANEL = "#FFFFFF"; _INK = "#14202E"; _SLATE = "#6B7A88"
 _GRID = "#E4E2DB"; _HELD = "#107C6E"; _FIX = "#E3A008"; _REGRESS = "#B5522E"
 
 _STYLE_KEYS = ("transform_class", "tc", "transform", "style", "tclass", "family")
@@ -271,7 +271,7 @@ def _star(cx, cy, r, fill):
 # fragment / page / inject
 # ----------------------------------------------------------------------
 _CSS = """<style>
-.sa-root{--sa-paper:#F5F4F0;--sa-panel:#FFFFFF;--sa-ink:#14202E;--sa-slate:#6B7A88;
+.sa-root{--sa-paper:#FAFAFA;--sa-panel:#FFFFFF;--sa-ink:#14202E;--sa-slate:#6B7A88;
   --sa-grid:#E4E2DB;--sa-held:#107C6E;--sa-fix:#E3A008;--sa-regress:#B5522E;
   background:var(--sa-paper);color:var(--sa-ink);
   font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.55}
@@ -315,7 +315,7 @@ def _body(agg: dict) -> str:
         '</div>')
     return (
         '<section class="sa-root"><div class="sa-wrap">'
-        '<h2><span class="n">01·f</span>Paraphrase styles — which preserve intent</h2>'
+        '<h2><span class="n">05</span>Paraphrase styles — which preserve intent</h2>'
         f'<p class="sa-sub">{sub}</p>'
         f'<div class="sa-card">{svg}{legend}</div>'
         f'<span class="sa-note">{_html.escape(note)}</span>'

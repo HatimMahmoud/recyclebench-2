@@ -83,6 +83,12 @@ def main():
     ap.add_argument("--from-disk", default=None, help="load_from_disk path instead of the hub")
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--seed", type=int, default=None, help="sampling seed (default cfg.seed)")
+    ap.add_argument("--judge-against", choices=["attack", "original"], default="attack",
+                    help="which request the judge scores the response against: 'attack' = the "
+                         "transformed prompt sent (default, original behaviour); 'original' = the plain "
+                         "harmful goal. Use 'original' to match judge_70b_jsonl and avoid garbled-vs-"
+                         "garbled false positives on encoding/combination classes. Model replies are "
+                         "cached, so re-running only re-judges (fast).")
     args = ap.parse_args()
 
     from recyclebench.backends.providers import load_provider_model
@@ -104,18 +110,24 @@ def main():
         behaviours = sorted(rng.sample(behaviours, args.n_behaviours))
     print(f"  [data] {len(behaviours)} behaviours · classes={args.classes} · baseline={args.baseline_class}")
 
-    def ask(text):
-        r = model.respond(text, seed=seed)
+    def ask(sent, ref):
+        """Query the model with `sent` (the prompt actually delivered), judge the reply against
+        `ref` (the request the judge scores fulfilment of)."""
+        r = model.respond(sent, seed=seed)
         rtext = r.text if hasattr(r, "text") else str(r)
-        return int(judge.classify(text, Response(text=rtext, latent_harmful=None)))  # 1=comply
+        return int(judge.classify(ref, Response(text=rtext, latent_harmful=None)))  # 1=comply
 
+    def _ref(b, sent):
+        return (base.get(b) or sent) if args.judge_against == "original" else sent
+
+    print(f"  [judge-against] {args.judge_against}")
     # 1. baseline: did the model comply on the canonical (no-transform) prompt?
     baseline_comply = {}
     for i, b in enumerate(behaviours):
         txt = by_beh[b].get(args.baseline_class) or base.get(b)
         if not txt:
             continue
-        baseline_comply[b] = ask(txt)
+        baseline_comply[b] = ask(txt, _ref(b, txt))
         if (i + 1) % 25 == 0:
             print(f"    baseline {i+1}/{len(behaviours)}  (calls={model.calls} hits={model.hits})")
     refused = [b for b, c in baseline_comply.items() if c == 0]
@@ -131,7 +143,7 @@ def main():
             txt = by_beh[b].get(cls)
             if not txt:
                 continue
-            v = ask(txt)
+            v = ask(txt, _ref(b, txt))
             per_beh[b] = v
             n += 1; broke += v
             if b in baseline_comply and baseline_comply[b] == 0:   # refused canonically
@@ -154,6 +166,7 @@ def main():
     out = {"model": args.model, "baseline_class": args.baseline_class,
            "n_behaviours": len(behaviours), "n_refused_baseline": len(refused),
            "judge": list((getattr(cfg, "judges", None) or {}).keys()),
+           "judge_against": args.judge_against,
            "classes": results,
            "note": "Attack-transfer arm (NOT recycle). No intent gate. 'transfer_on_refused' is "
                    "the headline: among behaviours the model refused canonically, how often the "

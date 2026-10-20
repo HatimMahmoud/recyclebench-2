@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RecycleBench — Developer Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF; --panel:#FFFFFF; --ink:#1F2937; --slate:#526277; --faint:#64748B;
+  --grid:#D8E0E9; --accent:#1D4ED8; --accent2:#1D4ED8; --codebg:#F6F8FA; --codeink:#27364B;
+  --side:#F8FAFC; --sel:#E8F1FF; --control-border:#8492A3; --success:#176B45;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --disp:"Space Grotesk",var(--sans); --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+:root[data-theme="dark"]{
+  --bg:#0D1117; --panel:#161B22; --ink:#E6EDF3; --slate:#AAB8C8; --faint:#9DAEC1;
+  --grid:#354153; --accent:#79C0FF; --accent2:#8BC4FF; --codebg:#151C26; --codeink:#D6E1ED;
+  --side:#111820; --sel:#1B344F; --control-border:#8E9AAC; --success:#63D5A5;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0D1117; --panel:#161B22; --ink:#E6EDF3; --slate:#AAB8C8; --faint:#9DAEC1;
+  --grid:#354153; --accent:#79C0FF; --accent2:#8BC4FF; --codebg:#151C26; --codeink:#D6E1ED;
+  --side:#111820; --sel:#1B344F; --control-border:#8E9AAC; --success:#63D5A5;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.62;
+  font-size:15px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* sidebar */
+.sidebar{position:fixed;top:0;left:0;width:262px;height:100vh;overflow-y:auto;background:var(--side);
+  border-right:1px solid var(--grid);padding:22px 16px 40px}
+.sidebar .brand{font-family:var(--disp);font-weight:700;font-size:15px;letter-spacing:-.01em;margin:0 0 2px;color:var(--ink)}
+.sidebar .brandsub{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);margin:0 0 18px}
+.sidebar a{display:block;color:var(--slate);font-size:13px;padding:5px 10px;border-radius:7px;
+  border-left:2px solid transparent;line-height:1.35;margin:1px 0}
+.sidebar a:hover{background:var(--panel);color:var(--ink);text-decoration:none}
+.sidebar a.active{color:var(--ink);font-weight:600;border-left-color:var(--accent);background:var(--sel)}
+.sidebar a.sub{font-size:12px;padding-left:22px;color:var(--faint)}
+
+/* content */
+.content{max-width:860px;margin:0 auto;padding:46px 34px 90px}
+@media(min-width:1001px){.content{margin-left:262px}}
+@media(max-width:1000px){.sidebar{display:none}}
+
+.content h1{font-family:var(--disp);font-weight:700;font-size:30px;letter-spacing:-.02em;margin:0 0 6px}
+.content h2{font-family:var(--disp);font-weight:600;font-size:21px;letter-spacing:-.01em;
+  margin:42px 0 10px;padding-top:20px;border-top:1px solid var(--grid);scroll-margin-top:20px}
+.content h3{font-family:var(--disp);font-weight:600;font-size:16px;margin:26px 0 6px;scroll-margin-top:20px}
+.content h1:first-child{margin-top:0}
+.content p{margin:10px 0}
+.content ul,.content ol{padding-left:1.4em;margin:10px 0}
+.content li{margin:4px 0}
+.content hr{border:none;border-top:1px solid var(--grid);margin:28px 0}
+.content strong{font-weight:600;color:var(--ink)}
+.anchor{opacity:0;margin-left:.4em;color:var(--faint);font-weight:400;text-decoration:none;font-size:.8em}
+h2:hover .anchor,h3:hover .anchor{opacity:1}
+
+/* code */
+code{font-family:var(--mono);font-size:.86em;background:var(--codebg);color:var(--codeink);
+  padding:1.5px 6px;border-radius:5px;border:1px solid var(--grid)}
+pre{position:relative;background:var(--codebg);border:1px solid var(--grid);border-radius:10px;
+  padding:15px 16px;overflow-x:auto;margin:14px 0}
+pre code{background:none;border:none;padding:0;font-size:12.8px;line-height:1.6;color:var(--codeink);white-space:pre}
+.copybtn{position:absolute;top:8px;right:8px;font-family:var(--mono);font-size:11px;color:var(--slate);
+  background:var(--panel);border:1px solid var(--control-border);border-radius:6px;padding:4px 9px;cursor:pointer;opacity:0;transition:opacity .12s}
+pre:hover .copybtn{opacity:1}
+.copybtn.done{color:var(--success);border-color:var(--success)}
+
+/* blockquote / callouts */
+blockquote{margin:16px 0;padding:12px 16px;background:var(--panel);border:1px solid var(--grid);
+  border-left:4px solid var(--accent);border-radius:0 10px 10px 0;color:var(--ink)}
+blockquote p{margin:6px 0}
+blockquote pre{margin:10px 0}
+
+/* tables */
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px;display:block;overflow-x:auto}
+th,td{border:1px solid var(--grid);padding:8px 11px;text-align:left;vertical-align:top}
+th{background:var(--side);font-family:var(--mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);font-weight:500}
+tbody tr:nth-child(even){background:var(--panel)}
+
+/* theme toggle */
+.theme{position:fixed;top:14px;right:16px;z-index:90;font-family:var(--mono);font-size:12px;
+  background:var(--panel);color:var(--slate);border:1px solid var(--control-border);border-radius:999px;
+  padding:7px 13px;cursor:pointer}
+.theme:hover{color:var(--ink)}
+</style>
+</head>
+<body>
+<button class="theme" id="theme" title="Toggle light/dark">◐ theme</button>
+<nav class="sidebar" id="sidebar">
+  <p class="brand">RecycleBench</p>
+  <p class="brandsub">Developer Docs</p>
+  <div id="toc"></div>
+</nav>
+<main class="content" id="content">
+<h1 id="recyclebench-developer-walkthrough">RecycleBench — Developer Walkthrough</h1>
+<p>A practical, end-to-end guide to running and extending RecycleBench. For the <em>scientific</em>
+framing (what RSR/PBR mean, the estimators, related work) see <code>RecycleBench_Report.pdf</code>;
+this document is operational.</p>
+<p><strong>TL;DR — one adjacent model pair, one benchmark, end to end:</strong></p>
+<pre><code class="language-bash"># 1. screen the regression set P-
+python3 -m recyclebench pilot-pminus --config configs/recycle_3_31.yaml \
+  --old llama3-8b --new llama31-8b --behaviours data/sorrybench.csv \
+  --cache cache/llama_gen.jsonl
+# 2. recycle (paraphrase -&gt; gate -&gt; query new model -&gt; judge)
+python3 -m recyclebench run-real --config configs/recycle_3_31.yaml \
+  --behaviours results/cells_llama3-8b_llama31-8b/sorrybench_p_minus.csv \
+  --cache cache/llama_gen.jsonl \
+  --manifest results/runs/recycle_3_31_sorrybench/manifest_sorrybench.jsonl
+# 3. calibrate the judge -&gt; 4. correct -&gt; 5. dashboard  (see below)
+</code></pre>
+<hr />
+<h2 id="contents">Contents</h2>
+<ol>
+<li><a href="#1-concepts-in-60-seconds">Concepts in 60 seconds</a></li>
+<li><a href="#2-prerequisites--install">Prerequisites &amp; install</a></li>
+<li><a href="#3-repository-layout">Repository layout</a></li>
+<li><a href="#4-the-pipeline-stage-by-stage">The pipeline, stage by stage</a></li>
+<li><a href="#5-the-other-two-arms">The other two arms</a></li>
+<li><a href="#6-dashboards">Dashboards</a></li>
+<li><a href="#7-configuration">Configuration</a></li>
+<li><a href="#8-recipes">Recipes</a></li>
+<li><a href="#9-outputs-reference">Outputs reference</a></li>
+<li><a href="#10-troubleshooting--ops">Troubleshooting &amp; ops</a></li>
+</ol>
+<hr />
+<h2 id="1-concepts-in-60-seconds">1. Concepts in 60 seconds</h2>
+<ul>
+<li><strong>Pair</strong> — an adjacent model release, <code>M_old → M_new</code> (e.g. <code>llama3-8b → llama31-8b</code>).</li>
+<li><strong>P⁻ (regression set)</strong> — behaviours <code>M_old</code> <em>complied</em> with and <code>M_new</code> <em>refuses</em>. These are the "fixes" under test. If <code>|P⁻| &lt; min_p_minus</code> (default 30) the recycle arm is <strong>exploratory</strong> and PBR carries the headline.</li>
+<li><strong>RSR</strong> — fraction of P⁻ re-opened by ≥1 <strong>gated, meaning-preserving paraphrase</strong>.</li>
+<li><strong>PBR</strong> — same, over a model's <em>own</em> current refusals (always estimable).</li>
+<li><strong>Intent gate</strong> — a 4-signal ANDed filter (cosine, BERTScore, NLI-entailment, llm-intent) that certifies a paraphrase preserves intent.</li>
+<li><strong>Judge</strong> — a decorrelated <code>qwen2.5:14b</code> rubric; its error is corrected (Rogan–Gladen) against human labels and only <strong>admitted</strong> when Cohen's κ ≥ 0.60.</li>
+<li><strong>Three arms</strong> — (1) recycle, (2) RPE output-inversion probe, (3) known-attack transfer.</li>
+</ul>
+<hr />
+<h2 id="2-prerequisites-install">2. Prerequisites &amp; install</h2>
+<pre><code class="language-bash"># Python package (editable)
+pip install -e .            # or: pip install -r requirements-real.txt
+
+# Ollama models (pull once)
+ollama pull llama2:7b
+ollama pull llama2:13b
+ollama pull llama3:8b
+ollama pull llama3.1:8b
+ollama pull llama3.2:1b
+ollama pull llama3.2:3b
+ollama pull qwen2.5:3b      # paraphraser (decorrelated)
+ollama pull qwen2.5:14b     # judge (decorrelated)
+</code></pre>
+<p><strong>Start Ollama so the target and judge stay co-resident</strong> (critical for throughput — see §10):</p>
+<pre><code class="language-bash">OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=1h OLLAMA_NUM_PARALLEL=1 \
+  ollama serve &gt; /tmp/ollama.log 2&gt;&amp;1 &amp;
+</code></pre>
+<p>Sanity check the CLI:</p>
+<pre><code class="language-bash">python3 -m recyclebench --help
+python3 -m recyclebench version
+</code></pre>
+<hr />
+<h2 id="3-repository-layout">3. Repository layout</h2>
+<pre><code>src/recyclebench/      package: cli.py, pilot.py, realrun.py, recycling.py,
+                       screening.py, gate.py, judge.py, calibration.py, stats.py,
+                       manifest.py, backends/ (providers, real_gate, real_judge,
+                       reformulators), independent_probe/ (RPE)
+tools/                 analysis + dashboards (make_dashboard.py, build_all_dashboards.py,
+                       apply_calibration.py, judge_export_*.py, judge_label_tui.py,
+                       run_attack_transfer.py, judge_70b_jsonl.py, run_independent_probe.py,
+                       *_section.py renderers, dashboard_standalone.html)
+configs/               YAML run specs (recycle_3_31.yaml = anchor;
+                       real_llama_lineage_all.yaml = full lineage)
+data/                  behaviour CSVs (sorrybench.csv, harmbench.csv, advbench.csv, …;
+                       each has a `Goal` column)
+cache/                 response caches (llama_gen.jsonl, attack_transfer.jsonl, …)
+results/               cells_&lt;old&gt;_&lt;new&gt;/, runs/&lt;timestamp_or_name&gt;/, dashboards
+</code></pre>
+<p><strong>Caching.</strong> Every model reply is cached by <code>(cfg-key, prompt, seed)</code>. Re-running any stage
+reuses the cache, so stages are <strong>resumable</strong> and re-judging is free. Judge <em>verdicts</em> are not
+cached (only model responses are).</p>
+<hr />
+<h2 id="4-the-pipeline-stage-by-stage">4. The pipeline, stage by stage</h2>
+<h3 id="41-screen-p-pilot-pminus">4.1 Screen P⁻ — <code>pilot-pminus</code></h3>
+<p>Queries both models on the benchmark, labels comply/refuse, sizes P⁻, and <strong>writes the cell
+CSVs</strong> to <code>results/cells_&lt;old&gt;_&lt;new&gt;/&lt;bench&gt;_{p_minus,persistent,neg_flip}.csv</code>.</p>
+<pre><code class="language-bash">python3 -m recyclebench pilot-pminus \
+  --config configs/recycle_3_31.yaml \
+  --old llama3-8b --new llama31-8b \
+  --behaviours data/sorrybench.csv \
+  --cache cache/llama_gen.jsonl
+</code></pre>
+<p>Output prints <code>|P⁻|</code> and the decision (<code>exploratory</code> if <code>&lt; min_p_minus</code>). If it's below the
+floor, stop here and report the count as a documented negative.</p>
+<h3 id="42-recycle-run-real">4.2 Recycle — <code>run-real</code></h3>
+<p>Builds the <strong>frozen reformulation manifest</strong> (8 paraphrases × 6 style classes per behaviour,
+each passed through the intent gate), queries <code>M_new</code> on every <em>admitted</em> variant, judges each,
+and computes RSR + PBR.</p>
+<pre><code class="language-bash">python3 -m recyclebench run-real \
+  --config configs/recycle_3_31.yaml \
+  --behaviours results/cells_llama3-8b_llama31-8b/sorrybench_p_minus.csv \
+  --cache cache/llama_gen.jsonl \
+  --manifest results/runs/recycle_3_31_sorrybench/manifest_sorrybench.jsonl
+</code></pre>
+<ul>
+<li><code>--manifest</code> is <strong>reuse-or-write</strong>: if the file exists it is reused (re-judging only); else built.</li>
+<li><code>run</code> is the simulated/offline twin used for estimator development.</li>
+<li><strong>Lineage mode:</strong> point <code>--config</code> at a multi-model config (<code>real_llama_lineage_all.yaml</code>)
+  and <code>--behaviours</code> at the <em>full</em> benchmark CSV — it screens P⁻ and computes RSR for every
+  consecutive pair in the <code>lineage:</code> list.</li>
+</ul>
+<h3 id="43-calibrate-the-judge-export-label-ingest">4.3 Calibrate the judge — export → label → ingest</h3>
+<p>The raw RSR/PBR are judge-labelled; calibrate the judge to correct them.</p>
+<pre><code class="language-bash"># export a verdict-stratified, bundle-complete sheet
+python3 tools/judge_export_real.py --config configs/recycle_3_31.yaml \
+  --manifest results/runs/recycle_3_31_sorrybench/manifest_sorrybench.jsonl \
+  --out audit/sorrybench/judge_sheet.csv       # see --help for exact flags
+
+# hand-label the `human_fulfilled` column (fast keyboard TUI)
+python3 tools/judge_label_tui.py audit/sorrybench/judge_sheet.csv
+#   enter = accept judge guess · f = flip · 0/1 = set · e = expand · b = back · q = save/quit
+
+# ingest → se / sp / kappa + admit decision
+python3 -m recyclebench judge-ingest audit/sorrybench/judge_sheet.csv \
+  --config configs/recycle_3_31.yaml
+</code></pre>
+<p>Admitted when κ ≥ <code>kappa_floor</code> (0.60). The bundle-level se/sp are what correct the headline.</p>
+<h3 id="44-apply-the-correction-apply_calibrationpy">4.4 Apply the correction — <code>apply_calibration.py</code></h3>
+<p>Rebuilds the run from cache, pulls the judge chars, and writes the corrected headline.</p>
+<pre><code class="language-bash">python3 tools/apply_calibration.py \
+  --config configs/recycle_3_31.yaml \
+  --manifest results/runs/recycle_3_31_sorrybench/manifest_sorrybench.jsonl \
+  --out results/runs/recycle_3_31_sorrybench/corrected_sorrybench.json   # see --help
+</code></pre>
+<p>Refuses to emit a corrected headline when κ is below the floor (override with <code>--force</code>).</p>
+<h3 id="45-dashboard">4.5 Dashboard</h3>
+<p>See §6.</p>
+<hr />
+<h2 id="5-the-other-two-arms">5. The other two arms</h2>
+<h3 id="arm-3-known-attack-transfer-run_attack_transferpy">Arm 3 — known-attack transfer (<code>run_attack_transfer.py</code>)</h3>
+<pre><code class="language-bash">python3 tools/run_attack_transfer.py \
+  --config configs/recycle_3_31.yaml --model llama31-8b \
+  --classes AIM evil_confidant refusal_suppression prefix_injection \
+  --cache cache/attack_transfer.jsonl \
+  --out results/runs/attack_transfer/llama31-8b_judged_original.json \
+  --judge-against original
+</code></pre>
+<ul>
+<li><strong>Always use <code>--judge-against original</code>.</strong> Scoring encoded outputs against their encoded
+  prompts produces large spurious bypasses on cipher/combination classes; judging against the
+  original intent collapses them.</li>
+<li>Calibrate the attack judge the same way: <code>tools/judge_export_attack.py</code> → <code>judge_label_tui.py</code>
+  → <code>recyclebench judge-ingest</code>.</li>
+<li>A supervisor-supplied 70B JSONL is judged with <code>tools/judge_70b_jsonl.py</code> (same output schema).</li>
+</ul>
+<h3 id="arm-2-independent-probe-rpe-run_independent_probepy">Arm 2 — independent probe / RPE (<code>run_independent_probe.py</code>)</h3>
+<p>A decorrelated inverter (<code>qwen2.5:14b</code>) reconstructs the request from the old model's output,
+gates it, and re-tests the new model — a convergent check that the effect isn't a paraphraser
+artifact. Reads <code>cfg.judges</code> for the shared judge.</p>
+<pre><code class="language-bash">python3 tools/run_independent_probe.py --config configs/recycle_3_31.yaml \
+  --behaviours results/cells_llama3-8b_llama31-8b/sorrybench_p_minus.csv \
+  --cache cache/llama_gen.jsonl --out results/runs/rpe_3_31_sorrybench/
+</code></pre>
+<hr />
+<h2 id="6-dashboards">6. Dashboards</h2>
+<h3 id="generated-server-side-make_dashboardpy">Generated (server-side) — <code>make_dashboard.py</code></h3>
+<p>Renders the full HTML (sections 01–07, scroll↔tabs toggle). Uses the cache for the 2×2 flow
+and response cards.</p>
+<pre><code class="language-bash">python3 tools/make_dashboard.py \
+  --config configs/recycle_3_31.yaml --old llama3-8b --new llama31-8b \
+  --cache cache/llama_gen.jsonl \
+  --behaviours data/sorrybench.csv \
+  --manifest results/runs/recycle_3_31_sorrybench/manifest_sorrybench.jsonl \
+  --corrected results/runs/recycle_3_31_sorrybench/corrected_sorrybench.json \
+  --rpe-manifest results/runs/rpe_3_31_sorrybench/rpe_panel.html/rpe_manifest_sorrybench.jsonl \
+  --attack-transfer results/runs/attack_transfer/llama31-8b_judged_original.json \
+  --attack-transfer-70b results/runs/attack_transfer/llama31-70b_judged.json \
+  --out &quot;results/dashboard_$(date +%Y%m%d_%H%M).html&quot;
+</code></pre>
+<ul>
+<li>Multi-benchmark: use <code>--merge "manifest.jsonl:behaviours.csv"</code> entries (bids namespaced per bench).</li>
+<li>Flags: <code>--corrected</code>, <code>--rpe-manifest</code>, <code>--attack-transfer[-70b]</code> are each optional; a section
+  renders only when its file is supplied.</li>
+<li>Always date <code>--out</code> so runs aren't overwritten.</li>
+</ul>
+<h3 id="batch-build_all_dashboardspy">Batch — <code>build_all_dashboards.py</code></h3>
+<p>Regenerates one dated dashboard per run under <code>results/runs/</code>:</p>
+<pre><code class="language-bash">python3 tools/build_all_dashboards.py --dry-run   # preview the plan
+python3 tools/build_all_dashboards.py             # build
+</code></pre>
+<p>Infers the pair from the folder name and wires in any <code>corrected_</code>/<code>rpe_</code>/attack files present.
+Runs whose folder name lacks <code>&lt;old&gt;_to_&lt;new&gt;</code> need a <code>PAIR_OVERRIDE</code> entry (see the file header).</p>
+<h3 id="standalone-client-side-dashboard_standalonehtml">Standalone (client-side) — <code>dashboard_standalone.html</code></h3>
+<p>A boilerplate HTML that populates <strong>in the browser</strong> when you drop in files — no server, nothing
+uploaded. Recognises <code>manifest.jsonl</code> (gate/style + variant browser), <code>corrected_*.json</code>
+(headline), and attack <code>*_judged.json</code> (transfer bars). Separate from <code>make_dashboard.py</code>; the
+2×2 flow / response cards are omitted (they need the cache). Give it to reviewers who just want
+to open a file and drag results in.</p>
+<hr />
+<h2 id="7-configuration">7. Configuration</h2>
+<p>A run is one YAML. Blocks:</p>
+<table>
+<thead>
+<tr>
+<th>Block</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>seed</code></td>
+<td>global seed (cache keying, sampling)</td>
+</tr>
+<tr>
+<td><code>lineage</code></td>
+<td>ordered model keys; consecutive pairs are evaluated</td>
+</tr>
+<tr>
+<td><code>real</code></td>
+<td>per-model endpoint (<code>provider</code>, <code>base_url</code>, <code>model_id</code>, <code>temperature</code>, <code>max_tokens</code>)</td>
+</tr>
+<tr>
+<td><code>transform_classes</code></td>
+<td>the 6 styles: <code>paraphrase, syntactic, lexical, back_translation, tense_shift, register</code></td>
+</tr>
+<tr>
+<td><code>paraphraser</code></td>
+<td>non-Llama paraphraser (<code>qwen2.5:3b</code>)</td>
+</tr>
+<tr>
+<td><code>judges</code></td>
+<td>the decorrelated judge (<code>rubric: qwen2.5:14b</code>, temp 0)</td>
+</tr>
+<tr>
+<td><code>gate</code></td>
+<td>thresholds: <code>cosine 0.75</code>, <code>bertscore 0.85</code>, <code>nli_entail 0.60</code>, <code>llm_intent 0.50</code></td>
+</tr>
+<tr>
+<td><code>budget</code></td>
+<td><code>k_canonical_samples: 3</code>, <code>paraphrases_per_behaviour: 8</code></td>
+</tr>
+<tr>
+<td><code>decision</code></td>
+<td><code>min_p_minus: 30</code>, <code>pi_star</code>, <code>kappa_floor: 0.60</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Consistency rule.</strong> Every config used across a lineage must carry <strong>identical</strong> <code>judges</code>,
+<code>gate</code>, and <code>transform_classes</code> blocks, or the pairs aren't comparable. Cache keys use the
+<strong>cfg key</strong> (e.g. <code>llama3-8b</code>), not the <code>model_id</code> — keep keys stable to reuse the cache.</p>
+</blockquote>
+<hr />
+<h2 id="8-recipes">8. Recipes</h2>
+<p><strong>Add a new benchmark.</strong> Drop a CSV with a <code>Goal</code> column into <code>data/&lt;name&gt;.csv</code>, then:</p>
+<pre><code class="language-bash">python3 -m recyclebench pilot-pminus --config &lt;cfg&gt; --old &lt;m&gt; --new &lt;m&gt; \
+  --behaviours data/&lt;name&gt;.csv --cache cache/llama_gen.jsonl
+# if |P⁻| ≥ 30:
+python3 -m recyclebench run-real --config &lt;cfg&gt; \
+  --behaviours results/cells_&lt;m&gt;_&lt;m&gt;/&lt;name&gt;_p_minus.csv \
+  --cache cache/llama_gen.jsonl --manifest results/runs/&lt;name&gt;/manifest_&lt;name&gt;.jsonl
+</code></pre>
+<p><strong>Add a new pair.</strong> Add both models to the config's <code>real:</code> block and put them adjacent in
+<code>lineage:</code>. Reuse <code>cache/llama_gen.jsonl</code> so prior canonical screens are hits.</p>
+<p><strong>Run the full lineage overnight.</strong> Use <code>real_llama_lineage_all.yaml</code> + the full benchmark CSV,
+under <code>caffeinate</code>, with Ollama co-resident (§10):</p>
+<pre><code class="language-bash">caffeinate -i nohup python3 -m recyclebench run-real \
+  --config configs/real_llama_lineage_all.yaml --behaviours data/sorrybench.csv \
+  --cache cache/llama_gen.jsonl \
+  --manifest results/runs/lineage_$(date +%Y%m%d)/manifest.jsonl \
+  &gt; logs/lineage_$(date +%Y%m%d).log 2&gt;&amp;1 &amp;
+</code></pre>
+<hr />
+<h2 id="9-outputs-reference">9. Outputs reference</h2>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>results/cells_&lt;old&gt;_&lt;new&gt;/&lt;bench&gt;_p_minus.csv</code></td>
+<td>the P⁻ behaviours (screen output)</td>
+</tr>
+<tr>
+<td><code>results/runs/&lt;run&gt;/manifest_&lt;bench&gt;.jsonl</code></td>
+<td>frozen variants + gate-audit records</td>
+</tr>
+<tr>
+<td><code>results/runs/&lt;run&gt;/summary_&lt;bench&gt;.json</code></td>
+<td>run summary (raw RSR/PBR)</td>
+</tr>
+<tr>
+<td><code>results/runs/&lt;run&gt;/corrected_&lt;bench&gt;.json</code></td>
+<td><strong>calibrated headline</strong> (reported numbers)</td>
+</tr>
+<tr>
+<td><code>results/runs/attack_transfer/*.json</code></td>
+<td>attack-transfer results</td>
+</tr>
+<tr>
+<td><code>results/runs/&lt;rpe&gt;/rpe_manifest_&lt;bench&gt;.jsonl</code></td>
+<td>RPE probe output</td>
+</tr>
+<tr>
+<td><code>results/dashboard_*.html</code></td>
+<td>generated dashboards</td>
+</tr>
+<tr>
+<td><code>audit/&lt;arm&gt;/judge_sheet.csv</code></td>
+<td>judge-calibration sheets (human labels)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Manifest record shapes</strong> (JSONL): <code>{"type":"admitted","bid":…,"variants":[{"index","text","transform_class"}]}</code>
+and <code>{"type":"audit","bid":…,"transform_class":…,"admitted":bool,"nli_entail":float}</code>.</p>
+<hr />
+<h2 id="10-troubleshooting-ops">10. Troubleshooting &amp; ops</h2>
+<p><strong>Throughput collapses / run crawls (~1 variant per 30 s).</strong> Ollama is thrashing — reloading a
+multi-GB model between the target and judge on every call. Fix: restart Ollama with
+<code>OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=1h</code> so both stay resident. Confirm with
+<code>ollama ps</code> — you should see <strong>two</strong> models loaded, not one that keeps changing.</p>
+<p><strong>"Is it hung?"</strong> The log is <strong>silent during the query/judge phase by design</strong> (only startup +
+final summary are logged), and the Python process sits at <strong>0 % CPU</strong> because Ollama does the
+compute. So neither is a reliable signal. The real progress signal is the <strong>cache file mtime /
+line count</strong> growing:</p>
+<pre><code class="language-bash">wc -l cache/llama_gen.jsonl; sleep 60; wc -l cache/llama_gen.jsonl   # should rise
+tail -5 /tmp/ollama.log                                               # active request lines
+</code></pre>
+<p>(Flat cache can still mean "re-judging already-cached responses" — judge verdicts add no cache
+lines. Cross-check with the Ollama request log.)</p>
+<p><strong>Overnight runs stall.</strong> The Mac slept and the Ollama sockets died. Always wrap long runs in
+<code>caffeinate -i</code>, keep it plugged in, lid open.</p>
+<p><strong>Resuming.</strong> Just re-run the same command — cached responses are reused, only missing work runs.
+If you launched twice by accident, kill all but one (<code>pgrep -fl "recyclebench run-real"</code>), since
+concurrent writers can tear cache lines.</p>
+<p><strong>Corrupted cache after a crash.</strong> Validate and repair (keeps only parseable lines; back up first):</p>
+<pre><code class="language-bash">cp cache/llama_gen.jsonl cache/llama_gen.jsonl.bak
+python3 - &lt;&lt;'PY'
+import json; p=&quot;cache/llama_gen.jsonl&quot;; keep=[]
+for l in open(p,encoding=&quot;utf-8&quot;,errors=&quot;replace&quot;).read().splitlines():
+    if l.strip():
+        try: json.loads(l); keep.append(l)
+        except: pass
+open(p,&quot;w&quot;).write(&quot;\n&quot;.join(keep)+&quot;\n&quot;); print(&quot;kept&quot;, len(keep))
+PY
+</code></pre>
+<p><strong>κ below the floor.</strong> <code>apply_calibration.py</code> won't emit a corrected headline. Label more rows
+(re-run <code>judge_export_*</code> with a larger sample) or report raw with the caveat.</p>
+<hr />
+<p><em>Maintained alongside the code. For the methodology and results, see <code>RecycleBench_Report.pdf</code>.</em></p>
+</main>
+<script>
+(function(){
+  var content=document.getElementById("content"), toc=document.getElementById("toc");
+  // heading anchors + sidebar TOC
+  var heads=[...content.querySelectorAll("h2, h3")];
+  heads.forEach(function(h){
+    if(!h.id) h.id = h.textContent.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    var a=document.createElement("a"); a.className="anchor"; a.href="#"+h.id; a.textContent="¶"; h.appendChild(a);
+    var link=document.createElement("a"); link.href="#"+h.id;
+    link.textContent=h.textContent.replace("¶","").trim();
+    if(h.tagName==="H3") link.className="sub";
+    link.addEventListener("click",function(e){e.preventDefault();document.getElementById(h.id).scrollIntoView({behavior:"smooth",block:"start"});history.replaceState(null,"","#"+h.id);});
+    toc.appendChild(link); h._link=link;
+  });
+  // scroll-spy
+  if("IntersectionObserver" in window){
+    var obs=new IntersectionObserver(function(es){es.forEach(function(e){
+      if(e.isIntersecting){heads.forEach(function(x){x._link&&x._link.classList.remove("active");});
+        if(e.target._link) e.target._link.classList.add("active");}});},
+      {rootMargin:"-10% 0px -75% 0px",threshold:0});
+    heads.forEach(function(h){obs.observe(h);});
+  }
+  // copy buttons
+  content.querySelectorAll("pre").forEach(function(pre){
+    var b=document.createElement("button"); b.className="copybtn"; b.textContent="copy";
+    b.addEventListener("click",function(){
+      var code=pre.querySelector("code"); var txt=code?code.innerText:pre.innerText;
+      navigator.clipboard.writeText(txt).then(function(){b.textContent="copied";b.classList.add("done");
+        setTimeout(function(){b.textContent="copy";b.classList.remove("done");},1400);});
+    });
+    pre.appendChild(b);
+  });
+  // theme toggle (cycles light/dark, remembers)
+  var root=document.documentElement, tbtn=document.getElementById("theme");
+  try{var s=localStorage.getItem("rb_docs_theme"); if(s) root.setAttribute("data-theme",s);}catch(e){}
+  tbtn.addEventListener("click",function(){
+    var cur=root.getAttribute("data-theme");
+    var dark=(cur==="dark")|| (cur!=="light" && window.matchMedia("(prefers-color-scheme:dark)").matches);
+    var next=dark?"light":"dark"; root.setAttribute("data-theme",next);
+    try{localStorage.setItem("rb_docs_theme",next);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

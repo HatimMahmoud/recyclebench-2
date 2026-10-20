@@ -137,7 +137,7 @@ def _card(r):
 
 
 _CSS = """<style>
-.rpe-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#F5F4F0;--panel:#FFFFFF;
+.rpe-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;
   --held:#107C6E;--broke:#D8452B;--fix:#E3A008;
   background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.5}
 .rpe-root *{box-sizing:border-box}
@@ -202,7 +202,7 @@ def _body(agg):
     cards = "".join(_card(r) for r in agg["records"])
     return (
         '<section class="rpe-root"><div class="rpe-wrap">'
-        '<h2><span class="n">01·e</span>Independent probe — inversion (RPE)</h2>'
+        '<h2><span class="n">04</span>Independent probe — inversion (RPE)</h2>'
         '<p class="rpe-sub">One card per P⁻ behaviour. The RPE arm <b>inverts the old model’s output</b> '
         'to reconstruct the request (a decorrelated prober, not a paraphraser), gates it for intent, and '
         're-queries the new model — an independent check that the recycling result isn’t a paraphraser artifact.</p>'

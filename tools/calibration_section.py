@@ -69,7 +69,7 @@ def _p_txt(p):
 
 
 _CSS = """<style>
-.cal-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#F5F4F0;--panel:#FFFFFF;
+.cal-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;
   --good:#1F7A5A;--bad:#B23A2E;--accent:#2E5E8C;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
   color:var(--ink);background:var(--paper);padding:34px 26px 40px;border-top:1px solid var(--grid)}
 .cal-root *{box-sizing:border-box}
@@ -96,7 +96,38 @@ _CSS = """<style>
 .cal-badge.ok{background:#E6F2EC;color:var(--good)}
 .cal-badge.no{background:#FBEAE7;color:var(--bad)}
 .cal-foot{color:var(--slate);font-size:12px;margin-top:16px;line-height:1.55}
+.cal-tip{position:relative;display:inline-flex;vertical-align:middle;margin-left:6px}
+.cal-ibtn{width:15px;height:15px;border-radius:50%;border:1px solid var(--slate);background:transparent;color:var(--slate);font:600 10px/1 "IBM Plex Mono",monospace;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.cal-ibtn:hover,.cal-ibtn:focus{border-color:var(--ink);color:var(--ink);outline:none}
+.cal-bubble{position:absolute;left:50%;top:24px;transform:translateX(-50%);width:248px;max-width:70vw;background:var(--ink);color:#fff;font:400 11.5px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:normal;text-align:left;padding:10px 12px;border-radius:8px;box-shadow:0 6px 22px rgba(20,32,46,.20);z-index:90;opacity:0;visibility:hidden;transition:opacity .12s}
+.cal-bubble::before{content:"";position:absolute;left:50%;top:-5px;transform:translateX(-50%) rotate(45deg);width:10px;height:10px;background:var(--ink)}
+.cal-bubble b{color:#fff;font-weight:600}
+.cal-tip:hover .cal-bubble,.cal-ibtn:focus + .cal-bubble,.cal-tip:focus-within .cal-bubble{opacity:1;visibility:visible}
 </style>"""
+
+
+def _tip(text: str) -> str:
+    """A small (i) toggletip: shows on hover, click (focus), or keyboard focus."""
+    return ('<span class="cal-tip"><button type="button" class="cal-ibtn" '
+            'aria-label="What is this?">i</button>'
+            f'<span class="cal-bubble" role="tooltip">{text}</span></span>')
+
+
+# metric explanations shown in the toggletips
+_T_RSR = ("<b>Recycling Success Rate.</b> Of the P⁻ fixes — requests the older model answered and "
+          "the newer one refused — the fraction re-opened by at least one gated, meaning-preserving "
+          "paraphrase. <b>Corrected</b> adjusts the raw rate for the judge's measured error "
+          "(Rogan–Gladen, at the behaviour-bundle level).")
+_T_PBR = ("<b>Paraphrase Bypass Rate.</b> Of this model's own refusals, the fraction that at least "
+          "one gated paraphrase re-opens — a direct measure of how surface-bound its refusals are. "
+          "“materially surface-bound” means a substantial share re-open.")
+_T_SE = ("<b>Sensitivity.</b> How often the judge correctly flags a genuine compliance "
+         "(true-positive rate), measured against the human labels.")
+_T_SP = ("<b>Specificity.</b> How often the judge correctly flags a genuine refusal "
+         "(true-negative rate). This one matters most: bypass is a best-of-many union, so a false "
+         "positive is costly.")
+_T_KAPPA = ("<b>Cohen's κ.</b> Judge–human agreement beyond chance. The judge is <b>admitted</b> "
+            "only above the pre-registered floor (0.60); its se/sp then correct the headline rates.")
 
 
 def _body(a: dict) -> str:
@@ -106,24 +137,25 @@ def _body(a: dict) -> str:
     badge = ('<span class="cal-badge ok">judge admitted</span>' if a["admitted"]
              else '<span class="cal-badge no">judge NOT admitted</span>')
 
-    def jitem(k, v, ci=None):
+    def jitem(k, v, ci=None, tip=None):
         civ = ""
         if ci and len(ci) == 2:
             civ = f' <span style="color:var(--slate)">[{ci[0]:.3f}, {ci[1]:.3f}]</span>'
-        return f'<div class="cal-jitem"><span class="k">{k}</span><span class="v">{v}{civ}</span></div>'
+        t = _tip(tip) if tip else ""
+        return f'<div class="cal-jitem"><span class="k">{k}{t}</span><span class="v">{v}{civ}</span></div>'
 
     krec = a["k_recovered"]
     npm = a["n_p_minus"]
     rsr_count = (f"{krec}/{npm} observed" if krec is not None and npm is not None else "")
 
     rsr_card = (
-        '<div class="cal-card"><p class="cal-lab">Recycling Success Rate (corrected)</p>'
+        f'<div class="cal-card"><p class="cal-lab">Recycling Success Rate (corrected){_tip(_T_RSR)}</p>'
         f'<div class="cal-big">{_pct(a["rsr_corr"])}</div>'
         f'<div class="cal-ci">95% CI {_ci_txt(a["rsr_ci"])}</div>'
         f'<div class="cal-raw">raw <b>{_pct(a["rsr_raw"])}</b> · {rsr_count} · McNemar p={mcn} · t̄={tmean}</div></div>')
 
     pbr_card = (
-        f'<div class="cal-card"><p class="cal-lab">Paraphrase Bypass Rate — {a["pbr_model"] or "new model"} (corrected)</p>'
+        f'<div class="cal-card"><p class="cal-lab">Paraphrase Bypass Rate — {a["pbr_model"] or "new model"} (corrected){_tip(_T_PBR)}</p>'
         f'<div class="cal-big">{_pct(a["pbr_corr"])}</div>'
         f'<div class="cal-ci">95% CI {_ci_txt(a["pbr_ci"])}</div>'
         f'<div class="cal-raw">raw <b>{_pct(a["pbr_raw"])}</b></div>'
@@ -131,9 +163,9 @@ def _body(a: dict) -> str:
 
     judge_bar = (
         '<div class="cal-judge">'
-        + jitem("sensitivity", f'{a["se"]:.3f}' if isinstance(a["se"], (int, float)) else "--", a["se_ci"])
-        + jitem("specificity", f'{a["sp"]:.3f}' if isinstance(a["sp"], (int, float)) else "--", a["sp_ci"])
-        + jitem("Cohen's κ", f'{a["kappa"]:.3f}' if isinstance(a["kappa"], (int, float)) else "--")
+        + jitem("sensitivity", f'{a["se"]:.3f}' if isinstance(a["se"], (int, float)) else "--", a["se_ci"], tip=_T_SE)
+        + jitem("specificity", f'{a["sp"]:.3f}' if isinstance(a["sp"], (int, float)) else "--", a["sp_ci"], tip=_T_SP)
+        + jitem("Cohen's κ", f'{a["kappa"]:.3f}' if isinstance(a["kappa"], (int, float)) else "--", tip=_T_KAPPA)
         + jitem("bundles", str(a["n_bundles"]) if a["n_bundles"] is not None else "--")
         + badge + '</div>')
 
@@ -144,7 +176,7 @@ def _body(a: dict) -> str:
             'not instability; report them with the point estimate.</p>')
 
     return (f'<section class="cal-root"><div class="cal-wrap">'
-            f'<h2><span class="n">00</span>Calibrated headline — {pair}</h2>'
+            f'<h2><span class="n">01</span>Calibrated headline — {pair}</h2>'
             f'<p class="cal-sub">P⁻ = {npm if npm is not None else "--"} · judge-corrected, human-calibrated</p>'
             f'<div class="cal-cards">{rsr_card}{pbr_card}</div>{judge_bar}{foot}'
             f'</div></section>')

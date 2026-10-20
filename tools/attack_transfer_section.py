@@ -70,7 +70,7 @@ def aggregate(sources, flag=None) -> dict:
 
 
 _CSS = """<style>
-.atk-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#F5F4F0;--panel:#FFFFFF;
+.atk-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;
   --bar:#2E5E8C;--bar2:#9BB4CC;--warn:#B8791F;--warnbg:#FBF0DC;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);
   background:var(--paper);padding:34px 26px 40px;border-top:1px solid var(--grid)}
@@ -96,12 +96,15 @@ _CSS = """<style>
 
 
 def _pct(x):
-    return f"{x:.1f}%" if isinstance(x, (int, float)) else "--"
+    # x is a fraction in [0,1]; render as a percent so the number matches the bar width
+    return f"{100*x:.1f}%" if isinstance(x, (int, float)) else "--"
 
 
-def _body(a: dict) -> str:
+def _body(a: dict, code: str = "07", heading: str = "Known-attack transfer",
+          anchor_id: str | None = None) -> str:
     rows = a["classes"]
-    scale = max([(r["transfer"] or 0) for r in rows] + [1.0])  # bar scale = max observed
+    # absolute scale: bar width in % of track == the transfer rate in %, so the bar length
+    # always equals the printed number (0 -> empty bar, 1.0 -> full track).
     judge = ("judge " + "/".join(a["judge"])) if a.get("judge") else "judge uncalibrated"
     sub = (f"model <b>{a['model']}</b> · denominator = {a['n_ref']} behaviours refused "
            f"canonically (baseline {a.get('baseline_class','original_prompt')}) · {judge} · RAW")
@@ -109,7 +112,7 @@ def _body(a: dict) -> str:
     line = []
     for r in rows:
         tr = r["transfer"]
-        w = max(1.5, 100 * (tr or 0) / scale)
+        w = min(100.0, 100.0 * tr) if tr else 0.0
         ci = ""
         if r["transfer_ci"]:
             ci = f'<span class="ci"> [{100*r["transfer_ci"][0]:.1f},{100*r["transfer_ci"][1]:.1f}]</span>'
@@ -132,22 +135,26 @@ def _body(a: dict) -> str:
                  'are read by eye. ')
     foot += 'All rates RAW (judge-uncalibrated for this arm).</p>'
 
-    chip = '<span class="atk-chip">⚠ 2 classes pending verification</span>' if a.get("any_flagged") else ""
-    return (f'<section class="atk-root"><div class="atk-wrap">'
-            f'<h2><span class="n">01·g</span>Known-attack transfer{chip}</h2>'
+    chip = ('<span class="atk-chip">⚠ cipher classes pending verification</span>'
+            if a.get("any_flagged") else "")
+    idattr = f' id="{anchor_id}"' if anchor_id else ""
+    return (f'<section class="atk-root"{idattr}><div class="atk-wrap">'
+            f'<h2><span class="n">{code}</span>{heading}{chip}</h2>'
             f'<p class="atk-sub">{sub}</p>{"".join(line)}{foot}'
             f'</div></section>')
 
 
-def render_fragment(sources, flag=None) -> str:
+def render_fragment(sources, flag=None, code="07", heading="Known-attack transfer",
+                    anchor_id=None) -> str:
     a = aggregate(sources, flag=flag)
-    return (_CSS + "\n" + _body(a)) if a.get("ok") else ""
+    return (_CSS + "\n" + _body(a, code, heading, anchor_id)) if a.get("ok") else ""
 
 
-def inject(html_doc: str, sources, flag=None) -> str:
+def inject(html_doc: str, sources, flag=None, code="07", heading="Known-attack transfer",
+           anchor_id=None) -> str:
     a = aggregate(sources, flag=flag)
     if not a.get("ok"):
         return html_doc
-    frag = _CSS + "\n" + _body(a)
+    frag = _CSS + "\n" + _body(a, code, heading, anchor_id)
     i = html_doc.rfind("</body>")
     return (html_doc[:i] + frag + "\n" + html_doc[i:]) if i != -1 else html_doc + frag

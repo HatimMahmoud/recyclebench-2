@@ -169,7 +169,7 @@ def after_state(cache, new, bid, admitted_variants, k):
     return tries, recovered
 
 
-COL = dict(paper="#F5F4F0", panel="#FFFFFF", ink="#14202E", slate="#6B7A88",
+COL = dict(paper="#FAFAFA", panel="#FFFFFF", ink="#14202E", slate="#6B7A88",
            grid="#E4E2DB", broke="#D8452B", held="#107C6E", fix="#E3A008",
            regress="#B5522E", washed="#EEF1F2")
 
@@ -369,7 +369,7 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
     cards = build_cards(cells, admitted, old, new, _cache_ref, _k_ref)
     disp = "" if active else ' style="display:none"'
     return f"""<div class="bview" data-view="{esc(view_id)}"{disp}>
-<h2><span class="step-n">01</span> The journey of every request</h2>
+<h2>The journey of every request</h2>
 <div class="panel">{flow}
 <div class="legend">
 <span><i style="background:{COL['broke']}"></i>answered (harmful content produced)</span>
@@ -377,7 +377,7 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
 <span><i style="background:{COL['fix']}"></i>P⁻ — the fix we test</span>
 <span><i style="background:{COL['regress']}"></i>regression</span></div></div>
 
-<h2><span class="step-n">01·b</span> The 2×2 at a glance</h2>
+<h2>The 2×2 at a glance</h2>
 <div class="panel"><div class="matrix">
   <div class="mcorner"></div>
   <div class="mhead mnew">{esc(new)} answered</div>
@@ -390,20 +390,21 @@ def build_view(cells, admitted, audit, old, new, rsr, recovered, _cache_ref, _k_
   <div class="mcell safe"><div class="mn">{bs}</div><div class="ml">both safe<br><span>both refused</span></div></div>
 </div><p class="q" style="margin-top:16px">{note}</p></div>
 
-<h2><span class="step-n">02</span> Did the fixes hold?</h2>
+<h2>Did the fixes hold?</h2>
 <div class="panel result">{gauge}
 <div class="funnel">
 <div class="fstep"><div class="fbar" style="background:{COL['fix']};width:100%">{pm}</div><div class="fcap">fixes to test (P⁻)</div></div>
 </div></div>
 
-<h2><span class="step-n">05</span> The fixed requests, in detail</h2>
+<h2>The fixed requests, in detail</h2>
 <p class="q" style="margin:0 0 8px">Real prompt and response text, collapsed by default. Expand any case.</p>
 <div class="pcards">{cards}</div>
 </div>"""
 
 
 def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run_meta="",
-           rpe_manifest=None, corrected=None, attack_transfer=None, _cache_ref=None, _k_ref=1):
+           rpe_manifest=None, corrected=None, attack_transfer=None, attack_transfer_70b=None,
+           _cache_ref=None, _k_ref=1):
     pm = len(cells["pminus"]); per = len(cells["persistent"])
     nf = len(cells["neg_flip"]); bs = len(cells["both_safe"])
     matrix_note = _matrix_note(pm, nf)
@@ -460,7 +461,7 @@ def render(cells, per_bench, admitted, audit, old, new, rsr, recovered, out, run
     today = __import__("datetime").date.today().isoformat()
     n3, n4, n5 = ("03", "04", "05") if tbars else ("--", "03", "04")
 
-    tbar_block = (f"<h2><span class='step-n'>{n3}</span> Which rewordings the gate accepted</h2><div class='panel'>"
+    tbar_block = (f"<h2>Which rewordings the gate accepted</h2><div class='panel'>"
                   "<p class='q' style='margin:0 0 14px;font-size:13.5px'>Each transformation produces candidate "
                   "rewordings; the gate keeps only those that still ask for the same thing. "
                   "Green = accepted, grey = generated.</p>" + tbars + "</div>") if tbars else ""
@@ -565,23 +566,45 @@ details[open] summary::before{{content:"\\2013"}}
 .foot{{color:var(--slate);font-size:12px;margin-top:60px;border-top:1px solid var(--grid);padding-top:16px;font-family:"IBM Plex Mono",monospace;line-height:1.7}}
 code{{font-family:"IBM Plex Mono";background:var(--washed);padding:1px 5px;border-radius:4px;font-size:.92em}}
 @media(prefers-reduced-motion:reduce){{.particles{{display:none}}}}
-</style></head><body><div class="wrap">
+.dnav{{position:fixed;top:0;left:0;width:216px;height:100vh;overflow-y:auto;background:var(--panel);border-right:1px solid var(--grid);padding:26px 14px;z-index:60}}
+.dnav .dnav-t{{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--slate);margin:0 0 12px;padding-left:10px}}
+.dnav a{{display:block;font-size:12.5px;color:var(--slate);text-decoration:none;padding:7px 10px;border-radius:7px;border-left:2px solid transparent;line-height:1.3;margin:1px 0;transition:all .12s}}
+.dnav a:hover{{background:var(--washed);color:var(--ink)}}
+.dnav a.active{{color:var(--ink);font-weight:600;border-left-color:var(--fix);background:var(--washed)}}
+@media(min-width:1000px){{body{{padding-left:216px}}}}
+@media(max-width:999px){{.dnav{{display:none}}}}
+.viewtoggle{{position:fixed;top:14px;right:16px;z-index:80;display:flex;gap:2px;background:var(--panel);border:1px solid var(--grid);border-radius:999px;padding:3px;box-shadow:0 1px 4px rgba(20,32,46,.08)}}
+.viewtoggle button{{display:inline-flex;align-items:center;justify-content:center;color:var(--slate);background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;line-height:0;transition:all .12s}}
+.viewtoggle button svg{{display:block}}
+.viewtoggle button:hover{{color:var(--ink)}}
+.viewtoggle button.active{{color:#fff;background:var(--fix)}}
+.htabs{{display:none}}
+body.view-tabs{{padding-left:0}}
+body.view-tabs .dnav{{display:none}}
+body.view-tabs .htabs{{display:flex;gap:4px;position:sticky;top:0;z-index:70;background:var(--panel);border-bottom:1px solid var(--grid);padding:12px 150px 12px 16px;overflow-x:auto;white-space:nowrap}}
+body.view-tabs .htabs a{{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--slate);text-decoration:none;padding:7px 13px;border-radius:8px;border:1px solid transparent;flex:0 0 auto}}
+body.view-tabs .htabs a:hover{{background:var(--washed);color:var(--ink)}}
+body.view-tabs .htabs a.active{{color:var(--ink);font-weight:600;background:var(--washed);border-color:var(--grid)}}
+body.view-tabs [data-secgroup]:not(.secshow){{display:none!important}}
+</style></head><body><div class="viewtoggle" id="vtog"><button data-v="scroll" class="active" title="Scroll view" aria-label="Scroll view"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="2.3" rx="1.1" fill="currentColor"/><rect x="2" y="6.85" width="12" height="2.3" rx="1.1" fill="currentColor"/><rect x="2" y="10.7" width="12" height="2.3" rx="1.1" fill="currentColor"/></svg></button><button data-v="tabs" title="Tab view" aria-label="Tab view"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"><rect x="2" y="3.2" width="12" height="9.6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="6.4" x2="14" y2="6.4" stroke="currentColor" stroke-width="1.5"/><line x1="6" y1="3.4" x2="6" y2="6.2" stroke="currentColor" stroke-width="1.3"/></svg></button></div><nav class="dnav" id="dnav"><p class="dnav-t">Sections</p></nav><nav class="htabs" id="htabs"></nav><div class="wrap">
 
-<p class="eyebrow">Refusal Recycling · behavioural measurement</p>
+<p class="eyebrow" id="sec-overview">Refusal Recycling · behavioural measurement</p>
 <h1>When a newer model fixes a jailbreak, does the fix survive a reword?</h1>
 <p class="lede">A safety fix is only real if it recognises the <em>intent</em>, not the exact words.
 We take the requests <b style="color:{COL['ink']}">{esc(new)}</b> refuses but
 <b style="color:{COL['ink']}">{esc(old)}</b> answered, reword them while preserving meaning, and test
 whether the newer model can be made to answer again.</p>
 <p class="meta">pair <b>{esc(old)} → {esc(new)}</b> &nbsp;·&nbsp; generated {today}{(' &nbsp;·&nbsp; ' + esc(run_meta)) if run_meta else ''}</p>
+<!--CALSLOT-->
 
 {bench_tabs}
 
+<h2 id="sec-results"><span class="step-n">02</span> Results</h2>
 {bench_tabs}
 
 {views}
 
-<h2><span class="step-n">04</span> By source benchmark</h2>
+<h2 id="sec-benchmark"><span class="step-n">03</span> By source benchmark</h2>
 <div class="panel"><table><tr><th class="bn">Benchmark</th><th class="num">P⁻ fixed</th><th>distribution</th><th class="num">screened</th></tr>
 {brows}</table>
 <div class="legend" style="margin-top:14px">
@@ -593,6 +616,85 @@ Response labels come from an automated judge; small-sample results are explorato
 </div>
 <script>
 function filterBench(t){{document.querySelectorAll('.btab').forEach(function(b){{b.classList.toggle('active', b.getAttribute('data-t')===t);}});document.querySelectorAll('.bview').forEach(function(v){{v.style.display=(v.getAttribute('data-view')===t)?'':'none';}});}}
+// ---- section nav + view switch: 'scroll' (vertical, left nav + scroll-spy) / 'tabs' (horizontal, one section per tab) ----
+(function(){{
+  var SPEC=[['#sec-overview','01 · Overview & headline'],
+    ['#sec-results','02 · Results'],['#sec-benchmark','03 · By benchmark'],
+    ['.rpe-root','04 · RPE probe'],['.sa-root','05 · Style arcs'],
+    ['#sec-attack','06 · Attack transfer'],['#sec-attack70','06·b · Attack transfer · 70B'],
+    ['.pos-root','07 · Positioning']];
+  var curGroup=0, htabLinks=[], blocks=[];
+  function collectBlocks(){{
+    blocks=[]; var wrap=document.querySelector('.wrap');
+    if(wrap) Array.prototype.forEach.call(wrap.children,function(c){{if(c.tagName!=='SCRIPT') blocks.push(c);}});
+    // body-level injected sections (div OR section) — any <body> child that isn't shell chrome or the wrap
+    Array.prototype.forEach.call(document.body.children,function(c){{
+      if(c===wrap||c.tagName==='SCRIPT') return;
+      if(c.id==='dnav'||c.id==='htabs'||c.id==='vtog') return;
+      blocks.push(c);
+    }});
+  }}
+  function activate(k){{
+    curGroup=k;
+    blocks.forEach(function(b){{b.classList.toggle('secshow', parseInt(b.getAttribute('data-secgroup'),10)===k);}});
+    htabLinks.forEach(function(a,idx){{a.classList.toggle('active', idx===k);}});
+    var tabs=document.body.classList.contains('view-tabs');
+    // hide the .wrap shell entirely when the active section lives outside it (a body-level
+    // section), so its padding doesn't leave a big empty gap above the section.
+    var wrap=document.querySelector('.wrap');
+    if(wrap) wrap.style.display=(tabs && !wrap.querySelector('[data-secgroup].secshow'))?'none':'';
+    if(tabs) window.scrollTo(0,0);
+  }}
+  function setView(v){{
+    var tabs=(v==='tabs');
+    document.body.classList.toggle('view-tabs', tabs);
+    var tg=document.getElementById('vtog');
+    if(tg) Array.prototype.forEach.call(tg.querySelectorAll('button'),function(b){{b.classList.toggle('active', b.getAttribute('data-v')===v);}});
+    if(tabs){{ activate(curGroup); }}
+    else {{ var w=document.querySelector('.wrap'); if(w) w.style.display=''; }}
+    try{{localStorage.setItem('rb_view',v);}}catch(e){{}}
+  }}
+  function build(){{
+    var nav=document.getElementById('dnav');
+    var items=[];
+    SPEC.forEach(function(s){{var el=document.querySelector(s[0]); if(!el) return;
+      if(!el.id) el.id='nav-'+Math.random().toString(36).slice(2,8);
+      items.push({{el:el,label:s[1]}});}});
+    items.sort(function(a,b){{return (a.el.compareDocumentPosition(b.el)&Node.DOCUMENT_POSITION_FOLLOWING)?-1:1;}});
+    // left dnav (scroll view)
+    var links={{}};
+    if(nav) items.forEach(function(it){{var a=document.createElement('a');a.href='#'+it.el.id;
+      a.textContent=it.label;nav.appendChild(a);links[it.el.id]=a;}});
+    // assign every top-level block to the section boundary that precedes it (for tabs view)
+    collectBlocks();
+    var bset=items.map(function(it){{return it.el;}});
+    var gi=-1;
+    blocks.forEach(function(b){{var bi=bset.indexOf(b); if(bi!==-1) gi=bi;
+      b.setAttribute('data-secgroup', gi<0?0:gi);}});
+    // horizontal tab bar (tabs view)
+    var ht=document.getElementById('htabs');
+    if(ht){{htabLinks=[]; items.forEach(function(it,idx){{var a=document.createElement('a');
+      a.href='#'+it.el.id; a.textContent=it.label;
+      a.addEventListener('click',function(ev){{ev.preventDefault(); activate(idx);}});
+      ht.appendChild(a); htabLinks.push(a);}});}}
+    // view toggle buttons
+    var tg=document.getElementById('vtog');
+    if(tg) Array.prototype.forEach.call(tg.querySelectorAll('button'),function(b){{
+      b.addEventListener('click',function(){{setView(b.getAttribute('data-v'));}});}});
+    // scroll-spy (meaningful only in scroll view; harmless in tabs)
+    if(items.length){{
+      var obs=new IntersectionObserver(function(es){{es.forEach(function(e){{
+        if(e.isIntersecting){{for(var k in links){{links[k].classList.remove('active');}}
+          if(links[e.target.id]) links[e.target.id].classList.add('active');}}}});}},
+        {{rootMargin:'-45% 0px -50% 0px',threshold:0}});
+      items.forEach(function(it){{obs.observe(it.el);}});
+    }}
+    // restore saved view (default = scroll/vertical)
+    var saved='scroll'; try{{saved=localStorage.getItem('rb_view')||'scroll';}}catch(e){{}}
+    setView(saved);
+  }}
+  if(document.readyState!=='loading') build(); else document.addEventListener('DOMContentLoaded',build);
+}})();
 </script>
 </body></html>"""
     # --- Appended dashboard sections (self-contained; order: 01·e, 01·f, 02) ---
@@ -604,10 +706,12 @@ function filterBench(t){{document.querySelectorAll('.btab').forEach(function(b){
     except Exception:
         pass
     try:
-        if corrected:
-            from calibration_section import inject as add_calib
-            doc = add_calib(doc, corrected)        # 00 · calibrated headline (judge-corrected)
+        # 02 · calibrated headline — placed at the TOP (CALSLOT), right after the overview,
+        # not appended at the end, so page order matches the numbering.
+        from calibration_section import render_fragment as _cal_frag
+        doc = doc.replace("<!--CALSLOT-->", _cal_frag(corrected) if corrected else "")
     except Exception as _e:
+        doc = doc.replace("<!--CALSLOT-->", "")
         print(f"  [calibration_section] skipped: {_e}")
     try:
         if rpe_manifest:
@@ -623,9 +727,13 @@ function filterBench(t){{document.querySelectorAll('.btab').forEach(function(b){
     except Exception as _e:
         print(f"  [style_arcs_section] skipped: {_e}")
     try:
-        if attack_transfer:
-            from attack_transfer_section import inject as add_attack
-            doc = add_attack(doc, attack_transfer)  # 01·g · known-attack transfer (Arm 3)
+        from attack_transfer_section import inject as add_attack
+        if attack_transfer:                         # 07 · attack transfer (the model under test)
+            doc = add_attack(doc, attack_transfer, code="06",
+                             heading=f"Known-attack transfer — {new}", anchor_id="sec-attack")
+        if attack_transfer_70b:                     # 06·b · a second, STANDALONE model (e.g. 70B)
+            doc = add_attack(doc, attack_transfer_70b, code="06·b",
+                             heading="Known-attack transfer — llama3.1-70B", anchor_id="sec-attack70")
     except Exception as _e:
         print(f"  [attack_transfer_section] skipped: {_e}")
     try:
@@ -668,7 +776,10 @@ def main(argv=None):
                          "count from this file, so the dashboard can never drift from the run.")
     ap.add_argument("--attack-transfer", nargs="*", default=None,
                     help="one or more result JSONs from run_attack_transfer.py -> renders section "
-                         "01·g (known-attack transfer, Arm 3); classes are merged across the files.")
+                         "07 (known-attack transfer, Arm 3) for the model under test; merged across files.")
+    ap.add_argument("--attack-transfer-70b", nargs="*", default=None,
+                    help="result JSON(s) for a SECOND, standalone model (e.g. the 70B run from "
+                         "judge_70b_jsonl.py) -> renders its own section 07·b, not a side-by-side.")
     args = ap.parse_args(argv)
 
     cfg = Config.load(args.config); k = cfg.budget.k_canonical_samples
@@ -710,6 +821,7 @@ def main(argv=None):
     pm, tries, adm = render(cells, per_bench, admitted, audit, args.old, args.new, args.rsr, rec,
                             args.out, args.meta, rpe_manifest=args.rpe_manifest,
                             corrected=corrected, attack_transfer=args.attack_transfer,
+                            attack_transfer_70b=args.attack_transfer_70b,
                             _cache_ref=cache, _k_ref=k)
     print(f"wrote {args.out}")
     print(f"  P^-={pm}  paraphrase_tries={tries}  gated_admitted={adm}" + (f"  RSR={args.rsr}" if args.rsr is not None else ""))

@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RecycleBench — Standalone Dashboard</title>
+<!--
+  RecycleBench · STANDALONE dashboard (boilerplate until you drop in run files).
+  Entirely client-side: nothing is uploaded; parsing happens in your browser.
+  SEPARATE from tools/make_dashboard.py. The calibrated-headline, attack-transfer and
+  paraphrase-style sections are rendered with the SAME CSS and markup as make_dashboard.py's
+  section modules (calibration_section.py / attack_transfer_section.py / style_arcs_section.py),
+  so they are visually identical to the generated dashboard.
+  Drop: manifest.jsonl · corrected_*.json · attack_*_judged.json  (70B attack -> its own 06·b).
+  The 2x2 flow and before/after response cards need the response cache and are omitted here.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ---------- shell (chrome only; the sections bring their own CSS) ---------- */
+:root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;--washed:#EEF1F2;--fix:#E3A008;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --disp:"Space Grotesk",var(--sans);--mono:"IBM Plex Mono",ui-monospace,monospace;}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+@media(min-width:1000px){body{padding-left:216px}}
+.viewtoggle{position:fixed;top:14px;right:16px;z-index:80;display:flex;gap:2px;background:var(--panel);border:1px solid var(--grid);border-radius:999px;padding:3px;box-shadow:0 1px 4px rgba(20,32,46,.08)}
+.viewtoggle button{display:inline-flex;align-items:center;justify-content:center;color:var(--slate);background:none;border:none;cursor:pointer;padding:6px 10px;border-radius:999px;line-height:0;transition:all .12s}
+.viewtoggle button svg{display:block}
+.viewtoggle button:hover{color:var(--ink)}
+.viewtoggle button.active{color:#fff;background:var(--fix)}
+.dnav{position:fixed;top:0;left:0;width:216px;height:100vh;overflow-y:auto;background:var(--panel);border-right:1px solid var(--grid);padding:26px 14px;z-index:60}
+.dnav .dnav-t{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--slate);margin:0 0 12px;padding-left:10px}
+.dnav a{display:block;font-size:12.5px;color:var(--slate);text-decoration:none;padding:7px 10px;border-radius:7px;border-left:2px solid transparent;line-height:1.3;margin:1px 0;cursor:pointer;transition:all .12s}
+.dnav a:hover{background:var(--washed);color:var(--ink)}
+.dnav a.active{color:var(--ink);font-weight:600;border-left-color:var(--fix);background:var(--washed)}
+@media(max-width:999px){.dnav{display:none}}
+.htabs{display:none}
+body.view-tabs{padding-left:0}
+body.view-tabs .dnav{display:none}
+body.view-tabs .htabs{display:flex;gap:4px;position:sticky;top:0;z-index:70;background:var(--panel);border-bottom:1px solid var(--grid);padding:12px 150px 12px 16px;overflow-x:auto;white-space:nowrap}
+body.view-tabs .htabs a{font-family:var(--mono);font-size:12px;color:var(--slate);text-decoration:none;padding:7px 13px;border-radius:8px;border:1px solid transparent;flex:0 0 auto;cursor:pointer}
+body.view-tabs .htabs a:hover{background:var(--washed);color:var(--ink)}
+body.view-tabs .htabs a.active{color:var(--ink);font-weight:600;background:var(--washed);border-color:var(--grid)}
+body.view-tabs #main > section:not(.secshow){display:none!important}
+body.view-tabs .hero{display:none}
+.wrap{max-width:1040px;margin:0 auto;padding:40px 26px 30px}
+.hero h1{font-family:var(--disp);font-weight:700;font-size:30px;letter-spacing:-.02em;margin:0 0 8px}
+.hero .lede{color:#3a4b59;font-size:15px;max-width:68ch;margin:0 0 22px}
+.dropzone{border:2px dashed var(--grid);border-radius:14px;background:var(--panel);padding:34px 24px;text-align:center;cursor:pointer;transition:all .15s;color:var(--slate)}
+.dropzone:hover,.dropzone.drag{border-color:var(--fix);background:#fffdf6;color:var(--ink)}
+.dropzone b{color:var(--ink)}
+.dz-sub{font-size:12.5px;margin-top:8px}
+.dz-sub code{font-family:var(--mono);background:var(--washed);padding:1px 6px;border-radius:4px;font-size:12px}
+.loaded{margin-top:16px;display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:11.5px;padding:4px 11px;border-radius:999px;border:1px solid var(--grid);background:var(--panel);display:inline-flex;align-items:center;gap:7px}
+.chip .ok{color:#107C6E;font-weight:600}.chip .x{color:#B23A2E;font-weight:600}
+.toolbar{margin-top:14px}
+.btn{font-family:var(--mono);font-size:12px;border:1px solid var(--grid);background:var(--panel);color:var(--ink);border-radius:8px;padding:7px 13px;cursor:pointer}
+.btn:hover{background:var(--washed)}
+.empty{max-width:1040px;margin:30px auto;padding:0 26px;color:var(--slate);font-size:14px}
+.empty ul{line-height:1.9}
+.appfoot{max-width:1040px;margin:20px auto 0;padding:16px 26px 40px;color:var(--slate);font-size:12px;font-family:var(--mono);border-top:1px solid var(--grid);line-height:1.7}
+/* variant browser (standalone-only extra) */
+.vb-root{background:var(--paper);color:var(--ink);font-family:var(--sans);padding:34px 26px 40px;border-top:1px solid var(--grid)}
+.vb-wrap{max-width:980px;margin:0 auto}
+.vb-root h2{font-family:var(--disp);font-weight:600;font-size:21px;letter-spacing:-.01em;margin:0 0 4px}
+.vb-root h2 .n{font-family:var(--mono);font-size:13px;color:var(--slate);font-weight:500;margin-right:10px}
+.vb-sub{color:var(--slate);font-size:13px;margin:0 0 16px}
+.vb-ctl{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+.vb-ctl select,.vb-ctl input{font-family:var(--sans);font-size:13px;padding:8px 11px;border:1px solid var(--grid);border-radius:8px;background:var(--panel);color:var(--ink)}
+.vb-ctl input{flex:1;min-width:180px}
+.vb-count{font-family:var(--mono);font-size:12px;color:var(--slate)}
+.vcard{border:1px solid var(--grid);background:var(--panel);border-radius:10px;padding:12px 14px;margin:8px 0}
+.vcard .meta{font-family:var(--mono);font-size:11px;color:var(--slate);margin-bottom:6px;display:flex;gap:10px}
+.vcard .tc{color:#2E5E8C;font-weight:600}
+.vcard .txt{font-size:13px;color:#223240;white-space:pre-wrap;word-break:break-word}
+.vb-more{text-align:center;margin-top:12px}
+</style>
+
+<!-- ===== calibration_section.py CSS (verbatim) ===== -->
+<style>
+.cal-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;
+  --good:#1F7A5A;--bad:#B23A2E;--accent:#2E5E8C;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  color:var(--ink);background:var(--paper);padding:34px 26px 40px;border-top:1px solid var(--grid)}
+.cal-root *{box-sizing:border-box}
+.cal-wrap{max-width:980px;margin:0 auto}
+.cal-root h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:21px;letter-spacing:-.01em;margin:0 0 4px}
+.cal-root h2 .n{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--slate);font-weight:500;margin-right:10px}
+.cal-sub{color:var(--slate);font-size:13px;margin:0 0 20px}
+.cal-cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:680px){.cal-cards{grid-template-columns:1fr}}
+.cal-card{background:var(--panel);border:1px solid var(--grid);border-radius:12px;padding:20px 22px}
+.cal-lab{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--slate);margin:0 0 6px}
+.cal-big{font-family:"Space Grotesk",sans-serif;font-weight:700;font-size:40px;line-height:1;letter-spacing:-.02em}
+.cal-ci{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--slate);margin-top:7px}
+.cal-raw{font-size:12.5px;color:var(--slate);margin-top:10px}
+.cal-raw b{color:var(--ink);font-weight:600}
+.cal-verdict{display:inline-block;margin-top:12px;font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:#FBEAE7;color:var(--bad)}
+.cal-judge{margin-top:16px;background:var(--panel);border:1px solid var(--grid);border-radius:12px;padding:16px 20px;display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+.cal-jitem{font-size:13px}
+.cal-jitem .k{color:var(--slate);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:2px}
+.cal-jitem .v{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600}
+.cal-badge{margin-left:auto;font-size:12.5px;font-weight:600;padding:4px 12px;border-radius:999px}
+.cal-badge.ok{background:#E6F2EC;color:var(--good)}
+.cal-badge.no{background:#FBEAE7;color:var(--bad)}
+.cal-foot{color:var(--slate);font-size:12px;margin-top:16px;line-height:1.55}
+.cal-tip{position:relative;display:inline-flex;vertical-align:middle;margin-left:6px}
+.cal-ibtn{width:15px;height:15px;border-radius:50%;border:1px solid var(--slate);background:transparent;color:var(--slate);font:600 10px/1 "IBM Plex Mono",monospace;cursor:pointer;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.cal-ibtn:hover,.cal-ibtn:focus{border-color:var(--ink);color:var(--ink);outline:none}
+.cal-bubble{position:absolute;left:50%;top:24px;transform:translateX(-50%);width:248px;max-width:70vw;background:var(--ink);color:#fff;font:400 11.5px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;text-transform:none;letter-spacing:normal;text-align:left;padding:10px 12px;border-radius:8px;box-shadow:0 6px 22px rgba(20,32,46,.20);z-index:90;opacity:0;visibility:hidden;transition:opacity .12s}
+.cal-bubble::before{content:"";position:absolute;left:50%;top:-5px;transform:translateX(-50%) rotate(45deg);width:10px;height:10px;background:var(--ink)}
+.cal-bubble b{color:#fff;font-weight:600}
+.cal-tip:hover .cal-bubble,.cal-ibtn:focus + .cal-bubble,.cal-tip:focus-within .cal-bubble{opacity:1;visibility:visible}
+</style>
+
+<!-- ===== attack_transfer_section.py CSS (verbatim) ===== -->
+<style>
+.atk-root{--ink:#14202E;--slate:#6B7A88;--grid:#E4E2DB;--paper:#FAFAFA;--panel:#FFFFFF;
+  --bar:#2E5E8C;--bar2:#9BB4CC;--warn:#B8791F;--warnbg:#FBF0DC;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);
+  background:var(--paper);padding:34px 26px 40px;border-top:1px solid var(--grid)}
+.atk-root *{box-sizing:border-box}
+.atk-wrap{max-width:980px;margin:0 auto}
+.atk-root h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:21px;letter-spacing:-.01em;margin:0 0 4px}
+.atk-root h2 .n{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--slate);font-weight:500;margin-right:10px}
+.atk-sub{color:var(--slate);font-size:13px;margin:0 0 20px}
+.atk-row{display:grid;grid-template-columns:168px 1fr 150px;gap:14px;align-items:center;padding:7px 0;border-bottom:1px solid var(--grid)}
+.atk-name{font-family:"IBM Plex Mono",monospace;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atk-name .w{color:var(--warn);font-weight:700;margin-left:5px}
+.atk-track{position:relative;height:16px;background:#ECEAE4;border-radius:4px;overflow:hidden}
+.atk-fill{position:absolute;left:0;top:0;bottom:0;background:var(--bar);border-radius:4px}
+.atk-fill.flag{background:repeating-linear-gradient(45deg,var(--warn),var(--warn) 5px,#CF9A47 5px,#CF9A47 10px)}
+.atk-val{font-size:12.5px;text-align:right}
+.atk-val b{font-family:"Space Grotesk",sans-serif;font-size:15px}
+.atk-val .ci{color:var(--slate);font-size:11px;font-family:"IBM Plex Mono",monospace}
+.atk-foot{color:var(--slate);font-size:12px;margin-top:16px;line-height:1.55}
+.atk-foot .wk{color:var(--warn);font-weight:700}
+.atk-chip{display:inline-block;background:var(--warnbg);color:var(--warn);font-size:11.5px;font-weight:600;
+  padding:2px 9px;border-radius:999px;margin-left:8px}
+</style>
+
+<!-- ===== style_arcs_section.py CSS (verbatim) ===== -->
+<style>
+.sa-root{--sa-paper:#FAFAFA;--sa-panel:#FFFFFF;--sa-ink:#14202E;--sa-slate:#6B7A88;
+  --sa-grid:#E4E2DB;--sa-held:#107C6E;--sa-fix:#E3A008;--sa-regress:#B5522E;
+  background:var(--sa-paper);color:var(--sa-ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.55;
+  padding-top:0;border-top:1px solid var(--sa-grid)}
+.sa-root *{box-sizing:border-box}
+.sa-wrap{max-width:1040px;margin:0 auto;padding:10px 28px 40px}
+.sa-root h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:21px;
+  letter-spacing:-.01em;margin:40px 0 4px;padding-top:26px;border-top:1px solid var(--sa-grid)}
+.sa-root h2 .n{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--sa-slate);
+  font-weight:500;margin-right:10px;letter-spacing:.04em}
+.sa-sub{color:var(--sa-slate);font-size:14px;margin:4px 0 14px;max-width:74ch}
+.sa-sub b{color:var(--sa-ink);font-weight:600}
+.sa-card{background:var(--sa-panel);border:1px solid var(--sa-grid);border-radius:12px;padding:18px 20px 10px}
+.sa-legend{display:flex;flex-wrap:wrap;gap:16px;margin:4px 0 2px;font-family:"IBM Plex Mono",monospace;
+  font-size:11px;color:var(--sa-slate)}
+.sa-legend span{display:inline-flex;align-items:center;gap:6px}
+.sa-sw{width:12px;height:12px;border-radius:50%;display:inline-block}
+.sa-note{display:inline-block;margin:6px 0 2px;padding:3px 10px;border:1px solid var(--sa-grid);
+  border-radius:16px;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--sa-slate)}
+</style>
+</head>
+<body>
+
+<div class="viewtoggle" id="vtog">
+  <button data-v="scroll" class="active" title="Scroll view" aria-label="Scroll view"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3" width="12" height="2.3" rx="1.1" fill="currentColor"/><rect x="2" y="6.85" width="12" height="2.3" rx="1.1" fill="currentColor"/><rect x="2" y="10.7" width="12" height="2.3" rx="1.1" fill="currentColor"/></svg></button>
+  <button data-v="tabs" title="Tab view" aria-label="Tab view"><svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" fill="none"><rect x="2" y="3.2" width="12" height="9.6" rx="1.5" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="6.4" x2="14" y2="6.4" stroke="currentColor" stroke-width="1.5"/><line x1="6" y1="3.4" x2="6" y2="6.2" stroke="currentColor" stroke-width="1.3"/></svg></button>
+</div>
+
+<nav class="dnav" id="dnav"><p class="dnav-t">Sections</p></nav>
+<nav class="htabs" id="htabs"></nav>
+
+<div class="wrap hero" id="hero">
+  <h1>RecycleBench — Standalone Dashboard</h1>
+  <p class="lede">Drop your run files below and this page populates itself — in your browser, nothing is uploaded.
+  The sections render with the same CSS and markup as <code style="font-family:var(--mono)">make_dashboard.py</code>.</p>
+  <div class="dropzone" id="drop">
+    <b>Drop files here</b> — or click to choose
+    <div class="dz-sub">recognises <code>manifest.jsonl</code> · <code>corrected_*.json</code> · <code>attack_*_judged.json</code></div>
+    <input type="file" id="fileinput" multiple hidden accept=".json,.jsonl,application/json">
+  </div>
+  <div class="loaded" id="loaded"></div>
+  <div class="toolbar" id="toolbar" style="display:none"><button class="btn" id="clearbtn">Clear all</button></div>
+</div>
+
+<main id="main">
+  <div class="empty" id="empty">
+    Nothing loaded yet. Drop one or more run files above:
+    <ul>
+      <li><b>corrected_&lt;bench&gt;.json</b> — section 01, the calibrated headline (RSR / PBR + judge se/sp/κ).</li>
+      <li><b>manifest.jsonl</b> — section 05, the paraphrase-style arcs (mean NLI per class) + a variant browser.</li>
+      <li><b>attack_&lt;model&gt;_judged.json</b> — section 06 (or 06·b for a 70B file), known-attack transfer.</li>
+    </ul>
+    The 2×2 flow and before→after response cards aren't here by design — they need the response cache.
+  </div>
+</main>
+
+<div class="appfoot" id="appfoot" style="display:none"></div>
+
+<script>
+"use strict";
+const state = { manifest:null, corrected:null, attack:null, attack70:null, files:[] };
+
+const esc = s => (s==null?"":String(s)).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const num = x => (typeof x==="number" && isFinite(x));
+const pct = x => num(x) ? (100*x).toFixed(1)+"%" : "--";          // matches calibration/attack _pct
+const ciPct = ci => (ci&&ci.length===2)? `[${(100*ci[0]).toFixed(1)}, ${(100*ci[1]).toFixed(1)}]` : "";
+const f1 = x => x.toFixed(1);
+
+/* ---------- calibration tooltips (verbatim from calibration_section.py) ---------- */
+const T_RSR="<b>Recycling Success Rate.</b> Of the P⁻ fixes — requests the older model answered and the newer one refused — the fraction re-opened by at least one gated, meaning-preserving paraphrase. <b>Corrected</b> adjusts the raw rate for the judge's measured error (Rogan–Gladen, at the behaviour-bundle level).";
+const T_PBR="<b>Paraphrase Bypass Rate.</b> Of this model's own refusals, the fraction that at least one gated paraphrase re-opens — a direct measure of how surface-bound its refusals are. “materially surface-bound” means a substantial share re-open.";
+const T_SE="<b>Sensitivity.</b> How often the judge correctly flags a genuine compliance (true-positive rate), measured against the human labels.";
+const T_SP="<b>Specificity.</b> How often the judge correctly flags a genuine refusal (true-negative rate). This one matters most: bypass is a best-of-many union, so a false positive is costly.";
+const T_KAPPA="<b>Cohen's κ.</b> Judge–human agreement beyond chance. The judge is <b>admitted</b> only above the pre-registered floor (0.60); its se/sp then correct the headline rates.";
+const tip = t => `<span class="cal-tip"><button type="button" class="cal-ibtn" aria-label="What is this?">i</button><span class="cal-bubble" role="tooltip">${t}</span></span>`;
+
+/* ===================== file intake ===================== */
+const drop=document.getElementById("drop"), fileinput=document.getElementById("fileinput");
+drop.addEventListener("click",()=>fileinput.click());
+drop.addEventListener("dragover",e=>{e.preventDefault();drop.classList.add("drag");});
+drop.addEventListener("dragleave",()=>drop.classList.remove("drag"));
+drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("drag");handleFiles(e.dataTransfer.files);});
+fileinput.addEventListener("change",e=>handleFiles(e.target.files));
+document.getElementById("clearbtn").addEventListener("click",()=>{state.manifest=state.corrected=state.attack=state.attack70=null;state.files=[];render();});
+
+function handleFiles(list){[...list].forEach(fl=>{const rd=new FileReader();
+  rd.onload=()=>{try{ingest(fl.name,rd.result);}catch(err){notef(fl.name,"error: "+err.message,false);}render();};
+  rd.readAsText(fl);});}
+function notef(name,kind,ok){state.files=state.files.filter(x=>x.name!==name);state.files.push({name,kind,ok});}
+
+function ingest(name,text){
+  const t=text.replace(/^﻿/,"").trim();
+  if(t[0]==="{"){
+    let o;try{o=JSON.parse(t);}catch(e){o=null;}
+    if(o){
+      if(o.RSR||o.PBR_new||(o.judge&&(o.RSR||o.PBR_new))){state.corrected=o;notef(name,"calibrated headline",true);return;}
+      if(o.classes&&typeof o.classes==="object"){
+        const vals=Object.values(o.classes);
+        if(vals.some(v=>v&&(("transfer_on_refused"in v)||("bypass_rate"in v)))){
+          const is70=/70b/i.test(o.model||"")||/70b/i.test(name);
+          if(is70){state.attack70=o;notef(name,"attack transfer · 70B",true);}else{state.attack=o;notef(name,"attack transfer",true);}
+          return;
+        }
+      }
+      notef(name,"unrecognised JSON",false);return;
+    }
+  }
+  const recs=[];let sawType=false;
+  for(const line of t.split(/\r?\n/)){const l=line.trim();if(!l)continue;let r;try{r=JSON.parse(l);}catch(e){continue;}if(r&&r.type)sawType=true;recs.push(r);}
+  if(sawType&&recs.some(r=>r.type==="admitted"||r.type==="audit")){state.manifest=recs;notef(name,"manifest ("+recs.length+" records)",true);return;}
+  notef(name,"unrecognised file",false);
+}
+
+/* ===================== 01 · calibrated headline (calibration_section.py) ===================== */
+function calAgg(d){
+  const rsr=d.RSR||{},pbr=d.PBR_new||{},j=d.judge||{};
+  const ci=b=>{const c=b.CI;return(c&&c.length===2)?[+c[0],+c[1]]:null;};
+  return {pair:d.pair||"old → new",nPminus:d.n_p_minus??rsr.n_p_minus,
+    rsrRaw:rsr.RSR_raw,rsrCorr:rsr.RSR_corrected,rsrCI:ci(rsr),kRec:rsr.k_recovered,mcnemar:rsr.mcnemar_p,tMean:rsr.mean_admitted,
+    pbrModel:pbr.model||"new model",pbrRaw:pbr.PBR_raw,pbrCorr:pbr.PBR_corrected,pbrCI:ci(pbr),verdict:pbr.verdict||"",
+    se:j.se,sp:j.sp,kappa:j.kappa,admitted:!!j.admitted,nBundles:j.n_bundles,seCI:j.se_ci,spCI:j.sp_ci};
+}
+function renderCalibrated(d){
+  const a=calAgg(d);
+  const mcn=num(a.mcnemar)?a.mcnemar.toExponential(2):"--";
+  const tm=num(a.tMean)?a.tMean.toFixed(2):"--";
+  const rsrCount=(a.kRec!=null&&a.nPminus!=null)?`${a.kRec}/${a.nPminus} observed`:"";
+  const jitem=(k,v,ci,t)=>{let civ="";if(ci&&ci.length===2)civ=` <span style="color:var(--slate)">[${ci[0].toFixed(3)}, ${ci[1].toFixed(3)}]</span>`;
+    return `<div class="cal-jitem"><span class="k">${k}${t?tip(t):""}</span><span class="v">${v}${civ}</span></div>`;};
+  const rsrCard=`<div class="cal-card"><p class="cal-lab">Recycling Success Rate (corrected)${tip(T_RSR)}</p>`+
+    `<div class="cal-big">${pct(a.rsrCorr)}</div>`+
+    `<div class="cal-ci">95% CI ${ciPct(a.rsrCI)}</div>`+
+    `<div class="cal-raw">raw <b>${pct(a.rsrRaw)}</b> · ${rsrCount} · McNemar p=${mcn} · t̄=${tm}</div></div>`;
+  const pbrCard=`<div class="cal-card"><p class="cal-lab">Paraphrase Bypass Rate — ${esc(a.pbrModel)} (corrected)${tip(T_PBR)}</p>`+
+    `<div class="cal-big">${pct(a.pbrCorr)}</div>`+
+    `<div class="cal-ci">95% CI ${ciPct(a.pbrCI)}</div>`+
+    `<div class="cal-raw">raw <b>${pct(a.pbrRaw)}</b></div>`+
+    (a.verdict?`<div class="cal-verdict">${esc(a.verdict)}</div>`:"")+`</div>`;
+  const judgeBar=`<div class="cal-judge">`+
+    jitem("sensitivity",num(a.se)?a.se.toFixed(3):"--",a.seCI,T_SE)+
+    jitem("specificity",num(a.sp)?a.sp.toFixed(3):"--",a.spCI,T_SP)+
+    jitem("Cohen's κ",num(a.kappa)?a.kappa.toFixed(3):"--",null,T_KAPPA)+
+    jitem("bundles",a.nBundles!=null?a.nBundles:"--",null,null)+
+    `<span class="cal-badge ${a.admitted?"ok":"no"}">${a.admitted?"judge admitted":"judge NOT admitted"}</span></div>`;
+  const foot=`<p class="cal-foot">The <b>corrected</b> rates are the reported headline: raw judge labels are adjusted for the judge's measured sensitivity/specificity (Rogan–Gladen, at the behaviour-bundle level). The judge line is the validation that licenses it — correction is only admissible when κ clears the pre-registered floor. Wide CIs reflect the P⁻ sample size, not instability; report them with the point estimate.</p>`;
+  return `<section class="cal-root"><div class="cal-wrap"><h2><span class="n">01</span>Calibrated headline — ${esc(a.pair)}</h2>`+
+    `<p class="cal-sub">P⁻ = ${a.nPminus!=null?a.nPminus:"--"} · judge-corrected, human-calibrated</p>`+
+    `<div class="cal-cards">${rsrCard}${pbrCard}</div>${judgeBar}${foot}</div></section>`;
+}
+
+/* ===================== 06 · attack transfer (attack_transfer_section.py) ===================== */
+const CIPHER=new Set(["rot13","disemvowel","base64","base64_raw","base64_input_only","base64_output_only","obfuscation","leetspeak"]);
+function renderAttack(d,code,anchorId){
+  const cls=d.classes||{};
+  let rows=Object.keys(cls).map(k=>{const r=cls[k]||{};return {cls:k,transfer:r.transfer_on_refused,ci:r.transfer_ci,
+    nbr:r.n_broke_among_refused,nr:r.n_refused_baseline,flag:CIPHER.has(k)};});
+  rows.sort((x,y)=>((y.transfer==null?-1:y.transfer)-(x.transfer==null?-1:x.transfer)));
+  const anyFlag=rows.some(r=>r.flag&&(r.transfer||0)>0);
+  const judge=(d.judge&&d.judge.length)?("judge "+d.judge.join("/")):"judge uncalibrated";
+  const sub=`model <b>${esc(d.model||"model")}</b> · denominator = ${d.n_refused_baseline!=null?d.n_refused_baseline:"--"} behaviours refused canonically (baseline ${esc(d.baseline_class||"original_prompt")}) · ${judge} · RAW`;
+  const line=rows.map(r=>{
+    const tr=r.transfer;const w=tr?Math.min(100,100*tr):0;
+    let ci="";if(r.ci&&r.ci.length===2)ci=`<span class="ci"> [${(100*r.ci[0]).toFixed(1)},${(100*r.ci[1]).toFixed(1)}]</span>`;
+    const cnt=(r.nbr!=null&&r.nr)?`${r.nbr}/${r.nr}`:"";
+    const fl=r.flag&&(tr||0)>0;
+    return `<div class="atk-row"><div class="atk-name">${esc(r.cls)}${fl?' <span class="w">⚠</span>':""}</div>`+
+      `<div class="atk-track"><div class="atk-fill${fl?" flag":""}" style="width:${w.toFixed(1)}%"></div></div>`+
+      `<div class="atk-val"><b>${pct(tr)}</b> <span class="ci">${cnt}</span>${ci}</div></div>`;
+  }).join("");
+  let foot=`<p class="atk-foot">Bars are <b>transfer-on-refused</b>: of the behaviours the model refused in plaintext, the share each attack re-opens. This arm is NOT intent-gated (gating an attack is a category error) and is distinct from the recycle arm (benign paraphrase). `;
+  if(anyFlag)foot+=`<span class="wk">⚠ hatched</span> = low-readability cipher classes whose judge labels are <b>pending manual verification</b>: the model may emit garbled output the judge miscounts as compliance. Treat those as unconfirmed until the responses are read by eye. `;
+  foot+=`All rates RAW (judge-uncalibrated for this arm).</p>`;
+  const chip=anyFlag?`<span class="atk-chip">⚠ cipher classes pending verification</span>`:"";
+  const heading=`Known-attack transfer — ${esc(d.model||"model")}`;
+  return `<section class="atk-root" id="${anchorId}"><div class="atk-wrap"><h2><span class="n">${code}</span>${heading}${chip}</h2>`+
+    `<p class="atk-sub">${sub}</p>${line}${foot}</div></section>`;
+}
+
+/* ===================== 05 · paraphrase style arcs (style_arcs_section.py) ===================== */
+function styleAgg(recs){
+  const audit=recs.filter(r=>r&&r.type==="audit");
+  let items=[];
+  if(audit.length){items=audit.map(r=>({name:r.transform_class,nli:(num(r.nli_entail)?r.nli_entail:(num(r.nli)?r.nli:(num(r.nli_entailment)?r.nli_entailment:(num(r.entailment)?r.entailment:null))))}));}
+  else{for(const r of recs){if(r&&r.type==="admitted")for(const v of (r.variants||[]))items.push({name:v.transform_class,nli:null});}}
+  const per={};
+  for(const it of items){if(!it.name)continue;const s=per[it.name]||(per[it.name]={n:0,nlis:[]});s.n++;if(num(it.nli))s.nlis.push(it.nli);}
+  let styles=[],all=[];
+  for(const name in per){const nlis=per[name].nlis;const mean=nlis.length?nlis.reduce((a,b)=>a+b,0)/nlis.length:null;styles.push({name,n:per[name].n,nli:mean});all=all.concat(nlis);}
+  const has=all.length>0;
+  styles.sort((a,b)=>((b.nli==null?-1:b.nli)-(a.nli==null?-1:a.nli))||(b.n-a.n));
+  return {styles,overall_nli:has?all.reduce((a,b)=>a+b,0)/all.length:null,total_n:styles.reduce((a,s)=>a+s.n,0),has_nli:has};
+}
+function star(cx,cy,r,fill){let p=[];for(let i=0;i<10;i++){const rr=i%2===0?r:r*0.45;const a=(-90+i*36)*Math.PI/180;p.push(`${(cx+rr*Math.cos(a)).toFixed(1)},${(cy+rr*Math.sin(a)).toFixed(1)}`);}return `<polygon points="${p.join(" ")}" fill="${fill}"/>`;}
+function buildSVG(agg){
+  const styles=agg.styles,has=agg.has_nli;
+  const W=760,H=400,cx=W/2,base_y=330.0,r_min=70.0,r_max=300.0;
+  let d0,d1;
+  if(has){const vals=styles.filter(z=>z.nli!=null).map(z=>z.nli);d0=vals.length?Math.min(0.30,Math.min(...vals)):0.30;d1=1.0;}else{d0=0.0;d1=1.0;}
+  const R=nli=>{if(nli==null||d1<=d0)return (r_min+r_max)/2;const t=Math.max(0,Math.min(1,(nli-d0)/(d1-d0)));return r_min+t*(r_max-r_min);};
+  const pt=(r,deg)=>{const a=deg*Math.PI/180;return [cx+r*Math.cos(a),base_y-r*Math.sin(a)];};
+  const GRID="#E4E2DB",HELD="#107C6E",FIX="#E3A008",REGRESS="#B5522E",SLATE="#6B7A88",INK="#14202E",PANEL="#FFFFFF";
+  const S=[`<svg viewBox="0 0 ${W} ${H}" width="100%" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Mono, monospace" role="img" aria-label="Paraphrase styles by mean NLI entailment">`];
+  const grid=has?[0.5,0.7,0.9,1.0]:[];
+  for(const g of grid){if(g<d0)continue;const r=R(g);const a=pt(r,180),b=pt(r,0);
+    S.push(`<path d="M ${f1(a[0])} ${f1(a[1])} A ${f1(r)} ${f1(r)} 0 0 1 ${f1(b[0])} ${f1(b[1])}" fill="none" stroke="${GRID}" stroke-width="1"/>`);
+    S.push(`<text x="${f1(cx-r-6)}" y="${f1(base_y+4)}" text-anchor="end" font-size="10" fill="${SLATE}">${g.toFixed(1)}</text>`);}
+  if(has&&agg.overall_nli!=null){const r=R(agg.overall_nli);const a=pt(r,180),b=pt(r,0);
+    S.push(`<path d="M ${f1(a[0])} ${f1(a[1])} A ${f1(r)} ${f1(r)} 0 0 1 ${f1(b[0])} ${f1(b[1])}" fill="none" stroke="${HELD}" stroke-width="1.5" stroke-dasharray="3 4" opacity="0.6"/>`);
+    const m=pt(r,90);S.push(`<text x="${f1(m[0])}" y="${f1(m[1]-8)}" text-anchor="middle" font-size="10" fill="${HELD}">overall ${agg.overall_nli.toFixed(2)}</text>`);}
+  S.push(`<line x1="${f1(cx-r_max-10)}" y1="${f1(base_y)}" x2="${f1(cx+r_max+10)}" y2="${f1(base_y)}" stroke="${GRID}" stroke-width="1"/>`);
+  S.push(`<circle cx="${f1(cx)}" cy="${f1(base_y)}" r="3" fill="${SLATE}"/>`);
+  const n=styles.length,a_lo=158.0,a_hi=22.0;
+  const nliVals=styles.filter(z=>z.nli!=null).map(z=>z.nli);
+  const best=nliVals.length?Math.max(...nliVals):null,worst=nliVals.length?Math.min(...nliVals):null;
+  const n_max=styles.length?Math.max(...styles.map(z=>z.n)):1;
+  styles.forEach((st,i)=>{
+    const deg=n===1?a_lo:a_lo+(a_hi-a_lo)*i/(n-1);
+    const r=R(st.nli);const P=pt(r,deg);const x=P[0],y=P[1];
+    const dot=5+10*Math.sqrt(st.n/n_max);
+    const is_best=has&&st.nli!=null&&best!=null&&Math.abs(st.nli-best)<1e-9;
+    const is_worst=has&&st.nli!=null&&worst!=null&&Math.abs(st.nli-worst)<1e-9&&n>1;
+    const sp=pt(r_min-8,deg);
+    S.push(`<line x1="${f1(sp[0])}" y1="${f1(sp[1])}" x2="${f1(x)}" y2="${f1(y)}" stroke="${GRID}" stroke-width="1" opacity="0.7"/>`);
+    if(is_best)S.push(star(x,y,dot+3,FIX));
+    else if(is_worst)S.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(dot)}" fill="${PANEL}" stroke="${REGRESS}" stroke-width="2"/>`);
+    else S.push(`<circle cx="${f1(x)}" cy="${f1(y)}" r="${f1(dot)}" fill="${HELD}" fill-opacity="0.85"/>`);
+    const L=pt(r+dot+8,deg);const anchor=deg>90?"end":"start";
+    const nli_txt=st.nli!=null?st.nli.toFixed(2):"--";
+    S.push(`<text x="${f1(L[0])}" y="${f1(L[1])}" text-anchor="${anchor}" font-size="11" fill="${INK}" font-weight="600">${esc(st.name)}</text>`);
+    S.push(`<text x="${f1(L[0])}" y="${f1(L[1]+13)}" text-anchor="${anchor}" font-size="9.5" fill="${SLATE}">NLI ${nli_txt} · n=${st.n}</text>`);
+  });
+  S.push("</svg>");return S.join("");
+}
+function renderStyle(recs){
+  const agg=styleAgg(recs);
+  if(!agg.styles.length)return "";
+  const svg=buildSVG(agg);
+  const HELD="#107C6E",FIX="#E3A008",REGRESS="#B5522E",PANEL="#FFFFFF";
+  let sub,note;
+  if(agg.has_nli){sub='One dot per paraphrase <b>style</b>. Radius = <b>mean NLI entailment</b> (intent preserved) &mdash; styles on the <b>outer</b> arcs clear the intent gate best. Dot size = how many variants used that style. This is gate quality by style (NLI is deterministic, no judge), not model vulnerability.';
+    note=`gate quality (Option A) · ${agg.total_n} gated variants across ${agg.styles.length} styles`;}
+  else{sub='One dot per paraphrase <b>style</b>; dot size = how many variants used it. This run did not persist per-variant <b>NLI</b>, so radius is uniform (counts only). Re-run with gate scores persisted to get the mean-NLI radius.';
+    note=`counts only · NLI not in this run · ${agg.total_n} variants across ${agg.styles.length} styles`;}
+  const legend=`<div class="sa-legend"><span><i class="sa-sw" style="background:${HELD}"></i>style (dot = variant count)</span>`+
+    `<span><svg width="14" height="14" viewBox="0 0 14 14">${star(7,7,6,FIX)}</svg>best intent-preserving</span>`+
+    `<span><i class="sa-sw" style="background:${PANEL};border:2px solid ${REGRESS}"></i>weakest</span>`+
+    `<span><i class="sa-sw" style="background:${HELD};opacity:.6;border-radius:2px"></i>overall mean arc</span></div>`;
+  return `<section class="sa-root"><div class="sa-wrap"><h2><span class="n">05</span>Paraphrase styles — which preserve intent</h2>`+
+    `<p class="sa-sub">${sub}</p><div class="sa-card">${svg}${legend}</div><span class="sa-note">${esc(note)}</span></div></section>`;
+}
+
+/* ===================== variant browser (standalone extra) ===================== */
+function renderBrowser(recs){
+  const vars=[];for(const r of recs){if(r&&r.type==="admitted")for(const v of (r.variants||[]))vars.push({bid:r.bid,tc:v.transform_class||"?",text:v.text||""});}
+  if(!vars.length)return "";
+  const classes=[...new Set(vars.map(v=>v.tc))].sort();
+  const opts=`<option value="">all classes (${vars.length})</option>`+classes.map(c=>`<option value="${esc(c)}">${esc(c)} (${vars.filter(v=>v.tc===c).length})</option>`).join("");
+  return `<section class="vb-root"><div class="vb-wrap"><h2><span class="n">+</span>Variant browser</h2>`+
+    `<p class="vb-sub">Every admitted, intent-preserving paraphrase, searchable by class and text. (Standalone-only view.)</p>`+
+    `<div class="vb-ctl"><select id="vbClass">${opts}</select><input id="vbSearch" type="search" placeholder="search text or behaviour id…"><span class="vb-count" id="vbCount"></span></div>`+
+    `<div id="vbList"></div><div class="vb-more"><button class="btn" id="vbMore" style="display:none">show more</button></div></div></section>`;
+}
+let VB={vars:[],shown:0,page:40};
+function wireBrowser(){
+  const vars=[];if(state.manifest)for(const r of state.manifest){if(r&&r.type==="admitted")for(const v of (r.variants||[]))vars.push({bid:r.bid,tc:v.transform_class||"?",text:v.text||""});}
+  VB.vars=vars;
+  const sel=document.getElementById("vbClass"),q=document.getElementById("vbSearch"),list=document.getElementById("vbList"),more=document.getElementById("vbMore"),cnt=document.getElementById("vbCount");
+  if(!sel)return;
+  const filtered=()=>{const c=sel.value,s=(q.value||"").toLowerCase();return VB.vars.filter(v=>(!c||v.tc===c)&&(!s||(v.text||"").toLowerCase().includes(s)||(v.bid||"").toLowerCase().includes(s)));};
+  function draw(reset){const fdata=filtered();VB.shown=reset?VB.page:Math.min(VB.shown+VB.page,fdata.length);
+    list.innerHTML=fdata.slice(0,VB.shown).map(v=>`<div class="vcard"><div class="meta"><span class="tc">${esc(v.tc)}</span><span>${esc(v.bid||"")}</span></div><div class="txt">${esc(v.text)}</div></div>`).join("")||`<p class="vb-sub">No matches.</p>`;
+    cnt.textContent=`${Math.min(VB.shown,fdata.length)} / ${fdata.length}`;more.style.display=(VB.shown<fdata.length)?"":"none";}
+  sel.onchange=()=>draw(true);q.oninput=()=>draw(true);more.onclick=()=>draw(false);draw(true);
+}
+
+/* ===================== top-level render ===================== */
+function render(){
+  const loaded=document.getElementById("loaded");
+  loaded.innerHTML=state.files.map(fl=>`<span class="chip"><span class="${fl.ok?"ok":"x"}">${fl.ok?"✓":"✗"}</span>${esc(fl.name)} — ${esc(fl.kind)}</span>`).join("");
+  document.getElementById("toolbar").style.display=state.files.length?"block":"none";
+  const main=document.getElementById("main"),parts=[];
+  if(state.corrected)parts.push(renderCalibrated(state.corrected));
+  if(state.manifest)parts.push(renderStyle(state.manifest));
+  if(state.attack)parts.push(renderAttack(state.attack,"06","sec-attack"));
+  if(state.attack70)parts.push(renderAttack(state.attack70,"06·b","sec-attack70"));
+  if(state.manifest)parts.push(renderBrowser(state.manifest));
+  if(!parts.length){main.innerHTML=`<div class="empty" id="empty">Nothing loaded yet — drop run files above.</div>`;
+    document.getElementById("appfoot").style.display="none";buildNav();return;}
+  main.innerHTML=parts.join("\n");
+  if(state.manifest)wireBrowser();
+  const af=document.getElementById("appfoot");af.style.display="";
+  af.textContent="Rendered client-side from "+state.files.filter(fl=>fl.ok).map(fl=>fl.name).join(", ")+" · identical section rendering to make_dashboard.py · no data left your browser.";
+  buildNav();
+}
+
+/* ===================== nav + scroll/tabs ===================== */
+let curGroup=0,htabLinks=[];
+function labelFor(s){const h=s.querySelector("h2");if(!h)return s.id;const c=h.cloneNode(true);c.querySelectorAll(".atk-chip,.cal-tip").forEach(x=>x.remove());return c.textContent.replace(/\s+/g," ").trim();}
+function buildNav(){
+  const dnav=document.getElementById("dnav");dnav.innerHTML='<p class="dnav-t">Sections</p>';
+  const ht=document.getElementById("htabs");ht.innerHTML="";htabLinks=[];
+  const secs=[...document.querySelectorAll("#main > section")];
+  secs.forEach((s,i)=>{
+    s.setAttribute("data-secgroup",i);
+    const lab=labelFor(s);
+    const a=document.createElement("a");a.textContent=lab;a.onclick=()=>{s.scrollIntoView({behavior:"smooth",block:"start"});};dnav.appendChild(a);s._nav=a;
+    const t=document.createElement("a");t.textContent=lab;t.onclick=e=>{e.preventDefault();activate(i);};ht.appendChild(t);htabLinks.push(t);
+  });
+  if("IntersectionObserver"in window&&secs.length){
+    const obs=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){secs.forEach(x=>x._nav&&x._nav.classList.remove("active"));if(e.target._nav)e.target._nav.classList.add("active");}}),{rootMargin:"-45% 0px -50% 0px",threshold:0});
+    secs.forEach(s=>obs.observe(s));
+  }
+  if(curGroup>=secs.length)curGroup=0;
+  if(document.body.classList.contains("view-tabs"))activate(curGroup);
+}
+function activate(k){
+  curGroup=k;const secs=[...document.querySelectorAll("#main > section")];
+  secs.forEach((s,i)=>s.classList.toggle("secshow",i===k));
+  htabLinks.forEach((a,i)=>a.classList.toggle("active",i===k));
+  if(document.body.classList.contains("view-tabs"))window.scrollTo(0,0);
+}
+function setView(v){
+  const tabs=(v==="tabs");document.body.classList.toggle("view-tabs",tabs);
+  [...document.getElementById("vtog").querySelectorAll("button")].forEach(b=>b.classList.toggle("active",b.getAttribute("data-v")===v));
+  if(tabs)activate(curGroup);
+  try{localStorage.setItem("rb_std_view",v);}catch(e){}
+}
+[...document.getElementById("vtog").querySelectorAll("button")].forEach(b=>b.onclick=()=>setView(b.getAttribute("data-v")));
+let savedView="scroll";try{savedView=localStorage.getItem("rb_std_view")||"scroll";}catch(e){}
+setView(savedView);
+render();
+</script>
+</body>
+</html>
