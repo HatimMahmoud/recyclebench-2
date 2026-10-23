@@ -144,7 +144,15 @@ def phase_judge(cands, judge, cache: ResponseCache, store, tag, model_name, labe
 def phase_equiv(cands, cache: ResponseCache, old_name, out_path: Path, embed_model):
     """Cosine( OLD(x_hat), y ) with the gate's own embedder. Offline, no model calls."""
     from sentence_transformers import SentenceTransformer, util
-    emb = SentenceTransformer(embed_model)
+    # Load from the local HF cache first. Constructing a SentenceTransformer otherwise
+    # makes a HEAD request to huggingface.co, so a transient network outage kills an
+    # otherwise entirely offline phase -- which is exactly what happened on the first
+    # overnight run, after the two expensive Ollama phases had already succeeded.
+    try:
+        emb = SentenceTransformer(embed_model, local_files_only=True)
+    except Exception as e:
+        print(f"[equiv] local load failed ({type(e).__name__}); retrying online", flush=True)
+        emb = SentenceTransformer(embed_model)
     rows, pairs = [], []
     for bid, ci, text, adm, p, y in cands:
         t = cache.get(old_name, text, seed_for(bid, ci))
