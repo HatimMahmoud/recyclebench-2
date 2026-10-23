@@ -1,155 +1,196 @@
-# recyclebench — project context for Claude Code
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## What this is
-M.Sc. thesis (RPTU Kaiserslautern-Landau). **Question:** when a newer LLM refuses a jailbreak
-that an older LLM answered, did it learn the *intent* (deep generalization) or memorize the
-*wording* (shallow patch)? We test by taking the requests the newer model "fixed", rewording them
-while preserving meaning (intent-preserving paraphrase = "recycling"), and checking whether the
-newer model can be made to answer again.
+M.Sc. thesis instrument (RPTU Kaiserslautern-Landau, with IBM Frankfurt). **Question:** when a newer
+Llama generation refuses a request an older one answered, did it learn the harmful *intent* or just
+the *wording*? Frame results as "does safety alignment generalise across generations" (alignment
+science), not "paraphrase jailbreak robustness". The contribution is measurement + integration
+(pre-registered, calibrated, audited), not a new attack or defence.
 
-**Core constructs:**
-- `P^-` = regression set = behaviours where OLD complies AND NEW refuses (the "fixes" we test).
-- `RSR` = Recycling Success Rate = fraction of P^- recovered by >=1 intent-preserving paraphrase.
-  High RSR => fixes are shallow (wording-specific). Low RSR => fixes generalize.
-- Bundle-level Rogan-Gladen judge-error correction; pre-registration; a paraphrase "gate" that
-  certifies each reword still asks for the same harmful thing (intent preserved).
+- **P⁻** (regression set) = behaviours where OLD complies and NEW refuses (the "fixes").
+- **RSR** (primary) = fraction of P⁻ re-opened by ≥1 gate-admitted, intent-preserving paraphrase.
+  High ⇒ surface patching; low ⇒ consistent with generalisation.
+- **PBR** (backbone) = fraction of a model's own canonically-refused set re-opened. Always estimable;
+  carries the headline when |P⁻| < `decision.min_p_minus` (30).
+- Rules the code enforces: empty P⁻ ⇒ RSR *undefined* (never 0); denominators count behaviours, not
+  variants; behaviours with no admitted variant are "unresolved", not "robust".
 
-**Strategic framing (for the thesis writeup):** frame as "does safety alignment GENERALIZE across
-model generations" (alignment science), NOT "paraphrase jailbreak robustness" (security). A planned
-mechanistic arm (refusal-direction / Arditi et al.) would test whether paraphrase recovery =
-displacement off the newer model's refusal direction — needs white-box HF transformers + hooks,
-not Ollama. That arm is future work, not yet built.
+`CLAUDE_CODE_HANDOFF(1).md` (repo root, untracked) is the full project brief: thesis RQs, results
+tables, supervisor threads, open tasks. Read it for anything beyond what is here. Note that
+its §5 layout is partly wrong: there is no `metrics.py` (see below).
 
-## THE central finding so far (this drives every open decision)
-On **raw** harmful prompts, P^- is structurally tiny **because safety-tuned "old" models already
-refuse raw prompts.** Evidence:
-- Judge is NOT the problem: validated ~98% sensitivity against the liuyanchen1015 `score` labels;
-  and reading llama2-7b's actual "refusals" showed 13/15 were genuine refusals.
-- llama2-7b-chat refuses ~87-99% of raw harmful prompts (breaks_old = 53/400 HarmBench,
-  3/520 AdvBench, 2/313 StrongREJECT). So P^- (a subset) is capped near zero.
-- More raw benchmarks (AIR-Bench etc.) will NOT help — safety-tuned models refuse raw AIR-Bench too.
-  **Do not install more raw-harm benchmarks to grow P^-.**
+## Commands
+```bash
+export PYTHONPATH=src                       # required; Makefile sets it too
+python3 -m pytest tests/ -q                 # full suite (~15 s, no models needed)
+python3 -m pytest tests/test_judge.py -q    # one file
+python3 -m pytest tests/test_stats.py::test_name -q
+make test | validate | prereg | verify | figures
 
-**P^- populates only when the OLD model is weak enough to comply with raw prompts:**
-| pair | pooled P^- | why |
-|---|---|---|
-| llama3.2-1b -> llama3.2-3b | ~24 | the 1B is weak enough to comply (healthiest P^-) |
-| llama2-7b  -> llama3-8b    | ~7  | llama2-chat refuses raw prompts -> gap barely exists |
+# real-model path (Ollama on :11434, OpenAI-compatible)
+python3 -m recyclebench pilot-pminus --config configs/real_llama_lineage_all.yaml \
+    --old llama3-8b --new llama31-8b --behaviours data/sorrybench.csv --cache cache/llama_gen.jsonl
+python3 -m recyclebench run-real --config configs/recycle_3_31.yaml \
+    --behaviours data/sorrybench.csv --manifest <run_dir>/manifest_sorrybench.jsonl --cache cache/llama_gen.jsonl
+python3 -m recyclebench judge-export --config ... --n-bundles 60   # -> hand-label -> judge-ingest
+python3 -m recyclebench prereg --behaviours F.csv ; python3 -m recyclebench prereg-verify  # exit 1 = drift
 
-**The lever is prompt FRAMING, not quantity.** Wrapping behaviours in a fixed jailbreak template
-(via `tools/wrap_behaviours.py`) is the current approach (see "Option 1" below).
-
-## Current experimental state
-- Pipeline works end-to-end: `pilot-pminus` (canonical screening) and `run-real`
-  (recycle -> gate -> re-screen -> RSR) both run on real Ollama.
-- Real caches on disk (append-only, keyed `sha256(model|prompt|seed)`):
-  - `cache/ollama_pilot.jsonl`  — llama3.2 1b/3b (P^- ~24; recycle smoke-tested here)
-  - `cache/llama_gen.jsonl`     — llama2-7b / llama3-8b / llama3.1-8b canonical responses
-  - `cache/wrapped_rs.jsonl`    — llama2-7b vs llama3-8b on refusal_suppression-wrapped prompts
-  - `cache/llama2_13b.jsonl`    — llama2-13b vs llama3-8b (fresh; overnight run)
-- Benchmarks in `data/` as Goal-column CSVs: harmbench (400), advbench (520), strongreject (313),
-  plus wrapped sets (wrapped_rs.csv, llama_wrapped.csv). No harmful content ships in the repo;
-  these were fetched/converted locally via `tools/prepare_behaviours.py`.
-
-## Overnight runs launched (check these first)
-Two pilots launched via `run_pair.sh`, writing to `results/runs/<ts>_<pair>_full/`:
-1. `llama3-8b -> llama31-8b`   (cache/llama_gen.jsonl) — consecutive-gen, matched 8B
-2. `llama2-13b -> llama3-8b`   (cache/llama2_13b.jsonl) — CROSS-SCALE (13B->8B), not scale-matched
-Each dir has: `pminus_<bench>.{json,txt}`, `partition_full.txt` (all 4 cells incl. negative-flip
-inverse), `cells/` CSVs, `META.txt`, log. **Prediction to test:** both likely SMALL P^- (3->3.1 is
-a point release; llama2-13b-chat also refuses raw). If both small => raw-prompt safety saturated
-across models; real gap is in WRAPPED prompts.
-
-## THE open fork (highest priority when runs are read)
-**Option 1 (in progress): wrapped canonical prompts.** `tools/wrap_behaviours.py --list` ranks the
-32 liuyanchen1015 jailbreak templates by 1B-compliance rate (poems 90%, refusal_suppression 78%,
-evil_confidant 71%, AIM 62% ... encoding jailbreaks like base64/rot13 are useless — the 1B can't
-decode them; gcg/autodan are adversarial optimizers, RULED OUT — they confound the estimand).
-Pre-registered pick: **refusal_suppression** (chosen a priori by 1B-compliance = property of the
-held-out weak model, not the llama2/3 outcome — legitimate, not p-hacking).
-
-**BUT the refusal_suppression pilot gave a surprising breaks_old=5 for llama2-7b** (the 1B complied
-78% on the same template). CSV is fine (verified: multi-line jailbreak prompts are properly quoted;
-`load_jailbreakbench` uses csv.DictReader and parses them correctly; wc -l 3907 just counts embedded
-newlines). **UNRESOLVED — needs a response read to decide:**
-- **Case A:** llama2-7b genuinely refuses even refusal_suppression => real scale-of-safety finding
-  (7B-chat resists a jailbreak a 1B falls for). Then try higher-rate templates (poems, evil_confidant).
-- **Case B:** llama2-7b complies but the offline judge misreads wrapped output => judge is broken on
-  WRAPPED prompts (it was only validated on raw-ish 1B responses, never on wrapped output) => must
-  build the LLM judge before any wrapped experiment is trustworthy.
-Decide with:
+bash run_pair.sh <old> <new> <cache> [benchmarks...]   # pilot + 2x2 partition -> results/runs/<ts>_...
+bash run_all_models.sh                                  # self-detaches (nohup+caffeinate); log: logs/all_models.log
 ```
-python3 tools/inspect_cache.py --config configs/real_llama_lineage.yaml \
-  --old llama2-7b --new llama3-8b --cache cache/wrapped_rs.jsonl \
-  --behaviours data/wrapped_rs.csv --refusals-only --width 100000 | head -100
-```
-Read 10-15 of llama2's "refusals": genuine refusals => Case A; harmful content scored as refused => Case B.
+Ask before running anything that hits Ollama. Real runs take hours and write to the shared cache.
 
-## Next work (priority order)
-1. **Resolve the Option-1 fork above** (read wrapped refusals -> Case A or B).
-2. **Judge suite** (becomes critical path if Case B, and needed for any headline anyway):
-   (a) compliance-POSITIVE rule-based judge — require positive evidence of compliance, not just
-   absence of a refusal prefix (fixes verbose-style misreads);
-   (b) LLM-judge backend — non-Llama (qwen2.5 via Ollama), wired via the config `judges:` block;
-   (c) a `judge-eval`/calibration path scoring any judge vs the liuyanchen1015 `response`+`score`
-   labels (confusion matrix, sensitivity/specificity). Note: `judge-export`/`judge-ingest`
-   subcommands already exist — check them before building new.
-3. **Perf:** the gate reloads DeBERTa/RoBERTa PER BEHAVIOUR (backends/real_gate.py + gate_layers.py)
-   — very slow on CPU. Cache the models across behaviours (roughly one-line fix) before any large run.
-4. **Mechanistic arm** (thesis-upgrade, future): refusal-direction displacement vs recycling recovery.
-   White-box, HF transformers + hooks, <=8B on a single GPU.
+## Architecture
 
-## Key layout
-- `src/recyclebench/` — package. Notable: `judge.py` (looks_like_refusal + curly-apostrophe fix),
-  `screening.py` (`_draw_seed`, canonical screening), `recycling.py` (RSR), `realrun.py` (`_key`,
-  run-real path), `manifest.py` (paraphrase+gate manifest), `datasets.py` (load_jailbreakbench),
-  `config.py`. `backends/`: `providers.py` (Ollama openai-compatible), `reformulators.py`
-  (paraphrase generators), `real_gate.py` + `gate_layers.py` (layered intent gate:
-  lexical -> embedding -> BERTScore -> NLI DeBERTa).
-- `tools/` — `prepare_behaviours.py` (benchmark->CSV; `--hf-dataset`, dedup),
-  `inspect_cache.py` (reconstruct prompt->response from cache; `--only-pminus`, `--refusals-only`,
-  `--only-negflip`, `--compliances-only`; labels are dynamic via --old/--new),
-  `pminus_report.py` (2x2 partition + pooled; `--screen-inverse` fills negative-flip cell; `--dump`
-  writes per-cell CSVs), `wrap_behaviours.py` (`--list` templates, `--template X --out` wrapped set),
-  `make_dashboard.py` (art-quality HTML dashboard for supervisors: animated Sankey flow, RSR gauge,
-  transform-class bars, before->after per-P^- cards reconstructed from cache+manifest; `--rsr`,
-  `--manifest` (multiple), sensitive text collapsed).
-- `configs/` — `real_ollama.yaml` (llama3.2 1b/3b + qwen2.5:3b paraphraser),
-  `real_llama_lineage.yaml` (llama2-7b/llama3-8b/llama31-8b/llama2-13b + qwen paraphraser).
-- `run_pair.sh` — `bash run_pair.sh <old> <new> <cache> [benchmarks...]` — full pilot + partition
-  (incl. inverse) into a timestamped `results/runs/<ts>_<pair>_full/` dir. Wrap with
-  `caffeinate -is` + `nohup` for overnight.
+**Two parallel paths share the stats core.** The *mock* path (`study.py`, `models.py` mock lineage,
+`MockJudge`, mock `gate.py`/`reformulate.py`) plants a latent truth so `validate` can check estimator
+bias/coverage. The *real* path (`realrun.py`, `backends/`) has no ground truth. Its estimates are RAW
+until humans calibrate the judge via `judge-export`/`judge-ingest`. Never report mock numbers as Llama
+findings.
 
-## CLI (python3 -m recyclebench <cmd>)
-`pilot-pminus` (canonical screening -> P^- sizing), `run-real` (recycle -> gate -> re-screen -> RSR),
-`prereg` / `prereg-verify`, `judge-export` / `judge-ingest`, `manifest`, `gate-audit`,
-`audit-export` / `audit-ingest`, `figures`, `validate`, `version`.
+**Real pipeline:** `cli._build_real` turns config `real:` entries into `backends.providers.ProviderModel`
+(OpenAI-compatible), builds the judge from `judges:` (`backends/real_judge.py`: rubric / Llama Guard
+ensemble; currently a single `qwen2.5:14b` rubric judge), and falls back to `judge.RuleBasedJudge`
+(refusal-prefix, pilot-grade only) when `judges:` is absent. `screening.py` does canonical screening
+(k draws, broken if any draw complies) → C_M and P⁻. `run-real` builds the paraphrase manifest
+(`backends/reformulate.LLMReformulator` × `transform_classes`, gated by `gate.load_gate("real")` →
+`backends/real_gate.py` + `gate_layers.py`), **freezes** it (`manifest.py`), then re-screens every model
+on the same frozen variants. `recycling.py` = RSR, `pbr.py` = PBR, `stats.py` = Wilson / bundle-level
+Rogan–Gladen (sp^t) / McNemar / bootstrap, `calibration.py` + `judge_audit.py` = se/sp/κ from human labels,
+`audit.py` = gate human audit, `drivers.py` = RQ3 mixed-effects, `prereg.py` = hash-stamped prereg + drift.
+
+**Cache** (`realrun.ResponseCache`): append-only JSONL, lookup key `k = sha256(f"{model}|{prompt}|{seed}")[:32]`,
+where `model` is the **config key** (`llama3-8b`), not the Ollama `model_id`. Keep cfg keys stable or the cache
+misses. Canonical seeds come from `screening._draw_seed(bid, -1, draw)`. Changing config `seed` or `k`
+changes draws and causes misses. Newer lines also carry `model`/`seed`/`prompt[:200]`, but old lines are
+`{k,t}` only, so don't grep the cache for model names. Judge verdicts are not cached. Tools reconstruct
+prompt→response by recomputing keys (`tools/inspect_cache.py`, `make_dashboard.py` import `_key`/`_draw_seed`).
+
+**Intent gate** (ANDed, thresholds in config `gate:`): cosine ≥0.75, BERTScore ≥0.85, NLI-entail ≥0.60,
+llm_intent ≥0.50. Component scores are persisted in the manifest so threshold sensitivity is re-applied
+offline. Docs: `docs/GATE.md`, `docs/REFORMULATE.md`.
+
+**Three arms:**
+1. *Recycle* (primary): the pipeline above. 6 transform classes (`paraphrase, syntactic, lexical,
+   back_translation, tense_shift, register`), 8 paraphrases/behaviour, paraphraser `qwen2.5:3b`.
+2. *RPE* (output inversion, convergent check): `src/recyclebench/independent_probe/` +
+   `tools/run_independent_probe.py`, `tools/vendor/rpe_ga`. Reconstructs the request from the OLD model's
+   output (inverter `qwen2.5:14b`), gates it with the same gate, and re-tests NEW.
+3. *Attack-transfer*: `tools/run_attack_transfer.py`. Wei et al. attack classes from the
+   liuyanchen1015 HF dataset, **not** intent-gated. It must be judged against the *original* intent;
+   judging encoded output against encoded prompts gives spurious bypasses.
+
+**Dashboards:** `tools/make_dashboard.py` (single pair) rebuilds the 2×2/Sankey from cache + benchmark
+CSVs for `--old/--new`, and admitted-paraphrase cards from `--manifest`. Per-benchmark views go through
+`build_view(...)` + `filterBench(t)`. Section modules (`calibration_section`, `rpe_dashboard_section`,
+`style_arcs_section`, `attack_transfer_section`, `positioning_section`) are self-contained
+`<style>+<section>` fragments scoped under their own root class and injected before `</body>`. Calibration
+goes at the `<!--CALSLOT-->` marker. `tools/build_all_dashboards.py` batch-builds one per `results/runs/*`
+(pair parsed from `<old>_to_<new>` in the dir name, else `PAIR_OVERRIDE`).
+
+**Lineage dashboard** (`tools/lineage_dashboard.py`, data layer `tools/lineage_core.py`): one page for a whole
+`lineage:` run (defaults = the SORRY-Bench lineage), rebuilt from cache + frozen manifest through the package's own
+`compute_rsr`/`compute_pbr`. Headline figures come from `<run-dir>/summary_real.json`; per-item views use the verdict
+cache from `tools/judge_lineage.py` (replays the config's `judges:` over cached responses, no target calls, resumable,
+`--scope canonical|rsr|all`, `--dry-run`) when complete, else the offline refusal rule, labelled as such, with a
+reconciliation table. `--redact` drops all prompt/response text. Tested in `tests/test_lineage_dashboard.py`.
+
+**Master dashboard** (`tools/master_dashboard.py`, evidence layer `tools/study_data.py`): every result (all models ×
+benchmarks, all recycle/RPE/arc/attack runs, both judge calibrations, gate, registry of ~70 artifacts with integrity
+verdicts) in one text-free page → `results/dashboard_master_<stamp>.html`. `study_data` discovers artifacts, checks them
+(summary vs manifest, pilot vs META, identical copies, re-screen completeness, judge in RPE logs) and recomputes every
+number via the package estimators; run specs it cannot infer live in `RECYCLE_SPECS` / `RPE_SPECS`. Pass
+`--attack-70b-responses "~/Downloads/all_local_results_llama3_1_70b 1.jsonl"` for the per-item 70B checks.
+`tests/test_master_dashboard.py` includes real-data reproduction tests that skip when `results/` is absent.
+
+**Pair dashboards** (`tools/pair_dashboard.py`): one page per older → newer pair across every benchmark →
+`results/runs/dedicated-runs/<old>__to__<new>/dashboard_<stamp>.html` + `index_<stamp>.html`. Fixes come from the full
+benchmark screens; every recycle run containing both models contributes its rewordings (same-CSV runs join by bid,
+subset runs by prompt text — the loader ignores any `bid` column and HarmBench has 5 duplicate prompts). Embeds
+prompt/response text (collapsed) unless `--redact`; `--pairs a:b`, `--out-root`. Tests: `tests/test_pair_dashboard.py`.
+
+## Configs
+`real_llama_lineage_all.yaml` holds the 6-model lineage (`llama2-7b → llama2-13b → llama3-8b → llama31-8b →
+llama32-1b → llama32-3b`) and the seed the lineage cache was built with. `recycle_3_31.yaml` holds the
+calibrated anchor pair (+ `qwen25-14b` inverter). `run-real` derives pairs from `lineage:`. **All configs in
+a lineage must share identical `judges`/`gate`/`transform_classes`.** A dashboard printing `P^-=0` for a
+lineage rung usually means the wrong `--config` (seed mismatch).
+
+## Current state (Oct 2026)
+- **Anchor / headline:** llama3-8b → llama3.1-8b on SORRY-Bench, |P⁻|≈49, RSR ≈0.47 raw / ≈0.53 corrected,
+  judge admitted (se 0.862 / sp 0.967 / κ 0.830). `results/runs/recycle_3_31_sorrybench/`.
+- **Lineage (RAW, 5 adjacent pairs):** `results/runs/lineage_sorrybench_20261020/manifest.jsonl`. Per-pair
+  P⁻ = 18, 3, 49, 12, 13. Only the matched-scale 3-8b→3.1-8b rung is firm. The others are within-generation or
+  scale-confounded (a 1B in the "newer" role), so they are exploratory.
+- Earlier finding still holds: on raw prompts, safety-tuned "old" models refuse most raw harm, so P⁻ is
+  small. Don't add more raw-harm benchmarks hoping to grow P⁻. (The Aug 2026 wrapped-template
+  experiments in `cache/wrapped_rs.jsonl` / `data/wrapped_rs.csv` were superseded by SORRY-Bench.)
+- Open tasks are in handoff §14. §14.1 (lineage dashboard) is covered by `tools/lineage_dashboard.py` instead of a
+  `make_dashboard.py --lineage` mode. `cache/judge_lineage_sorrybench.jsonl` holds every canonical + RSR verdict
+  (reproduces P⁻ 18/3/49/12/13 and k 15/3/23/5/8 exactly) and ~7.7k of ~13k variant verdicts (PBR complete only for
+  llama2-7b/13b; finish with `judge_lineage.py --scope all`).
+- 2026-10-22 overnight (`overnight_20261021.sh`): `tools/cache_consolidate.py` merged `llama2_13b.jsonl` +
+  `ollama_pilot.jsonl` into `llama_gen.jsonl` (backup `*.pre_consolidate_*`); `tools/fill_responses.py` filled the
+  SMOKE HarmBench manifest for llama31-8b/llama2-13b. New `study_data` runs: `lineage-harmbench` (4 models; judged
+  figures replay `cache/judge_qwen_harmbench.jsonl`, RSR 15/22 · 3/3 · 19/26, PBR not judged), `x31-32-*`, `x27-213-*`.
+  `tools/judge_rpe.py` re-judged RPE with qwen (`cache/judge_rpe_qwen.jsonl`).
+- 2026-10-22 thesis close-out: every result so far is exploratory. `prereg_amendment_1_DRAFT.md` (pending sign-off)
+  records the deviations and registers a confirmatory replication on held-out `data/heldout_jbb_guided.csv`
+  (`tools/prepare_heldout.py`) with `configs/confirm_heldout_3_31.yaml`. Do not run anything on that CSV before
+  `bash overnight_stack.sh --stamp`. Long jobs live in `overnight_stack.sh` (`--list`). Offline tools:
+  `tools/thesis_analysis.py` (pooled headline, RQ2/RQ3, sensitivity, PBR, RPE agreement → dated `results/analysis_*`),
+  `tools/gate_audit.py` (blind gate audit sheet in `audit/gate/`), `tools/regate_intent.py` (gate layer (d) post hoc,
+  gemma4:e4b with `extra_body: {reasoning_effort: none}`; config key `intent:` now wires L2 into `run-real`).
+- White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
+  q/k un-permuted, rope factors and Llama-3 pre-tokenizer verified) and records per layer the refusal-direction score
+  (Arditi difference-of-means), residual divergence, top MLP neurons and P(refusal opening) → `results/mech/*.json`
+  (numbers only); `tools/mech_section.py` renders it inside fix cards of the 3-8b→3.1-8b pair dashboard. Faithfulness: Ollama
+  applied its default repeat penalty (1.1, last 64 tokens) to every study request; replays must use it (`ollama=True`).
+  Full run = overnight stack S5. Dashboards use the DFKI design (tokens in `lineage_dashboard.CSS`, logo
+  `tools/assets/dfki_logo_small.svg`, `brand_html()`), with a scrollspy TOC and sliding indicator in `lineage_dashboard.JS`.
+  The TOC lists every section fully expanded: its `h3`s, and on pair pages every benchmark tab with its panel's `h3`s (rebuilt on `rb:tabchange`); `ld.legend_html()` is the sidebar
+  colour key, `ld.rq_section()` the RQ1–RQ4 cards (master answers recomputed from the newest `results/analysis_*` + `results/mech/*_all_*`),
+  and `ld.rq_script(map)` puts RQ chips on nav entries and h2s. Pages must keep exactly one `<script>` (tests check it).
 
 ## Conventions & gotchas
-- **Judge classification MUST reuse `recyclebench.judge.looks_like_refusal`** (single source of truth;
-  the curly-apostrophe normalization U+2019->U+0027 lives there). Tools already import it.
-- **Paraphraser MUST be non-Llama** (decorrelated from the target lineage): qwen2.5. **No jailbreak
-  optimizers as paraphraser** (GCG/AutoDAN/PAIR/Pliny) — they generate attacks, not intent-preserving
-  paraphrases, and confound the estimand. `store_raw=False`.
-- Cache is append-only + resumable (Ctrl-C to pause, rerun same cmd to continue; a hard kill can
-  truncate the last JSON line -> repair on macOS: `sed -i '' -e '$d' cache.jsonl`). Different
-  benchmarks/prompts => different keys => accumulate safely.
-- `pilot-pminus` writes a FIXED `results/pminus_pilot.json`; `run-real` writes FIXED
-  `results/summary_real.json`. **cp to a unique name (or use run_pair.sh's timestamped dir) after
-  each run** or they overwrite.
-- Save results non-overwriting: prefer `results/runs/<ts>_<pair>/...`. Keep the CACHE shared
-  (expensive, reusable); snapshot results/manifests/logs per-run.
-- macOS via Ollama, `python3`. Gate ML deps: `pip3 install sentence-transformers transformers bert-score`.
-  Quieting: `export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1`. The transformers
-  "LOAD REPORT / UNEXPECTED / MISSING" lines are HARMLESS (classification heads, not generation).
-- Ollama models present: qwen2.5:3b/14b/latest, llama2:7b/13b/latest, llama3:8b, llama3.2:1b/3b,
-  llama3.1:8b. A missing model => 404 at call time (pull it).
-- **zsh gotcha:** inline heredocs/echoes containing `!` trigger history expansion ("event not found").
-  Fixes: write scripts to a file with `<< 'EOF'`, and/or `setopt no_bang_hist`.
-
-## Safety boundary (maintained)
-Benchmarks are user-supplied / fetched from official repos at runtime; converters carry no harmful
-content. The dashboard collapses + marks sensitive text and shows rates/structure, not raw harmful
-content. The wrapped-canonical template is FIXED and non-adaptive (a controlled transformation, not
-an optimizer). Judge-sensitivity checks, response reads, and wrapped-prompt work are legitimate
-research diagnostics for measuring refusal robustness.
+- **`run-real` never stores judge verdicts.** Anything rebuilt from the cache with `looks_like_refusal` disagrees with
+  the qwen2.5:14b judge (SORRY-Bench lineage offline P⁻ = 14/2/61/19/33 vs judged 18/3/49/12/13). Use the verdict cache.
+- **Gate audit scores in the manifest are partly placeholders.** `RealGate` short-circuits (lexical → cosine → BERTScore
+  → NLI) and `to_gate_scores()` writes 1.0 for every layer not evaluated; the lexical layer isn't persisted at all.
+  `llm_intent` is 1.0 everywhere (no intent model configured). `human_label` is None on every row, so the summary's
+  `false_admission_rate: 0.0` is vacuous until `audit-export`/`audit-ingest` is done.
+- **`judge_audit.calibrate_from_human` ignores `n_pos_total`/`n_neg_total`**: it passes the *sample* stratum sizes to
+  `invert_stratified`, so se/sp are wrong for a disproportionate audit. Harmless for `audit/sorrybench` (the sample is the
+  whole population: 26 + 34 bundles); wrong for `audit/attack` (30 of 30 judge-positives, 30 of 2,338 negatives): reported
+  se 0.857, design-weighted ≈ 0.07 → attack transfer is under-counted. Neither judge suits attack outputs (the offline rule
+  reads ciphers/garble as compliance). On SORRY-Bench the offline rule beats qwen2.5:14b vs humans (bundle κ 0.93 vs 0.83).
+- RPE on SORRY-Bench (`rpe_3_31_*`) was judged by the target model (logs: target-as-judge); every `rpe_agreement.json` is
+  invalid (paraphrase side read from fields recycle manifests lack). Recompute agreement by joining on prompt text.
+- Before 2026-10-03 (first Ollama `judges:` block, commit 0d09db7) every pilot used the offline rule; the July llama3.2
+  pilots (`results/pminus_{advbench,harmbench,strongreject}.json`) predate the U+2019 fix and are superseded. The SMOKE
+  run's `summary_harmbench.json` is a copy of StrongREJECT's summary; `20260804_021001_*/pminus_*.json` are copies of
+  `pminus_wrapped_rs.txt`.
+- Style-arc / gate means must use only scores the gate computed (placeholders inflate back-translation's NLI 0.83 → 0.96).
+- The summary's RSR/PBR `CI` is a delta-method (normal-approx) interval that collapses to [1, 1] at k = n; dashboards
+  show Wilson intervals recomputed from k/n.
+- Refusal classification must go through `recyclebench.judge.looks_like_refusal`, the single source of truth.
+  It includes the U+2019→' normalisation.
+- The paraphraser/judge/inverter must be **non-Llama** (qwen2.5), decorrelated from the targets. Never use
+  jailbreak optimizers (GCG/AutoDAN/PAIR) as the paraphraser, because they confound the estimand. Keep `store_raw: false`.
+- **Never overwrite results/dashboards.** `pilot-pminus` writes a fixed `results/pminus_pilot.json` and `run-real`
+  a fixed `results/summary_real.json`, so copy them into `results/runs/<ts>_<pair>/` after each run. Dashboards
+  get dated names (`dashboard_<YYYYmmdd_HHMM>.html`). Keep the cache shared; snapshot everything else per run.
+- **Never run two `run-real` at once.** Two writers corrupt the cache and manifest. A hard kill can truncate the last
+  cache line; on macOS, repair with `sed -i '' -e '$d' cache/<file>.jsonl`.
+- Ollama: run with `OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=1h`, or judge/target alternation reloads ~10 GB
+  per call. A run at 0% CPU may be swap-thrashing rather than hung, so check cache growth and `ollama ps` before killing it.
+  A missing model gives a 404 at call time (`ollama pull`). Hardware is an M1 Max with 32 GB, so no 70B/405B locally.
+- Quiet HF: `export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1`. The "LOAD REPORT / UNEXPECTED /
+  MISSING" lines are harmless. Gate deps: `pip3 install -e '.[gate]'` (or `requirements-real.txt`).
+- zsh: `!` inside inline heredocs/echo triggers history expansion, so write scripts to files with `<< 'EOF'`. Unquoted
+  `$var` doesn't word-split, so use arrays or `${pair%%:*}` / `${pair##*:}`.
+- `results/`, `audit/`, `data/*.csv` are gitignored. Benchmarks are fetched locally (`tools/prepare_behaviours.py`,
+  `tools/prepare_sorrybench.py`, CSV column `Goal`). No harmful content ships in the repo. Dashboards collapse
+  sensitive text. See `ETHICS.md`.

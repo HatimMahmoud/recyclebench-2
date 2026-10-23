@@ -89,6 +89,7 @@ class Config:
     real: dict = field(default_factory=dict)         # model name -> ProviderConfig kwargs
     judges: dict = field(default_factory=dict)       # role ("rubric"/"guard") -> kwargs
     paraphraser: dict = field(default_factory=dict)  # kwargs for the reformulating model
+    intent: dict = field(default_factory=dict)       # kwargs for the gate's L2 intent model (decorrelated)
     cache_path: str = "results/cache.jsonl"
     results_dir: str = "results"
     manifest_path: str = "results/manifest.jsonl"

@@ -7,3 +7,12 @@ data/*.csv
 !data/README.md
 .venv/
 *.egg-info/
+
+# run logs and cache backups: large, regenerable, not source
+logs/
+cache/*.pre_consolidate_*
+# LaTeX build artifacts (keep .tex/.bib/.pdf)
+docs/thesis/*.aux
+docs/thesis/*.log
+docs/thesis/*.blg
+docs/thesis/*.bbl

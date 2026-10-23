@@ -1,0 +1,182 @@
+% docs/thesis/discussion_meta_comparison.tex -- Discussion: relation to Meta's published Llama safety results.
+% \input{} from the discussion chapter. Needs: booktabs, tabularx, array, amssymb, natbib.
+% Bibliography keys: docs/thesis/meta_comparison.bib.
+% Status: every number is EXPLORATORY (prereg Amendment 1, 2026-10-22) and RAW unless marked "corrected".
+% Sources of our numbers: results/analysis_20261022_1631/, results/dashboard_master_20261022_1653.html.
+
+\subsection{Relation to the developer's published safety results}
+\label{sec:disc-meta}
+
+Meta reports safety results for every Llama generation we study: Llama~2-Chat in \citet{touvron2023llama2} and
+Llama~3.1 in \citet{dubey2024llama3}, whose results are for the 3.1 models throughout. Llama~3 itself (April 2024)
+has no technical report. Our anchor pair, Llama-3-8B-Instruct $\rightarrow$ Llama-3.1-8B-Instruct, therefore spans
+exactly the post-training described in \citet[\S5.4.3]{dubey2024llama3}. None of the developer's figures is
+directly comparable to ours. Its safety benchmarks are internal and anonymised and, by its own account, ``not
+reproducible externally'' \citep[fn.~13]{dubey2024llama3}. They report violation and false-refusal rates, mainly for
+the 70B and 405B models, without verified intent preservation or judge-error correction. Table~\ref{tab:meta-corr}
+therefore sets each published claim against the measurement of ours that bears on it, and grades the relation instead
+of comparing numbers. Table~\ref{tab:sorry-ext} gives the one external check of our screening that is possible: the
+independently published SORRY-Bench fulfilment rates \citep{xie2025sorrybench}.
+
+\begin{table}[p]
+\centering
+\footnotesize
+\renewcommand{\arraystretch}{1.18}
+\caption{Correspondence between Meta's published Llama safety findings and the present measurements.
+  Relation: $\approx$~consistent; $+$~extends (a dimension the developer does not report);
+  $\leftrightarrow$~contrast; ?~hypothesis, not tested; $\varnothing$~no counterpart.
+  Our figures are raw and exploratory unless marked; intervals are Wilson 95\%.}
+\label{tab:meta-corr}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.05cm}
+                                >{\raggedright\arraybackslash}X
+                                >{\raggedright\arraybackslash}X
+                                >{\centering\arraybackslash}p{0.75cm}@{}}
+\toprule
+Theme & Developer's finding (source) & This study & Rel. \\
+\midrule
+Generational balance (Llama~2 $\rightarrow$ 3)
+ & Llama~3 gives ``a much better balance between helpfulness and harmlessness than its predecessor'', with lower
+   false refusal on internal benchmarks \citep[\S1, Fig.~21]{dubey2024llama3}.
+ & Canonical compliance roughly doubles: SORRY-Bench 12.3\,\% $\rightarrow$ 20.9\,\%, HarmBench 10.3\,\%
+   $\rightarrow$ 23.8\,\% (Llama-2-7B $\rightarrow$ Llama-3-8B). Newly answered behaviours far outnumber newly refused
+   ones (SORRY-Bench 64 vs.\ 4; HarmBench 66 vs.\ 5)\textsuperscript{a}.
+ & $\approx$ \\
+\addlinespace
+Safety fine-tuning of Llama~3.1
+ & Safety SFT and DPO on adversarial plus borderline data; refusal tone guideline
+   \citep[\S5.4.3]{dubey2024llama3}.
+ & Llama-3.1-8B refuses more than Llama-3-8B (SORRY-Bench 20.9\,\% $\rightarrow$ 11.6\,\% compliance). Of the 82
+   behaviours it newly refuses (four benchmarks, one judge throughout; StrongREJECT contributes none), 45 are re-opened
+   by a gate-admitted rewording: RSR 54.9\,\% [44.1, 65.2], McNemar $p \approx 6\times10^{-14}$; corrected 62.5\,\%
+   [47.1, 77.9]\textsuperscript{b}. Adding the LLM intent check to the gate removes 2 of the 321 rewordings involved
+   and leaves RSR unchanged.
+ & $+$ \\
+\addlinespace
+Robustness to surface form
+ & Robustness is reported for capability only: pre-trained models are ``very robust'' to MCQ label and format
+   changes \citep[\S5.1.2]{dubey2024llama3}; paraphrase detection is unaffected by PAWS-style
+   adversariality \citep[\S5.1.3]{dubey2024llama3}.
+ & Refusals are not invariant to meaning-preserving rewording: Llama-3.1-8B PBR 16.8\,\% [13.3, 20.9] on
+   SORRY-Bench. Register (OR 3.6) and paraphrase (OR 2.3) rewordings are the significant drivers
+   (mixed-effects logit, Holm-corrected); back-translation recovers least.
+ & $\leftrightarrow$ \\
+\addlinespace
+Safety across the lineage
+ & Llama~2-Chat has a ``low violation percentage overall across model sizes''
+   \citep[Fig.~17]{touvron2023llama2}.
+ & The direction of the PBR trend depends on the benchmark. On SORRY-Bench, PBR is lowest for Llama~2 (7B 12.6\,\%,
+   13B 10.1\,\%) and higher for every Llama~3.x model (16.8--23.1\,\%; Llama-2-13B [7.5, 13.5] and Llama-3.2-3B
+   [19.0, 27.8] are disjoint). On HarmBench it reverses: Llama~2 17.6\,\% and 17.4\,\% against Llama~3 14.4\,\% and
+   Llama~3.1 13.8\,\% (overlapping intervals). On AdvBench and StrongREJECT it is small for every model (0.8--6.3\,\%).
+ & $\approx$/$\leftrightarrow$ \\
+\addlinespace
+Known jailbreak templates
+ & Refusal suppression, hypotheticals, personas and disclaimers were ``pervasive across model checkpoints,
+   particularly when used together'', mostly in multi-turn red teaming; findings fed back into safety data
+   \citep[\S5.4.6]{dubey2024llama3}.
+ & Single-turn templates \citep{wei2023jailbroken} on Llama-3.1-8B, judged against the original request
+   ($n = 291$ canonically refused): refusal suppression 2.1\,\%, AIM, evil confidant and developer mode 0\,\%;
+   the strongest class (short style injection) re-opens 4.1\,\% [2.4, 7.1]\textsuperscript{c}. Multi-turn attacks not tested.
+ & $\approx$ \\
+\addlinespace
+Scale and capability-gated attacks
+ & 8B models need a larger share of safety data than 70B \citep[Fig.~18]{dubey2024llama3}; larger models are more
+   susceptible to code-interpreter abuse (405B 10.4\,\% vs.\ 70B 3.8\,\%) and prompt injection (70B 0.26,
+   405B 0.22, 8B 0.19) \citep[\S5.4.5]{dubey2024llama3}.
+ & An encoded combination attack re-opens 25.1\,\% [20.4, 30.5] of Llama-3.1-70B's refusals and 0\,\% of
+   Llama-3.1-8B's: only the larger model decodes the cipher, consistent with mismatched generalisation
+   \citep{wei2023jailbroken}\textsuperscript{c}.
+ & $\approx$ \\
+\addlinespace
+Intellectual property
+ & Llama Guard~3 reduces intellectual-property violations by 88\,\% (input) to 100\,\% (output)
+   \citep[Tab.~26]{dubey2024llama3}.
+ & 13 of 14 HarmBench copyright behaviours newly refused by Llama-3.1-8B are re-opened by rewording: model-level IP
+   refusal is the most surface-bound category we observe\textsuperscript{d}.
+ & $+$ \\
+\addlinespace
+Refusal wording and judges
+ & Overused apologies (``I'm sorry'', ``I apologize'') rebalanced in SFT data; refusal tone guideline
+   \citep[\S4.2.3, \S5.4.3]{dubey2024llama3}.
+ & A refusal-prefix rule and the LLM judge diverge only for Llama~3 models (compliance 110 vs.\ 92 for 3-8B, 63 vs.\ 51
+   for 3.1-8B; 50 vs.\ 54 for 2-7B, SORRY-Bench). A changed refusal style may defeat string-matching judges.
+ & ? \\
+\addlinespace
+Mechanism of the re-opening
+ & Not reported. The developer describes safety training data and red-team findings, not internal refusal
+   representations \citep[\S5.4]{dubey2024llama3}.
+ & White-box probe of the 23 re-opened anchor fixes, on the exact weights served: inside Llama-3.1-8B, re-opening
+   rewordings lie lower on the model's own refusal direction \citep{arditi2024refusal} than rewordings it still refuses,
+   in 18 of 20 behaviours (sign test $p = 0.0004$); Llama-3-8B, which answers all of them, shows no reliable difference
+   (14/20, $p = 0.12$)\textsuperscript{e}.
+ & $\varnothing$ \\
+\addlinespace
+Data recency
+ & Pre-training data ``until the end of 2023'' \citep[\S3.1]{dubey2024llama3}; synthetic adversarial prompts in
+   safety data \citep[\S5.4.3]{dubey2024llama3}.
+ & Compliance is near zero on the oldest benchmark (AdvBench, 2023; 0.4--2.1\,\% for all six models) and highest on the
+   newest (SORRY-Bench, 2024), which also yields the largest regression set. This fits fixes keyed to well-known
+   prompts, but is confounded with benchmark composition; the held-out replication tests it.
+ & ? \\
+\addlinespace
+Llama~3.2 1B / 3B
+ & Not covered (released after the report).
+ & PBR 19.6\,\% and 23.1\,\% (SORRY-Bench).
+ & $\varnothing$ \\
+\addlinespace
+Measurement
+ & Internal, anonymised benchmarks; normal-approximation intervals that ``lower bound the actual variation''
+   \citep[\S5.1.1]{dubey2024llama3}; no judge-error correction reported.
+ & Public benchmarks, frozen gated stimuli, Wilson intervals, bundle-level Rogan--Gladen correction with a
+   human-calibrated judge.
+ & $\varnothing$ \\
+\bottomrule
+\end{tabularx}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize\raggedright
+\textsuperscript{a}\,Offline refusal rule; all other compliance rates use the qwen2.5:14b judge.\\
+\textsuperscript{b}\,Correction uses the SORRY-Bench bundle-level calibration (se 0.859, sp 0.968, $\kappa = 0.83$); its transfer
+  to HarmBench, AdvBench and StrongREJECT is assumed.\\
+\textsuperscript{c}\,Attack-transfer arm, not intent-gated. Its judge's design-weighted sensitivity is 0.07 [0.04, 0.28], so these
+  rates are lower bounds.\\
+\textsuperscript{e}\,Correlational, measured at the last prompt token before any output; 124 of 133 probed prompts reproduce
+  the cached reply token for token under the server's decoding (repeat penalty 1.1 over the last 64 tokens).\\
+\textsuperscript{d}\,``Compliance'' is the judge's verdict that the model attempted the request, not a verified verbatim
+  reproduction; cf.\ the low memorisation rates in \citet[Tab.~24]{dubey2024llama3}.
+\end{minipage}
+\end{table}
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{External check of the canonical screening: SORRY-Bench fulfilment rates on the 440 base instructions.}
+\label{tab:sorry-ext}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Model & \citet{xie2025sorrybench}\textsuperscript{a} & This study\textsuperscript{b} \\
+\midrule
+Llama-2-7B-Chat      & 13.9\,\% & 12.3\,\% \\
+Llama-2-13B-Chat     & 14.6\,\% & \phantom{0}9.3\,\% \\
+Llama-3-8B-Instruct  & 22\,\%   & 20.9\,\% \\
+\bottomrule
+\end{tabular}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize\raggedright
+\textsuperscript{a}\,Temperature 0.7, one sample, fine-tuned Mistral-7B judge.\\
+\textsuperscript{b}\,Greedy decoding on 4-bit quantised weights (Ollama defaults), compliant if any of three draws is judged compliant,
+  qwen2.5:14b judge.
+\end{minipage}
+\end{table}
+
+Three points follow from Table~\ref{tab:meta-corr}. First, no measurement contradicts a published claim. Where the two
+overlap, on the generational shift in refusal rates, the weakness of known single-turn templates, and the scale
+dependence of capability-gated attacks, they agree. The independent screening check agrees as well
+(Table~\ref{tab:sorry-ext}, within 1.6 points for two of three models; the 13B gap is plausibly due to decoding and
+quantisation). Second, the developer evaluates safety against attack \emph{forms}: adversarial and borderline prompts,
+red-team techniques, a system-level guard. It does not evaluate invariance of a refusal under rewording that keeps the
+request the same, and that is the axis on which our results diverge most. The Llama-3.1 fixes that resist every tested
+jailbreak template still re-open under a benign register or paraphrase change in about half of cases. Third, the
+lineage trend in PBR is benchmark-dependent and so does not settle the developer's ``better balance'' claim either
+way. On SORRY-Bench, whose categories include borderline requests, lower false refusal in newer generations
+coincides with refusals that are less robust to surface form. On HarmBench the newer generations' refusals are, if
+anything, slightly more robust. Where the fixes do re-open, the white-box probe locates the change before the first
+output token: the re-opening rewording sits lower on the newer model's refusal direction. The data-recency and refusal-wording rows are hypotheses that the pre-registered held-out
+replication and the human judge audit are designed to test. They are not findings.

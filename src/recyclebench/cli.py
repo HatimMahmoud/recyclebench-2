@@ -396,8 +396,16 @@ def cmd_run_real(args) -> int:
         # inventory=behaviours populates the discriminative L2 choice pool; the L2 layer
         # activates only when a decorrelated intent model is also configured (else the gate is
         # semantic-equivalence-only, which the audit records transparently).
+        intent_respond = None
+        if cfg.intent:
+            from .backends.providers import ProviderConfig, ProviderModel
+            im = ProviderModel("gate:intent", ProviderConfig(**cfg.intent))
+            intent_respond = lambda prompt: im.respond(prompt).text          # noqa: E731
+            print(f"gate L2 intent layer: {cfg.intent.get('model_id')}")
+        else:
+            print("gate L2 intent layer: DISABLED (no `intent:` block) -- semantic-equivalence only")
         gate = load_gate("real", make_rng(cfg.seed + 12), cfg.gate, cfg.mock, cfg,
-                         inventory=behaviours)
+                         inventory=behaviours, intent_respond=intent_respond)
         manifest = Manifest.build(behaviours, reform, gate)
         out = args.manifest or cfg.manifest_path
         manifest.save(out)

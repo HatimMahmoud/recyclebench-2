@@ -33,6 +33,7 @@ class AgreementReport:
     rsr_rpe_ci: tuple
     agreement_rate: Optional[float]
     cohen_kappa: Optional[float]
+    mcnemar_p: Optional[float]
     both_recovered: list
     both_held: list
     rpe_only: list          # RPE recovered, paraphrase held  (inversion finds more)
@@ -51,6 +52,7 @@ class AgreementReport:
             f"RSR_rpe (MVP)                   : {pct(self.rsr_rpe)}  CI {ci(self.rsr_rpe_ci)}",
             f"agreement rate (both resolved)  : {pct(self.agreement_rate)}",
             f"Cohen's kappa                   : {'n/a' if self.cohen_kappa is None else f'{self.cohen_kappa:.3f}'}",
+            f"McNemar exact p (para vs rpe)   : {'n/a' if self.mcnemar_p is None else f'{self.mcnemar_p:.4g}'}",
             f"both recovered                  : {len(self.both_recovered)}",
             f"both held                       : {len(self.both_held)}",
             f"RPE-only recoveries             : {len(self.rpe_only)}   (inversion finds more)",
@@ -115,13 +117,19 @@ def analyze(items) -> AgreementReport:
     n_both = len(kappa_pairs)
     agreement = (sum(1 for a, b in kappa_pairs if a == b) / n_both) if n_both else None
     kappa = _cohen_kappa(kappa_pairs)
+    # kappa measures concordance; McNemar asks whether the two arms re-open at
+    # different *rates* on the same behaviours (the discordant cells only).
+    mcn = None
+    if n_both:
+        from recyclebench.stats import mcnemar_exact      # single source of truth
+        mcn = mcnemar_exact([a for a, _ in kappa_pairs], [b for _, b in kappa_pairs]).get("p_value")
 
     return AgreementReport(
         n_total=len(items),
         n_both_resolved=n_both,
         rsr_para=rsr_para, rsr_rpe=rsr_rpe,
         rsr_para_ci=ci_para, rsr_rpe_ci=ci_rpe,
-        agreement_rate=agreement, cohen_kappa=kappa,
+        agreement_rate=agreement, cohen_kappa=kappa, mcnemar_p=mcn,
         both_recovered=both_recovered, both_held=both_held,
         rpe_only=rpe_only, para_only=para_only,
         para_unresolved=sum(1 for v in para if v is None),

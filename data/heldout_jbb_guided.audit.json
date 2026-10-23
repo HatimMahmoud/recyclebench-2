@@ -1,0 +1,403 @@
+{
+ "out": "data/heldout_jbb_guided.csv",
+ "sha256": "d0439ac602c2194e9f5f1da3c6b900c878d479a4c18a896ccc60b5a293da19c2",
+ "n_kept": 222,
+ "n_dropped": 78,
+ "cutoff": 0.85,
+ "kept_by_source": {
+  "jbb": 71,
+  "guidedbench": 151
+ },
+ "drops": [
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.97) of harmbench",
+   "goal_sha": "0d23d9589d94"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "43b92c83b259"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.93) of advbench",
+   "goal_sha": "f8edf0faeed1"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "67d2eab4606f"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.99) of advbench",
+   "goal_sha": "1a31ad98dfbd"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.99) of advbench",
+   "goal_sha": "de8788d20ea9"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "e938c0d7e449"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.85) of harmbench",
+   "goal_sha": "19676bece6b3"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "ccf78fb03ce1"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "da2ba35a859b"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "fff52b4ba335"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "0972aedee354"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "6f515a9f6a37"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "ec01d72ca7f4"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "38426200f4d2"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.99) of advbench",
+   "goal_sha": "2ef31b752892"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "a6ac7c259ea0"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "edb928a4dad4"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "ec224021ea79"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "37f38bd55cb3"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "671bff7bfd40"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "d494bcd8bf63"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "9ffff4edadd7"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.91) of advbench",
+   "goal_sha": "b90f7c238761"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.95) of harmbench",
+   "goal_sha": "e0ccb4f8d0bd"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "bec908e1dd18"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "68ece9fcc5ae"
+  },
+  {
+   "source": "jbb",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "7e278f846e65"
+  },
+  {
+   "source": "jbb",
+   "reason": "near duplicate (0.96) of harmbench",
+   "goal_sha": "a673be36d7e2"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.96) of advbench",
+   "goal_sha": "8d1b54743bd0"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.86) of sorrybench",
+   "goal_sha": "655dbd77fcbb"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.86) of strongreject",
+   "goal_sha": "99b577f84bab"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.98) of strongreject",
+   "goal_sha": "5bc3ffc13195"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.88) of advbench",
+   "goal_sha": "9417de33da93"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.91) of strongreject",
+   "goal_sha": "4604e1cb7c72"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.96) of harmbench",
+   "goal_sha": "04cdc3a3496f"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.94) of harmbench",
+   "goal_sha": "e2a888cb1a37"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.92) of advbench",
+   "goal_sha": "cb548c08c30b"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.99) of advbench",
+   "goal_sha": "1a31ad98dfbd"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.89) of harmbench",
+   "goal_sha": "f5d78f0ff435"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.93) of harmbench",
+   "goal_sha": "054541bfa1e9"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.91) of harmbench",
+   "goal_sha": "5a1a11bc6255"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.93) of strongreject",
+   "goal_sha": "fd2aa76fbcba"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.85) of strongreject",
+   "goal_sha": "30a09ba9fa91"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.93) of harmbench",
+   "goal_sha": "b9dd558b7e55"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "f920775e9d72"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.86) of advbench",
+   "goal_sha": "be62f98cf90e"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.87) of strongreject",
+   "goal_sha": "7b666b4e624d"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.99) of advbench",
+   "goal_sha": "f830d849fcc9"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of advbench",
+   "goal_sha": "90cc5f27a39a"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of harmbench",
+   "goal_sha": "06b2c5d156bc"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "exact duplicate of advbench",
+   "goal_sha": "d535f38df9ab"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.86) of harmbench",
+   "goal_sha": "48c131582457"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of strongreject",
+   "goal_sha": "0c1b263b3730"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.88) of strongreject",
+   "goal_sha": "e0ba464a78c1"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of strongreject",
+   "goal_sha": "af3206786ad1"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.96) of strongreject",
+   "goal_sha": "e8bf949b5ad7"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.98) of advbench",
+   "goal_sha": "3eaa7824be05"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.92) of advbench",
+   "goal_sha": "ebbaa52e2ddc"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.84) of harmbench",
+   "goal_sha": "ed979e64be5e"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.92) of strongreject",
+   "goal_sha": "8e161215760d"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.86) of strongreject",
+   "goal_sha": "2f48a04ceae7"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of advbench",
+   "goal_sha": "179c8fa2199a"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of strongreject",
+   "goal_sha": "9cb9f8ad2f57"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of advbench",
+   "goal_sha": "5be9c6878fde"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.93) of harmbench",
+   "goal_sha": "71cb4f7c8d99"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.90) of advbench",
+   "goal_sha": "ad9a544a0355"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.89) of advbench",
+   "goal_sha": "3f9920bc35bf"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.89) of advbench",
+   "goal_sha": "ba2c20361a7d"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.88) of strongreject",
+   "goal_sha": "eb7b5cdd9fb4"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.91) of advbench",
+   "goal_sha": "b202fee0d84a"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.95) of advbench",
+   "goal_sha": "71fb8f2ea44b"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.87) of strongreject",
+   "goal_sha": "e37c23c5ae4f"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.96) of harmbench",
+   "goal_sha": "de3ecfc04e39"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.88) of harmbench",
+   "goal_sha": "6503c7073f8f"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "near duplicate (0.95) of sorrybench",
+   "goal_sha": "95ce88a7bcbb"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "5199e66816c0"
+  },
+  {
+   "source": "guidedbench",
+   "reason": "exact duplicate of harmbench",
+   "goal_sha": "baa67e1259ca"
+  }
+ ]
+}

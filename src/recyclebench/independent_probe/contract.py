@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Optional
 import json
 import re
+import warnings
 
 
 @dataclass
@@ -151,8 +152,17 @@ def parse_recycle_manifest(path: Path) -> dict[str, Optional[int]]:
 
     Tolerant to field-name variants: bypassed / recovered / success /
     attack_successful, and bid / id / behavior_id.
+
+    **`run-real` manifests do not carry verdicts at all** -- they hold the frozen
+    variants (`type: admitted`) and the gate audit trail (`type: audit`), and the
+    re-screen verdicts live in the response cache plus the judge verdict store.
+    On such a manifest this returns {} and every behaviour is *unresolved*, never
+    0: scoring a missing verdict as "held" silently turns one side of the
+    convergent-validity comparison into a constant. Rebuild those verdicts with
+    `tools/rpe_repair.py` (lineage_core.observe + the package estimators) instead.
     """
     verdict: dict[str, Optional[int]] = {}
+    saw_verdict_field = False
     p = Path(path)
     if not p.exists():
         return verdict
@@ -169,16 +179,24 @@ def parse_recycle_manifest(path: Path) -> dict[str, Optional[int]]:
             continue
         val = _first_present(rec, ("recovered", "bypassed", "success", "attack_successful"))
         if val is None:
-            # unresolved only if explicitly marked; otherwise treat as held
+            # no verdict on this row: unresolved, never "held"
             if rec.get("unresolved") or rec.get("prediction") in (-1, -1.0, "-1"):
                 verdict[bid] = None
             else:
-                verdict.setdefault(bid, 0)
+                verdict.setdefault(bid, None)
             continue
+        saw_verdict_field = True
         v = 1 if int(val) == 1 else 0
         # OR-reduce across multiple rows for the same bid
         prev = verdict.get(bid)
         verdict[bid] = 1 if (prev == 1 or v == 1) else 0
+    if not saw_verdict_field:
+        warnings.warn(
+            f"{p}: no recovery verdict field on any record -- this looks like a run-real "
+            "manifest, which stores frozen variants and gate audits, not verdicts. "
+            "Every behaviour is returned unresolved; rebuild with tools/rpe_repair.py.",
+            RuntimeWarning, stacklevel=2)
+        return {}
     return verdict
 
 

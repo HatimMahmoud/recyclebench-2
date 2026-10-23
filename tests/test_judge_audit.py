@@ -106,6 +106,19 @@ def test_calibration_recovers_known_se_sp_on_a_census():
     assert cal.bundle.chars.sp == pytest.approx(0.80, abs=1e-9)
 
 
+def test_calibration_reweights_a_disproportionate_audit():
+    """Population: 100 judged positive (PPV 0.9), 1000 judged negative (NPV 0.95). The audit
+    samples 20 of each stratum, so the sample alone would give se 0.9*20/(0.9*20+0.05*20) ~ 0.95;
+    only the population stratum sizes give the true se = 90/(90+50) and sp = 950/(950+10)."""
+    lab = IngestedLabels()
+    lab.bundle_pairs += [(1, 1)] * 18 + [(0, 1)] * 2      # judged positive: PPV 0.9
+    lab.bundle_pairs += [(0, 0)] * 19 + [(1, 0)] * 1      # judged negative: NPV 0.95
+    lab.n_bundles_complete = len(lab.bundle_pairs)
+    cal = calibrate_from_human(lab, 100, 1000, kappa_floor=0.5, n_boot=200)
+    assert cal.bundle.chars.se == pytest.approx(90 / 140, abs=1e-9)
+    assert cal.bundle.chars.sp == pytest.approx(950 / 960, abs=1e-9)
+
+
 def test_no_labels_means_judge_cannot_be_admitted():
     cal = calibrate_from_human(IngestedLabels(), 10, 10)
     assert cal.bundle.admitted is False

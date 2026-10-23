@@ -35,6 +35,9 @@ class ProviderConfig:
     timeout: float = 120.0
     max_retries: int = 4
     system_prompt: Optional[str] = None
+    # extra request-body fields, e.g. {reasoning_effort: none} for a thinking model whose
+    # reasoning would otherwise use up a small max_tokens before any answer is written
+    extra_body: Optional[dict] = None
 
 
 class ProviderModel:
@@ -81,6 +84,8 @@ class ProviderModel:
                           max_tokens=self.pc.max_tokens)
                 if seed is not None:
                     kw["seed"] = seed          # honoured by vLLM / OpenAI
+                if self.pc.extra_body:
+                    kw["extra_body"] = dict(self.pc.extra_body)
                 r = c.chat.completions.create(**kw)
                 return r.choices[0].message.content or ""
             except Exception as exc:           # transient API/network failure

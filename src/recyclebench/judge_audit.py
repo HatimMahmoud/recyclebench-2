@@ -214,7 +214,8 @@ def calibrate_from_human(labels: IngestedLabels, n_pos_total: Optional[int] = No
                                      "reporting unweighted estimates")
     ppv = sum(h for h, _ in jp) / len(jp)            # P(truth=1 | judge=1)
     npv = sum(1 - h for h, _ in jn) / len(jn)        # P(truth=0 | judge=0)
-    se_iv, sp_iv = invert_stratified(len(jp), len(jn), ppv, npv, len(jp), len(jn),
+    # population stratum sizes weight the inversion; the sample sizes only set the bootstrap
+    se_iv, sp_iv = invert_stratified(n_pos_total, n_neg_total, ppv, npv, len(jp), len(jn),
                                      n_boot=n_boot, seed=seed)
     chars = JudgeChars(se=se_iv.point, sp=sp_iv.point,
                        var_se=((se_iv.high - se_iv.low) / 3.92) ** 2,
