@@ -1383,6 +1383,62 @@ def sec_gate(an):
 </section>"""
 
 
+def _newest_inversion_report():
+    """Newest results/runs/rpe_lineage/lineage_report_*.json, or None."""
+    d = Path(__file__).resolve().parents[1] / "results" / "runs" / "rpe_lineage"
+    xs = sorted(d.glob("lineage_report_*.json")) if d.exists() else []
+    return json.loads(xs[-1].read_text()) if xs else None
+
+
+def sec_inversion():
+    """Convergent validity: perturb the REQUEST (recycle) vs reconstruct it from the ANSWER (inversion)."""
+    doc = _newest_inversion_report()
+    if not doc or not doc.get("views"):
+        return ""
+    rows, any_scored = [], False
+    for v in doc["views"]:
+        o, n = v["pair"]
+        r, q, ag = v["RSR"], v.get("PRR"), v.get("agreement")
+        def cell(x):
+            if not x or x["rate"] is None:
+                return '<span class="sub">not scored</span>'
+            return (f'{pct(x["rate"])} <span class="sub">{x["k"]}/{x["n"]}</span>'
+                    + (f' <span class="sub">[{x["ci"][0]*100:.0f}, {x["ci"][1]*100:.0f}]</span>'
+                       if x["ci"][0] is not None else ""))
+        if q and q["rate"] is not None:
+            any_scored = True
+        rows.append([esc(f"{short(o)} \u2192 {short(n)}"), num(v["p_minus"]), cell(r), cell(q),
+                     num(ag["n_both_resolved"]) if ag else "\u2014",
+                     (f'{ag["cohen_kappa"]:.2f}' if ag and ag["cohen_kappa"] is not None else "\u2014"),
+                     (p_txt(ag["mcnemar_p"]) if ag and ag["mcnemar_p"] is not None else "\u2014")])
+    if not any_scored:
+        return ""
+    tbl = table(["pair", "P\u207b", "RSR \u00b7 recycle arm", "PRR \u00b7 inversion arm",
+                 "resolved by both", "\u03ba", "McNemar p"], rows, num_cols=(1, 4))
+    return f"""
+<section id="s-inversion" class="sec" aria-labelledby="h-inversion">
+  <h2 id="h-inversion"><span class="sn">09</span>Inversion arm \u00b7 convergent validity</h2>
+  <p class="note lede2">Two independent routes to the same question, scored on the same judged P\u207b of the
+  same pair. The <b>recycle arm</b> perturbs the request and re-tests; the <b>inversion arm</b> never sees the
+  request \u2014 it reconstructs one from the older model's own answer and admits it only if the older model's
+  reply to the reconstruction lands in the response-equivalence class of the original answer
+  (Suhail et al., PTP 2026, Definition 1). The arms share no generator, so agreement is evidence the
+  estimand is not an artifact of the paraphraser.</p>
+  {tbl}
+  <div class="panel"><h3>How to read this</h3><ul class="take">
+    <li><b>\u03ba is degenerate here.</b> Both arms re-open most of what they resolve, so the marginals are
+    extreme and there is almost no room for chance-corrected agreement. McNemar tests the quantity that
+    matters \u2014 whether the two arms re-open at different <i>rates</i> on the same behaviours.</li>
+    <li><b>The inversion arm's denominator is smaller.</b> Behaviours with no preimage candidate drop out as
+    unresolved rather than counting as robust, and they may not be a random subset.</li>
+    <li><b>Not yet reportable.</b> Closed-loop admission establishes that a reconstruction reproduces the
+    older model's <i>answer</i>; it does not establish that it asks for the same harmful <i>thing</i>. Most
+    admitted candidates were rejected by this project's own intent gate and are awaiting human audit
+    (<code>audit/rpe/</code>). Until those labels exist the inversion figures are an upper bound.</li>
+  </ul></div>
+</section>"""
+
+
 def sec_reconcile(an, args):
     rows = []
     any_diff = False
@@ -1433,7 +1489,7 @@ def sec_reconcile(an, args):
                 f"{anc.get('n_bundles')} bundles, admitted = {anc.get('admitted')}" if anc else "not available")
     return f"""
 <section id="s-method" class="sec" aria-labelledby="h-method">
-  <h2 id="h-method"><span class="sn">09</span>Reconciliation, method &amp; provenance</h2>
+  <h2 id="h-method"><span class="sn">10</span>Reconciliation, method &amp; provenance</h2>
   <div class="panel">
     <h3>Does this dashboard reproduce the run?</h3>
     {verdict}
@@ -2102,11 +2158,13 @@ RQ_FRAME = ("<b>Does safety alignment generalise across model generations?</b> W
 
 NAV = [("s-rq", "00", "Research questions"), ("s-headline", "01", "Headline"), ("s-lineage", "02", "Lineage"), ("s-models", "03", "Each model"),
        ("s-pairs", "04", "Pair explorer"), ("s-matrix", "05", "Every ordered pair"), ("s-categories", "06", "Harm categories"),
-       ("s-styles", "07", "Rewording styles"), ("s-gate", "08", "Intent gate"), ("s-method", "09", "Reconciliation & method")]
+       ("s-styles", "07", "Rewording styles"), ("s-gate", "08", "Intent gate"), ("s-inversion", "09", "Inversion arm"),
+       ("s-method", "10", "Reconciliation & method")]
 
 
 LINEAGE_RQ_MAP = {"s-headline": ["RQ1"], "s-lineage": ["RQ1"], "s-pairs": ["RQ1"], "s-matrix": ["RQ1"],
-                  "s-categories": ["RQ2"], "s-styles": ["RQ3"], "s-models": ["RQ4"]}
+                  "s-categories": ["RQ2"], "s-styles": ["RQ3"], "s-models": ["RQ4"],
+                  "s-inversion": ["RQ1"]}
 
 
 def sec_rq_lineage():
@@ -2123,7 +2181,7 @@ def render(an: Analysis, args) -> str:
     nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in NAV)
     body = (sec_header(an, args, today) + sec_rq_lineage() + sec_headline(an) + sec_lineage(an) + sec_models(an)
             + sec_pairs(an, args.redact) + sec_matrix(an) + sec_categories(an) + sec_styles(an)
-            + sec_gate(an) + sec_reconcile(an, args))
+            + sec_gate(an) + sec_inversion() + sec_reconcile(an, args))
     title = "SORRY-Bench Lineage Recycling"
     foot = ("Generated by tools/lineage_dashboard.py · recyclebench. "
             + ("Prompt and response text is omitted in this build. " if args.redact else

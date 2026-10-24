@@ -79,6 +79,14 @@ def pminus_with_answers(cfg, behaviours, manifest, cache, verdicts, old, new):
     return out, len(pm), no_answer
 
 
+def _rel(p: Path) -> str:
+    """Printable path; --out-root may sit outside the repo."""
+    try:
+        return str(p.relative_to(ROOT))
+    except ValueError:
+        return str(p)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -144,7 +152,7 @@ def main(argv=None) -> int:
               + f"   already built {len(done)}   to build {len(todo)}")
         summary.append({"old": old, "new": new, "p_minus": n_pm,
                         "invertible": len(items), "no_compliant_answer": no_ans,
-                        "manifest": str(dest.relative_to(ROOT))})
+                        "manifest": _rel(dest)})
         if args.dry_run:
             continue
         with dest.open("a", encoding="utf-8") as fh:
@@ -171,7 +179,7 @@ def main(argv=None) -> int:
                     print(f"    {i}/{len(todo)}", flush=True)
 
     (out_root / "pairs.json").write_text(json.dumps(summary, indent=2))
-    print(f"\nwrote    : {(out_root / 'pairs.json').relative_to(ROOT)}")
+    print(f"\nwrote    : {_rel(out_root / 'pairs.json')}")
     return 0
 
 

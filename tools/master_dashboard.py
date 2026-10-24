@@ -465,8 +465,8 @@ def sec_summary(s):
                  "from fields recycle manifests never contain. Re-done here by joining on the prompt text (section 09).")
     integ.append("<b>The style-arc ranking in the previous dashboard was inflated by placeholders</b>: rejected rewordings carry "
                  "1.0 for every gate layer that never ran, so back-translation looked best. Scored-only means reorder the styles (section 10).")
-    integ.append("<b>Gate “false-admission 0.0” is not a measurement</b>: no audit row has a human label; the LLM intent layer "
-                 "never ran (section 13).")
+    integ.append("<b>Gate “false-admission 0.0” is not a measurement</b>: no audit row has a human label, so the "
+                 "gate’s error is unmeasured regardless of how many layers ran (section 13).")
     n_stale = sum(1 for a_ in s.registry if a_.status == "stale-copy")
     integ.append(f"<b>{n_stale} stale copies</b> were found (a HarmBench summary that is StrongREJECT's, pilots copied across "
                  "benchmarks by a failed run) and are excluded (section 15).")
