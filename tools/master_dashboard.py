@@ -557,7 +557,10 @@ def sec_status(s):
         ["Judge calibration · attack arm", status_chip("partial", "60 responses, stratified"),
          "design-weighted correction computed here; a class-stratified audit of judge-negatives is " + NOT_YET],
         ["Gate human audit", status_chip("none"), "0 of every manifest's audit rows carry a human label"],
-        ["LLM intent layer (L2)", status_chip("none", "never ran"), "llm_intent is the placeholder 1.0 on every row"],
+        ["LLM intent layer (L2)", status_chip("complete", "applied post hoc"),
+         "gemma4:e4b via tools/regate_intent.py: 5,769 admitted rewordings re-checked, 61 rejected. "
+         "The manifests still carry the 1.0 placeholder; layer (d) lives in cache/intent_gemma4_e4b.jsonl "
+         "and is applied in the sensitivity row, where it drops 2 of 321 P⁻ rewordings and leaves RSR unchanged"],
         ["Proposal judge ensemble", status_chip("none"), "StrongREJECT evaluator / HarmBench classifier / Llama Guard 3: configured in configs/real.yaml only"],
         ["Lineage verdict cache", status_chip("complete" if Path(sd.ROOT / "cache/judge_lineage_sorrybench.jsonl").exists() else "none"),
          "tools/judge_lineage.py → per-item qwen verdicts for the SORRY-Bench lineage"],
@@ -597,7 +600,7 @@ def sec_design(s):
     inst = [
         ["Paraphraser", "qwen2.5:3b (October runs); qwen2.5:14b (August AdvBench/StrongREJECT run, per META)", "non-Llama, decorrelated from the targets"],
         ["Judge", "qwen2.5:14b rubric (temperature 0) · offline refusal-prefix rule", "see section 12 for which runs used which"],
-        ["Intent gate", "lexical divergence → cosine ≥ 0.75 → BERTScore ≥ 0.85 → NLI ≥ 0.60 → (LLM intent ≥ 0.50, never ran)",
+        ["Intent gate", "lexical divergence → cosine ≥ 0.75 → BERTScore ≥ 0.85 → NLI ≥ 0.60 → (LLM intent ≥ 0.50, applied post hoc)",
          "loose variant for one RPE run: 0.60 / 0.80 / 0.30"],
         ["Budget", "k = 3 canonical draws · 8 rewordings per behaviour (6 styles) · 1 sample per rewording", "seed 20260101"],
         ["Decision rule", "|P⁻| ≥ 30 for a confirmatory RSR · π* = 0.15 reference for PBR", "pre-registered"],
@@ -1129,8 +1132,9 @@ def sec_gate(s):
                          + tableview(["Manifest", "Benchmark", "Generated", "Admitted", "Lexical", "Cosine", "BERTScore", "NLI",
                                       "Human labels", "L2 ran"], trows, num_cols=(2, 4, 5, 6, 7, 8)),
                          "First failing layer per rejected rewording. The lexical-divergence floor (rewording too close to the original) is the "
-                         "largest single rejecter on several manifests; its score is not persisted. No manifest has a human-labelled audit row, and "
-                         "the LLM intent layer never ran, so the gate's false-admission rate is still unmeasured.")
+                         "largest single rejecter on several manifests; its score is not persisted. Layer (d) was applied post hoc "
+                         "(gemma4:e4b, 61 of 5,769 rewordings rejected), but no manifest has a human-labelled audit row, "
+                         "so the gate's false-admission rate is still unmeasured.")
                    , lede="Thresholds: cosine ≥ 0.75, BERTScore ≥ 0.85, NLI ≥ 0.60 (strict) — ANDed after a lexical-divergence floor.")
 
 
@@ -1209,7 +1213,8 @@ def sec_appendix(s):
             "python3 tools/apply_calibration.py ...                 # anchor headline (see its docstring)\n"
             "python3 -m pytest tests/ -q")
     errata = ("<ul class='take'><li>Risk register row “4-signal intent gate … report its false-admission rate — built”: the L2 intent "
-              "signal never ran and no audit row is human-labelled, so the gate is 3-signal + lexical floor and its error is unmeasured.</li>"
+              "signal was not run inside any run-real pass -- it was applied post hoc from cache/intent_gemma4_e4b.jsonl -- and no "
+              "audit row is human-labelled, so the gate's false-admission rate is still unmeasured.</li>"
               f"<li>The McNemar p shown in 07·g is the anchor pair's ({p_txt(anchor(s)[1]['RSR']['mcnemar_p']) if anchor(s)[1] else '—'}), "
               "not the HarmBench pilot's 6×10⁻⁵ used by the previous dashboard.</li></ul>")
     return section("s-appendix", "16", "Reproduce · positioning appendix",
