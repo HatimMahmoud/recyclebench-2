@@ -133,3 +133,21 @@ M1 Max; straightforward on the cluster. Optional — scope creep unless the thes
 - **PBR for llama2-13b on AdvBench / StrongREJECT** was "not estimable" only because
   2,686 rewording responses were never generated. That fill is queued; it is resumable,
   so if it stops at the `STOP_AT` cutoff just re-run `overnight_fill_all.sh`.
+
+- **The lineage ordered-pair matrix was stale, not offline.** Dashboards built before
+  2026-10-24 carry "▲ Built from offline verdicts" and show the anchor as P⁻ 61 (the
+  offline number). The verdict cache has since completed, and a rebuild picks up the
+  judged verdicts with no code change: the banner is gone and the anchor reads P⁻ 49.
+  Any figure quoted from a pre-2026-10-24 lineage dashboard should be re-read.
+
+- **Non-adjacent lineage pairs need no new runs.** Every model answered the same frozen
+  rewordings, so any ordered pair is computable from cache. Verified with zero missing
+  responses and zero missing verdicts:
+  `llama2-7b → llama31-8b` P⁻ 23, re-opened 13 (RSR 57 %); `llama2-7b → llama3-8b`
+  P⁻ 6, re-opened 5 (RSR 83 %). The lineage dashboard's matrix reports these correctly.
+
+  **Known reporting gap:** `study_data` only counts a pair as covered when an explicit
+  recycle *run artifact* names it, so the master and pair dashboards still print
+  "not yet finished" for these cells even though the lineage dashboard computes them.
+  That is a cross-referencing limitation in `study_data`, not missing data — no model
+  calls would fix it. Worth closing before submission so the three dashboards agree.
