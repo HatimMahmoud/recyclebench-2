@@ -304,13 +304,17 @@ def report(args, cfg, tag, cands, keep, cache, store, eq):
     if dest.exists():
         raise SystemExit(f"{dest} exists -- refusing to overwrite")
     dest.write_text(json.dumps(out, indent=2))
+    try:                                   # --out may be given relative to the cwd
+        shown = dest.relative_to(ROOT)
+    except ValueError:
+        shown = dest
     print("\n=== closed-loop admission (PRR of the inversion arm)")
     for k, r in out["admission"].items():
         pc = "undefined" if r["rate"] is None else f"{r['rate']*100:.1f}%"
         ci = "" if r["ci"][0] is None else f" [{r['ci'][0]*100:.1f}, {r['ci'][1]*100:.1f}]"
         print(f"  A_{k:<5} {pc}{ci}   {r['k']}/{r['n']}   unresolved {r['unresolved']}")
     print(f"  preimage members the gate rejected: {len(out['loop_not_gate'])}")
-    print(f"wrote    : {dest.relative_to(ROOT)}")
+    print(f"wrote    : {shown}")
 
 
 if __name__ == "__main__":
