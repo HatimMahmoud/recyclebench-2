@@ -46,3 +46,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: trains a model or otherwise takes more than a second",
+]
