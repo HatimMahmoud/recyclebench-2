@@ -933,6 +933,72 @@ def sec_rpe(s):
                            "recovered/bypassed/success fields that recycle manifests do not contain."))
 
 
+PAIR_LBL = {"llama2-7b": "2-7B", "llama2-13b": "2-13B", "llama3-8b": "3-8B",
+            "llama31-8b": "3.1-8B", "llama32-1b": "3.2-1B", "llama32-3b": "3.2-3B"}
+
+
+def _inversion_reports():
+    """Per-benchmark closed-loop inversion reports, newest SORRY-Bench one included."""
+    import json
+    out = []
+    lin = sorted((sd.ROOT / "results" / "runs" / "rpe_lineage").glob("lineage_report_*.json")) \
+        if (sd.ROOT / "results" / "runs" / "rpe_lineage").exists() else []
+    if lin:
+        out.append(("sorrybench", json.loads(lin[-1].read_text())))
+    base = sd.ROOT / "results" / "runs" / "rpe_bench"
+    for b in ("harmbench", "advbench", "strongreject"):
+        f = base / b / "lineage_report.json"
+        if f.exists():
+            out.append((b, json.loads(f.read_text())))
+    return out
+
+
+def sec_inversion(s):
+    """Recycle (perturb the request) vs inversion (reconstruct it from the answer)."""
+    reports = _inversion_reports()
+    if not reports:
+        return ""
+    rows, scored = [], 0
+    for bench, doc in reports:
+        for v in doc.get("views", []):
+            o, n = v["pair"]
+            r, q, ag = v.get("RSR"), v.get("PRR"), v.get("agreement")
+
+            def cell(x):
+                if not x or x.get("rate") is None:
+                    return '<span class="sub">—</span>'
+                return (f'{pct(x["rate"])} <span class="sub">{x["k"]}/{x["n"]}</span>')
+            if q and q.get("rate") is not None:
+                scored += 1
+            rows.append([esc(dsl(s, bench)), esc(f'{PAIR_LBL.get(o, o)} → {PAIR_LBL.get(n, n)}'),
+                         num(v["p_minus"]), cell(r), cell(q),
+                         num(ag["n_both_resolved"]) if ag else "—",
+                         (f'{ag["cohen_kappa"]:.2f}' if ag and ag.get("cohen_kappa") is not None else "—"),
+                         (p_txt(ag["mcnemar_p"]) if ag and ag.get("mcnemar_p") is not None else "—")])
+    if not scored:
+        return ""
+    body = mtable(["benchmark", "pair", "P⁻", "RSR · recycle", "PRR · inversion",
+                   "both", "κ", "McNemar p"], rows, num=(2, 5), nowrap=(0, 1))
+    body += ("<p class='note'>Two routes to the same question on the same judged P⁻. The recycle arm perturbs the "
+             "<b>request</b>; the inversion arm never sees it and reconstructs one from the older model's "
+             "<b>answer</b>, admitted only if the older model's reply to the reconstruction lands in the "
+             "response-equivalence class of the original (PTP, Definition 1). They share no generator, so "
+             "agreement is evidence the estimand is not an artifact of the paraphraser.</p>")
+    body += ("<div class='panel'><h3>How to read this</h3><ul class='take'>"
+             "<li><b>The benchmarks disagree.</b> On SORRY-Bench the anchor diverges sharply (RSR 46.9% vs PRR "
+             "94.7%, McNemar 3×10⁻⁵); on HarmBench the same rung agrees (88.9% vs 91.3%, p = 1). HarmBench's P⁻ "
+             "is already paraphrase-vulnerable, so there is no headroom for inversion to beat it. The claim that "
+             "survives is narrower: <i>where paraphrase fails to re-open a fix, inversion often still can</i>.</li>"
+             "<li><b>κ is degenerate here.</b> Both arms re-open most of what they resolve, so the marginals are "
+             "extreme and there is little room for chance-corrected agreement. McNemar is the statistic to read.</li>"
+             "<li><b>Not yet reportable.</b> Closed-loop admission establishes that a reconstruction reproduces the "
+             "older model's <i>answer</i>, not that it asks for the same harmful <i>thing</i>. Most admitted "
+             "candidates were rejected by this project's own intent gate and await human audit "
+             "(<code>audit/rpe/</code>). Until those labels exist these are an upper bound.</li></ul></div>")
+    return section("s-inversion", "09b", "Inversion arm · convergent validity", body)
+
+
+
 def sec_arcs(s):
     cards, trows = [], []
     for rr in s.recycle:
@@ -1226,14 +1292,14 @@ def sec_appendix(s):
 
 NAV = [("Overview", [("s-rq", "00", "Research questions"), ("s-summary", "01", "Executive summary"), ("s-status", "02", "What's finished"), ("s-design", "03", "Study design")]),
        ("Results", [("s-screening", "04", "Screening"), ("s-pminus", "05", "Regression sets"), ("s-rsr", "06", "Recycling (RSR)"),
-                    ("s-pbr", "07", "Robustness (PBR)"), ("s-anchor", "08", "Calibrated anchor"), ("s-rpe", "09", "Output inversion"),
+                    ("s-pbr", "07", "Robustness (PBR)"), ("s-anchor", "08", "Calibrated anchor"), ("s-rpe", "09", "Output inversion"), ("s-inversion", "09b", "Inversion · convergent"),
                     ("s-arcs", "10", "Style arcs"), ("s-attack", "11", "Attack transfer")]),
        ("Instruments", [("s-judges", "12", "Judges"), ("s-gate", "13", "Intent gate")]),
        ("Provenance", [("s-explore", "14", "Exploratory runs"), ("s-registry", "15", "Registry & integrity"),
                        ("s-appendix", "16", "Reproduce · appendix")])]
 
 
-RQ_MAP = {"s-pminus": ["RQ1"], "s-rsr": ["RQ1", "RQ2"], "s-anchor": ["RQ1"], "s-rpe": ["RQ1"], "s-arcs": ["RQ3"], "s-pbr": ["RQ4"]}
+RQ_MAP = {"s-pminus": ["RQ1"], "s-rsr": ["RQ1", "RQ2"], "s-anchor": ["RQ1"], "s-rpe": ["RQ1"], "s-inversion": ["RQ1"], "s-arcs": ["RQ3"], "s-pbr": ["RQ4"]}
 RQ_WHERE = {"RQ1": [("s-pminus", "Regression sets"), ("s-rsr", "Recycling"), ("s-anchor", "Calibrated anchor"), ("s-rpe", "Output inversion")],
             "RQ2": [("s-rsr", "Recycling by category")], "RQ3": [("s-arcs", "Style arcs")], "RQ4": [("s-pbr", "Robustness (PBR)")]}
 
@@ -1437,7 +1503,7 @@ def render(s) -> str:
     for g, items in NAV:
         nav += f'<div class="grp">{esc(g)}</div>' + "".join(f'<a href="#{i}"><span class="n">{n}</span>{esc(t)}</a>' for i, n, t in items)
     body = (sec_header(s, today) + sec_rq(s) + sec_summary(s) + sec_status(s) + sec_design(s) + sec_screening(s) + sec_pminus(s)
-            + sec_rsr(s) + sec_pbr(s) + sec_anchor(s) + sec_rpe(s) + sec_arcs(s) + sec_attack(s) + sec_judges(s)
+            + sec_rsr(s) + sec_pbr(s) + sec_anchor(s) + sec_rpe(s) + sec_inversion(s) + sec_arcs(s) + sec_attack(s) + sec_judges(s)
             + sec_gate(s) + sec_explore(s) + sec_registry(s) + sec_appendix(s))
     foot = ("Generated by tools/master_dashboard.py from files only (study_data.py). No prompt or response text is embedded. "
             "RAW = judge output as produced; corrected figures name their calibration.")
