@@ -13,14 +13,17 @@ set -u
 cd "$(dirname "$0")"
 export PYTHONPATH=src
 export TOKENIZERS_PARALLELISM=false TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1
-export OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=1h
+# the SERVER must be started with OLLAMA_NUM_PARALLEL>=workers or concurrent
+# requests just queue; 6 measured fastest on this box (1.60 s/seed vs 2.98 serial,
+# and 12 workers is SLOWER at 2.11 because it exceeds NUM_PARALLEL)
+export OLLAMA_MAX_LOADED_MODELS=2 OLLAMA_KEEP_ALIVE=1h OLLAMA_NUM_PARALLEL=6
 export PYTORCH_ENABLE_MPS_FALLBACK=1
 
 B="python3 tools/ptp_build.py --forward-model qwen2.5:3b --size local"
 step() { echo ""; echo "=== $1  (budget $2 min)  $(date '+%F %T')"; shift 2; "$@" || echo "!! exited $? -- continuing"; }
 
 echo "###############  PTP local build  $(date '+%F %T')  ###############"
-step "probe: vocabulary subset"       180 $B --phase probe    --n-seeds 3500 --minutes 180
+step "probe: vocabulary subset"       180 $B --phase probe    --n-seeds 3500 --workers 6 --minutes 180
 step "ftdata: benign prompt/response"  40 $B --phase ftdata    --minutes 40
 step "pretrain: reversed synthetic"   300 $B --phase pretrain --epochs 30 --minutes 300
 step "finetune: reversed pairs"        40 $B --phase finetune --ft-epochs 12 --minutes 40

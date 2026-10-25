@@ -87,6 +87,8 @@ class CorpusStore:
     """Append-only JSONL of probed sequences, so probing is resumable."""
 
     def __init__(self, path: Path):
+        import threading
+        self._lock = threading.Lock()
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.done: set[int] = set()
@@ -99,9 +101,10 @@ class CorpusStore:
                         continue
 
     def append(self, seed_token: int, ids: Sequence[int]) -> None:
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"seed_token": seed_token, "ids": list(ids)}) + "\n")
-        self.done.add(seed_token)
+        with self._lock:                       # probing runs threaded
+            with self.path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"seed_token": seed_token, "ids": list(ids)}) + "\n")
+            self.done.add(seed_token)
 
     def sequences(self) -> list[list[int]]:
         out = []
@@ -115,41 +118,67 @@ class CorpusStore:
 
 
 def probe(spec: ProbeSpec, tokenizer, store: CorpusStore, tokens: Sequence[int],
-          deadline: Optional[float] = None,
+          deadline: Optional[float] = None, workers: int = 1,
           on_log: Optional[Callable[[str], None]] = None) -> dict:
-    """Probe each seed token once; skip ones already in the store."""
+    """Probe each seed token once; skip ones already stored.
+
+    `workers` > 1 issues concurrent requests. A single stream leaves a small model
+    decoding one token at a time while the machine idles; Ollama batches concurrent
+    requests, but only up to OLLAMA_NUM_PARALLEL, which is a SERVER-side setting --
+    raising `workers` without raising that just queues them.
+    """
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
     log = on_log or print
     todo = [t for t in tokens if t not in store.done]
     log(f"[probe] {len(todo)} seeds to probe of {len(tokens)} "
-        f"({len(store.done)} already stored) · {spec.model_id} · {spec.seq_len} tokens each")
-    t0, done, failed = time.time(), 0, 0
-    for i, tok_id in enumerate(todo, 1):
+        f"({len(store.done)} already stored) · {spec.model_id} · {spec.seq_len} tokens each "
+        f"· {workers} worker(s)")
+    t0 = time.time()
+    state = {"done": 0, "failed": 0, "stop": False}
+    lock = threading.Lock()
+
+    def one(tok_id: int) -> None:
+        if state["stop"]:
+            return
         if deadline and time.time() > deadline:
-            log(f"[probe] deadline reached, stopping cleanly at {i - 1}/{len(todo)}")
-            break
+            state["stop"] = True
+            return
         seed_text = tokenizer.decode([tok_id])
         if not seed_text.strip():
-            continue                                  # whitespace-only seed: nothing to continue
+            return                                    # whitespace-only seed
         try:
             text = generate_raw(spec, seed_text, spec.seq_len)
         except Exception as e:
-            failed += 1
-            if failed <= 5:
-                log(f"[probe] seed {tok_id} failed: {type(e).__name__}: {e}")
-            continue
-        ids = [tok_id] + tokenizer(text, add_special_tokens=False)["input_ids"]
-        ids = ids[:spec.seq_len]
+            with lock:
+                state["failed"] += 1
+                if state["failed"] <= 5:
+                    log(f"[probe] seed {tok_id} failed: {type(e).__name__}: {e}")
+            return
+        ids = ([tok_id] + tokenizer(text, add_special_tokens=False)["input_ids"])[:spec.seq_len]
         if len(ids) < 8:
-            continue                                  # empty continuation: not informative
+            return                                    # empty continuation
         store.append(tok_id, ids)
-        done += 1
-        if done % 25 == 0:
-            el = time.time() - t0
-            rate = el / max(1, done)
-            log(f"[probe] {done}/{len(todo)}  {rate:.2f}s/seed  "
-                f"eta {(len(todo) - done) * rate / 60:.0f} min")
-    return {"probed": done, "failed": failed, "stored_total": len(store),
-            "seconds": time.time() - t0}
+        with lock:
+            state["done"] += 1
+            d = state["done"]
+        if d % 25 == 0:
+            rate = (time.time() - t0) / max(1, d)
+            log(f"[probe] {d}/{len(todo)}  {rate:.2f}s/seed  "
+                f"eta {(len(todo) - d) * rate / 60:.0f} min")
+
+    if workers > 1:
+        with ThreadPoolExecutor(workers) as ex:
+            list(ex.map(one, todo))
+    else:
+        for t in todo:
+            one(t)
+    if state["stop"]:
+        log(f"[probe] deadline reached, stopped cleanly at {state['done']}/{len(todo)}")
+    return {"probed": state["done"], "failed": state["failed"],
+            "stored_total": len(store), "seconds": time.time() - t0,
+            "workers": workers}
 
 
 def chunk_for_training(sequences: Sequence[Sequence[int]], max_len: int) -> list[list[int]]:

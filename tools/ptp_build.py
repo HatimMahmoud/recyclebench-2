@@ -90,6 +90,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ft-epochs", type=int, default=12)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--workers", type=int, default=1,
+                    help="concurrent probe requests; needs OLLAMA_NUM_PARALLEL >= this")
     ap.add_argument("--minutes", type=float, default=None, help="budget for THIS phase")
     ap.add_argument("--gate-token-f1", type=float, default=0.30,
                     help="Gate A: held-out inversion token F1 floor")
@@ -127,7 +129,8 @@ def main(argv=None) -> int:
                     bench += [l.split(",")[0] for l in
                               p.read_text(errors="ignore").splitlines()[1:2000]]
             toks = seed_tokens(tok, args.n_seeds, rng, corpus=bench or None)
-            report["probe"] = probe(spec, tok, store, toks, deadline=deadline, on_log=log)
+            report["probe"] = probe(spec, tok, store, toks, deadline=deadline,
+                                    workers=args.workers, on_log=log)
             report["probe"]["corpus"] = str(corpus_p.relative_to(ROOT))
             report["probe"]["deviation"] = (
                 f"vocabulary subset: {args.n_seeds} of {len(tok)} tokens, {args.seq_len} "
