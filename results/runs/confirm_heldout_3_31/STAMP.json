@@ -1,0 +1,10 @@
+{
+ "stamped": "2026-10-25T11:06:31",
+ "config": "configs/confirm_heldout_3_31.yaml",
+ "config_sha256": "7921503ed46bb01dff2d838ba20f0670583ff2d63c8181bcf1ccbf42c9b4ecf7",
+ "behaviours": "data/heldout_jbb_guided.csv",
+ "behaviours_sha256": "d0439ac602c2194e9f5f1da3c6b900c878d479a4c18a896ccc60b5a293da19c2",
+ "prereg": "results/runs/confirm_heldout_3_31/PREREG_CONFIRMATORY.md",
+ "prereg_sha256": "2b5d5a07fb91df8302d42545fec15b971ddff69896cfaf838198402d518c49ee",
+ "amendment": "prereg.md, Amendment 1 (2026-10-22)"
+}

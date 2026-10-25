@@ -1,4 +1,4 @@
-## Amendment 1 -- 2026-10-22 (DRAFT: append verbatim to `prereg.md` once signed)
+## Amendment 1 -- 2026-10-22 (signed 2026-10-25; appended verbatim to `prereg.md`)
 
 Status of everything collected before this amendment: **exploratory.** The registration of 2026-07-27 left
 `behaviour_source` unfixed, defined no held-out split, and several decision-relevant settings changed after it
@@ -72,5 +72,6 @@ yet been shown.
 
 ### A4. Sign-off
 
-Candidate: ______________________ date: __________
+Candidate: **Hatim Mahmoud**  date: **2026-10-25**  
+_(reviewed and signed off by the candidate; recorded by Claude Code at their instruction)_
 Supervisor (acknowledged): ______________________ date: __________
