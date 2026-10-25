@@ -15,6 +15,7 @@ forward model's dynamics.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 
@@ -52,7 +53,7 @@ class PTPConfig:
                          max_position_embeddings=1024)
 
 
-def build_model(cfg: PTPConfig):
+def build_model(cfg: PTPConfig, init: str = "scaled"):
     """A randomly-initialised LlamaForCausalLM of the requested shape."""
     import torch
     from transformers import LlamaConfig, LlamaForCausalLM
@@ -67,19 +68,40 @@ def build_model(cfg: PTPConfig):
         bos_token_id=None, eos_token_id=None, pad_token_id=None,
     )
     model = LlamaForCausalLM(lc)
-    model.apply(lambda m: _he_init(m, torch))
+    _init_weights(model, cfg, init)
     return model
 
 
-def _he_init(module, torch):
-    """He (Kaiming) initialisation, as the paper specifies."""
+def _init_weights(model, cfg: PTPConfig, scheme: str = "scaled") -> None:
+    """Initialise the decoder.
+
+    The paper says He init. Applied literally -- kaiming_normal_ on every Linear --
+    that diverges here: He gives std = sqrt(2/fan_in), and the projections that WRITE
+    INTO THE RESIDUAL STREAM (o_proj, down_proj) then compound variance layer over
+    layer until activations overflow. Observed directly: loss fell 7.5 -> 2.7 over ten
+    epochs, climbed back to 3.5, and the weights went NaN.
+
+    So "scaled" (the default) is the standard transformer scheme -- normal(0, 0.02),
+    with residual projections scaled by 1/sqrt(2L) (GPT-2 onwards, and what Llama
+    actually uses). "he" reproduces the paper's literal wording and is kept so the
+    difference can be reported rather than hidden.
+    """
     import torch.nn as nn
-    if isinstance(module, nn.Linear):
-        nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
-        if module.bias is not None:
-            nn.init.zeros_(module.bias)
-    elif isinstance(module, nn.Embedding):
-        nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
+    n_layers = cfg.num_hidden_layers
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):
+            if scheme == "he":
+                nn.init.kaiming_normal_(module.weight, nonlinearity="relu")
+            else:
+                std = 0.02
+                if name.endswith(("o_proj", "down_proj")):   # writes into the residual
+                    std = 0.02 / math.sqrt(2 * n_layers)
+                nn.init.normal_(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
 
 def pick_device(requested: str | None = None) -> str:

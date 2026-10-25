@@ -30,11 +30,13 @@ class TrainReport:
     val_loss: Optional[float]
     seconds: float
     device: str
+    diverged: bool = False
 
     def __str__(self) -> str:
         v = "n/a" if self.val_loss is None else f"{self.val_loss:.4f}"
+        tag = "  DIVERGED" if self.diverged else ""
         return (f"steps {self.steps} · loss {self.final_loss:.4f} (best {self.best_loss:.4f}) · "
-                f"val {v} · {self.seconds:.0f}s on {self.device}")
+                f"val {v} · {self.seconds:.0f}s on {self.device}{tag}")
 
 
 def batches(seqs: Sequence[Sequence[int]], batch_size: int, pad_id: int, device,
@@ -59,28 +61,51 @@ def batches(seqs: Sequence[Sequence[int]], batch_size: int, pad_id: int, device,
 def train(model, seqs: Sequence[Sequence[int]], *, device: str, epochs: int = 1,
           batch_size: int = 8, lr: float = 1e-3, pad_id: int = 0,
           max_len: Optional[int] = None, val: Optional[Sequence[Sequence[int]]] = None,
-          log_every: int = 50, on_log: Optional[Callable[[str], None]] = None) -> TrainReport:
+          log_every: int = 50, warmup: int = 200,
+          on_log: Optional[Callable[[str], None]] = None) -> TrainReport:
     """Standard next-token NLL on already-reversed sequences.
 
-    lr 1e-3 for pre-training and 5e-4 for fine-tuning, per the paper's Algorithm 1.
+    lr 1e-3 for pre-training and 5e-4 for fine-tuning, per Algorithm 1, but behind a
+    linear warmup: at full lr from step 0 this diverges.
+
+    A non-finite loss ABORTS. Silently training on through a NaN produced a model whose
+    every tensor was NaN and an evaluation that scored 0.000 on every metric -- which
+    reads exactly like "the method does not work at this scale" and is not that at all.
     """
     import torch
     log = on_log or print
     model.to(device).train()
     opt = torch.optim.AdamW(model.parameters(), lr=lr)
+    # cap warmup at 10% of the run, so a short run still reaches full lr
+    total_steps = max(1, epochs * math.ceil(len(seqs) / max(1, batch_size)))
+    warm = max(1, min(warmup, total_steps // 10))
+    sched = torch.optim.lr_scheduler.LambdaLR(
+        opt, lambda step: min(1.0, (step + 1) / warm))
     t0, step, last, best = time.time(), 0, float("nan"), float("inf")
     for ep in range(epochs):
         for inp, lab in batches(seqs, batch_size, pad_id, device, max_len):
             out = model(input_ids=inp, labels=lab)
-            out.loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            loss = out.loss
+            if not torch.isfinite(loss):
+                log(f"  ABORT at step {step}: loss is {float(loss)} -- diverged. "
+                    f"Lower lr (now {lr}), lengthen warmup (now {warmup}), or check init.")
+                return TrainReport(step, float(loss), best, None, time.time() - t0,
+                                   device, diverged=True)
+            loss.backward()
+            gn = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            if not torch.isfinite(gn):
+                log(f"  ABORT at step {step}: gradient norm is {float(gn)} -- diverged.")
+                return TrainReport(step, last, best, None, time.time() - t0,
+                                   device, diverged=True)
             opt.step()
+            sched.step()
             opt.zero_grad(set_to_none=True)
             step += 1
-            last = float(out.loss.detach().cpu())
+            last = float(loss.detach().cpu())
             best = min(best, last)
             if step % log_every == 0:
-                log(f"  step {step} · epoch {ep + 1}/{epochs} · loss {last:.4f}")
+                log(f"  step {step} · epoch {ep + 1}/{epochs} · loss {last:.4f} "
+                    f"· lr {sched.get_last_lr()[0]:.2e}")
     vl = evaluate_loss(model, val, device=device, batch_size=batch_size,
                        pad_id=pad_id, max_len=max_len) if val else None
     return TrainReport(step, last, best, vl, time.time() - t0, device)
