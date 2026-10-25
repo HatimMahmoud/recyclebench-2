@@ -135,8 +135,9 @@ def _render(row, i, n, labeled, spec, label_col, show_judge):
     if show_judge and jl != "":
         print(f" judge guessed: {jl}    current label: [{shown}]")
     else:
-        print(f" current label: [{shown}]        (blind: no judge guess shown)")
-    print(" [enter]=accept  f=flip  0/1=set  e=expand  b=back  s=skip  q=save&quit")
+        mark = shown if shown != "" else "\u2014"
+        print(f" current label: [{mark}]        (blind: no judge guess \u2014 press 1 or 0)")
+    print(" 1=yes  0=no  f=flip  e=expand  b=back  s=skip  q=save&quit   ([enter]=accept, only where a guess is shown)")
 
 
 def main():
@@ -167,8 +168,13 @@ def main():
         while 0 <= i < n:
             _render(rows[i], i, n, labeled_count(), spec, label_col, show_judge)
             key = _getch()
-            cur = rows[i].get(label_col) or (rows[i].get("judge_label") if show_judge else "") or "0"
-            action, val = decide(key, cur)
+            # On a blind sheet there is no judge guess, so there is nothing for Enter to
+            # accept. Defaulting it to "0" made Enter silently mean "no" -- a labeller
+            # pressing through produced a file of zeros that looked like real judgements.
+            cur = rows[i].get(label_col) or (rows[i].get("judge_label") if show_judge else "")
+            if not cur and key in ("\r", "\n", " "):
+                continue                       # redraw; require an explicit 0/1
+            action, val = decide(key, cur or "0")
             if action == "set":
                 rows[i][label_col] = str(val)
                 save_sheet(path, rows, fieldnames)
