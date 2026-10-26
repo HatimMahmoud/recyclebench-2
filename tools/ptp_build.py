@@ -44,6 +44,7 @@ from recyclebench.ptp.probe import (CorpusStore, ProbeSpec, chunk_for_training, 
                                     generate_raw, probe, seed_tokens)
 from recyclebench.ptp.train import (evaluate_loss, invert_ids,          # noqa: E402
                                     make_finetune_corpus, train)
+from recyclebench.ptp.vocab import CompactVocab, coverage              # noqa: E402
 
 PHASES = ("probe", "pretrain", "ftdata", "finetune", "eval")
 OUT = ROOT / "cache" / "ptp"
@@ -90,6 +91,9 @@ def main(argv=None) -> int:
     ap.add_argument("--ft-epochs", type=int, default=12)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--vocab-min-count", type=int, default=0,
+                    help="restrict the model vocabulary to corpus tokens seen >= N times "
+                         "(0 = full tokenizer vocabulary, as the paper assumes)")
     ap.add_argument("--workers", type=int, default=1,
                     help="concurrent probe requests; needs OLLAMA_NUM_PARALLEL >= this")
     ap.add_argument("--minutes", type=float, default=None, help="budget for THIS phase")
@@ -101,7 +105,27 @@ def main(argv=None) -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     tok = tokenizer_for(args.tokenizer)
     device = pick_device(args.device)
-    cfg = getattr(PTPConfig, args.size)(len(tok))
+    vocab_p = OUT / "compact_vocab.json"
+    cv = None
+    if args.vocab_min_count > 0:
+        if vocab_p.exists():
+            cv = CompactVocab.load(vocab_p)
+        else:
+            store0 = CorpusStore(OUT / f"corpus_{args.forward_model.replace(':', '_')}.jsonl")
+            seqs0 = store0.sequences()
+            ftp = OUT / f"ftpairs_{args.forward_model.replace(':', '_')}.jsonl"
+            extra = []
+            if ftp.exists():
+                for line in ftp.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        r = json.loads(line)
+                        extra.append(tok(r["prompt"] + r["response"],
+                                         add_special_tokens=False)["input_ids"])
+            cv = CompactVocab.build(seqs0, min_count=args.vocab_min_count, extra=extra)
+            cv.save(vocab_p)
+        log(f"compact vocabulary: {len(cv):,} of {len(tok):,} tokenizer ids "
+            f"(min_count {args.vocab_min_count})")
+    cfg = getattr(PTPConfig, args.size)(len(cv) if cv else len(tok))
     corpus_p = OUT / f"corpus_{args.forward_model.replace(':', '_')}.jsonl"
     ft_p = OUT / f"ftpairs_{args.forward_model.replace(':', '_')}.jsonl"
     pre_w, ft_w = OUT / "inverse_pretrained.pt", OUT / "inverse_finetuned.pt"
@@ -139,7 +163,11 @@ def main(argv=None) -> int:
 
         elif ph == "pretrain":
             store = CorpusStore(corpus_p)
-            seqs = chunk_for_training(store.sequences(), cfg.max_position_embeddings)
+            raw = store.sequences()
+            if cv:
+                log(f'  corpus coverage under the compact vocabulary: {coverage(cv, raw):.3%}')
+                raw = [cv.encode(x) for x in raw]
+            seqs = chunk_for_training(raw, cfg.max_position_embeddings)
             if len(seqs) < 50:
                 log(f"[pretrain] only {len(seqs)} sequences -- run --phase probe first")
                 continue
@@ -208,6 +236,8 @@ def main(argv=None) -> int:
                 log("[finetune] NOTE: no pre-trained weights -- this is the Appendix E "
                     "ablation (fine-tune only), which the paper reports as failing")
             seqs = make_finetune_corpus([(p["prompt"], p["response"]) for p in trn], tok)
+            if cv:
+                seqs = [cv.encode(x) for x in seqs]
             seqs = [s[:cfg.max_position_embeddings] for s in seqs]
             rep = train(model, seqs, device=device, epochs=args.ft_epochs,
                         batch_size=args.batch_size, lr=5e-4, pad_id=0,
@@ -235,8 +265,12 @@ def main(argv=None) -> int:
                     break
                 rid = tok(r["response"], add_special_tokens=False)["input_ids"]
                 rid = rid[:cfg.max_position_embeddings - 48]
-                got = tok.decode(invert_ids(model, rid, device=device, max_new_tokens=40),
-                                 skip_special_tokens=True)
+                if cv:
+                    rid = cv.encode(rid)
+                out_ids = invert_ids(model, rid, device=device, max_new_tokens=40)
+                if cv:
+                    out_ids = cv.decode(out_ids)
+                got = tok.decode(out_ids, skip_special_tokens=True)
                 hyps.append(got)
                 refs.append(r["prompt"])
                 rows.append({"true_prompt": r["prompt"], "reconstructed": got,
@@ -259,7 +293,9 @@ def main(argv=None) -> int:
                               "gate_passed": bool(passed), "examples": rows[:25]}
 
         report["generated"] = _dt.datetime.now().strftime("%Y%m%d_%H%M")
-        report["config"] = {"forward_model": args.forward_model, "tokenizer": args.tokenizer,
+        report["config"] = {"vocab_min_count": args.vocab_min_count,
+                            "model_vocab": len(cv) if cv else len(tok),
+                            "forward_model": args.forward_model, "tokenizer": args.tokenizer,
                             "size": args.size, "vocab": len(tok), "device": device,
                             "n_seeds": args.n_seeds, "seq_len": args.seq_len}
         report_p.write_text(json.dumps(report, indent=2))
