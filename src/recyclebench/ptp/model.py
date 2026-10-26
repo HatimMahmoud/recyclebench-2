@@ -46,6 +46,17 @@ class PTPConfig:
                          max_position_embeddings=512)
 
     @staticmethod
+    def mid(vocab_size: int) -> "PTPConfig":
+        """~92M non-embedding: 3.4x `local`, to separate capacity from corpus size.
+
+        With the corpus held fixed, this is the only remaining axis between a failing
+        local run and the paper's 0.6B.
+        """
+        return PTPConfig(vocab_size=vocab_size, hidden_size=768, intermediate_size=2304,
+                         num_hidden_layers=12, num_attention_heads=12, num_key_value_heads=12,
+                         max_position_embeddings=512)
+
+    @staticmethod
     def paper(vocab_size: int) -> "PTPConfig":
         """Qwen3-0.6B shape, as published. For the cluster, not for a laptop."""
         return PTPConfig(vocab_size=vocab_size, hidden_size=1024, intermediate_size=3072,

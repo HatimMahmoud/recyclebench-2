@@ -84,7 +84,7 @@ def main(argv=None) -> int:
     ap.add_argument("--phase", required=True, choices=PHASES + ("all",))
     ap.add_argument("--forward-model", default="qwen2.5:3b")
     ap.add_argument("--tokenizer", default="Qwen/Qwen2.5-0.5B")
-    ap.add_argument("--size", default="local", choices=("smoke", "local", "paper"))
+    ap.add_argument("--size", default="local", choices=("smoke", "local", "mid", "paper"))
     ap.add_argument("--n-seeds", type=int, default=3000)
     ap.add_argument("--seq-len", type=int, default=256)
     ap.add_argument("--epochs", type=int, default=24)
