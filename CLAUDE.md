@@ -34,7 +34,9 @@ python3 -m recyclebench pilot-pminus --config configs/real_llama_lineage_all.yam
     --old llama3-8b --new llama31-8b --behaviours data/sorrybench.csv --cache cache/llama_gen.jsonl
 python3 -m recyclebench run-real --config configs/recycle_3_31.yaml \
     --behaviours data/sorrybench.csv --manifest <run_dir>/manifest_sorrybench.jsonl --cache cache/llama_gen.jsonl
-python3 -m recyclebench judge-export --config ... --n-bundles 60   # -> hand-label -> judge-ingest
+python3 tools/judge_export_real.py --config ... --new-model ... --behaviours ... \
+    --manifest <run_dir>/manifest.jsonl --cache ... --n-bundles 60   # -> hand-label -> judge-ingest
+# (`python3 -m recyclebench judge-export` is the MOCK twin; it refuses a config with a real: section)
 python3 -m recyclebench prereg --behaviours F.csv ; python3 -m recyclebench prereg-verify  # exit 1 = drift
 
 bash run_pair.sh <old> <new> <cache> [benchmarks...]   # pilot + 2x2 partition -> results/runs/<ts>_...
@@ -151,10 +153,14 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   end-of-prompt marker, so decoding ran a fixed 40 tokens against 10.8-token prompts and precision was
   capped near 0.27. Fixing the marker (`reversal.build_training_sequence(..., eop=)`,
   `ptp_build.py --boundary`) lifted best-of-32 token F1 0.217 → 0.335 and precision 0.140 → 0.346, and
-  replicates on the 92M. **But the gate-admissibility rate (≥1 candidate at cosine ≥ 0.75) is 1/86 either
-  way, so the arm still contributes nothing** — lexical recovery improved, semantic adequacy did not.
-  Full write-up in `PTP_FINDINGS_20261027.md`. Gate A was pre-registered against a single greedy decode;
-  best-of-N is a protocol change and must be registered before 0.335 is reported as a pass.
+  replicates on the 92M. Scaling the FINE-TUNE corpus (Ollama, not GPU) then moved the semantic side too:
+  347 → 2,846 → 5,912 pairs at matched steps gives gate-admissibility (≥1 candidate at cosine ≥ 0.75)
+  1.2% → 4.7% → 9.3% and best-of-32 token F1 0.335 → 0.397 → 0.424, with no sign of flattening
+  (segment exponent 0.66 then 0.95). A compute-matched control (same 347 pairs, 8× steps) got *worse*,
+  so the gain is data diversity, not compute; pre-training corpus and model capacity remain flat/negative.
+  Full write-up in `PTP_FINDINGS_20261027.md`. Gate A was pre-registered against a single greedy decode
+  (which still fails, 0.210); best-of-N passes but is a protocol change, so **no further scaling point may
+  be reported as grounds for continuing the arm until best-of-N is registered prospectively.**
   `tools/ptp_decode_sweep.py` is the comparison harness (`--vocab`, `--eos`, `--n-samples`).
   The held-out 86 are now frozen in `ptp_build.py`, so adding pairs cannot silently move the denominator.
 - White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
@@ -171,6 +177,13 @@ lineage rung usually means the wrong `--config` (seed mismatch).
 ## Conventions & gotchas
 - **`run-real` never stores judge verdicts.** Anything rebuilt from the cache with `looks_like_refusal` disagrees with
   the qwen2.5:14b judge (SORRY-Bench lineage offline P⁻ = 14/2/61/19/33 vs judged 18/3/49/12/13). Use the verdict cache.
+- **`judge-export` (the CLI subcommand) is the MOCK exporter.** It screens the synthetic lineage with
+  `MockJudge` and writes `[benign-placeholder N]` / `[refuse]` rows into the same schema the real sheet
+  uses, so a sheet it produced looks finished while being unlabellable. It now exits 1 on a config with a
+  `real:` section. Real runs export with `tools/judge_export_real.py`, which replays the frozen manifest
+  out of the response cache (zero target calls) and runs only the judge. `audit/confirm/` held such a
+  mock sheet from 2026-10-26 until 2026-10-27 (moved aside as `*.MOCK_VOID_20261027`), which is why the
+  confirmatory calibration showed "0/398 labelled" for days with nothing anyone could label.
 - **Gate audit scores in the manifest are partly placeholders.** `RealGate` short-circuits (lexical → cosine → BERTScore
   → NLI) and `to_gate_scores()` writes 1.0 for every layer not evaluated; the lexical layer isn't persisted at all.
   `llm_intent` is 1.0 everywhere (no intent model configured). `human_label` is None on every row, so the summary's

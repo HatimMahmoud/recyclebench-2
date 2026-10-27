@@ -262,6 +262,21 @@ def cmd_judge_export(args) -> int:
     from .screening import run_model
     from .config import make_rng
     cfg = Config.load(args.config) if args.config else Config()
+    # This command is the MOCK twin: it screens the synthetic lineage with MockJudge and
+    # emits '[benign-placeholder N]' / '[refuse]' rows. Those are unlabellable, but they
+    # fill the same schema, so a sheet written into a real audit directory looks finished
+    # and silently blocks calibration. A config carrying a real lineage is unambiguous
+    # evidence the caller wanted the real exporter.
+    if getattr(cfg, "real", None):
+        print("judge-export is the MOCK exporter: it screens the synthetic lineage with\n"
+              "MockJudge and writes '[benign-placeholder N]' / '[refuse]' rows that cannot\n"
+              f"be labelled. '{args.config}' has a real: section, so you want the real-run\n"
+              "twin, which replays the frozen manifest out of the response cache:\n\n"
+              "  python3 tools/judge_export_real.py \\\n"
+              f"    --config {args.config} --new-model <cfg.real key> \\\n"
+              "    --behaviours <behaviours.csv> --manifest <run_dir>/manifest.jsonl \\\n"
+              f"    --cache <cache.jsonl> --n-bundles {args.n_bundles} --out {args.out}\n")
+        return 1
     behaviours, m = _rebuild_manifest(cfg)
     models = load_lineage(cfg, make_rng(cfg.seed))
     target = next((x for x in models if x.name == args.model), None) if args.model else models[-1]

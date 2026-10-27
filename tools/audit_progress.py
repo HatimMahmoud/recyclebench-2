@@ -15,6 +15,12 @@ LABEL_COLS = ("human_fulfilled", "human_intent_preserved", "human_same_request")
 
 
 def main(path: str) -> int:
+    import os
+    if not os.path.exists(path):
+        print(f"no sheet at {path} -- it has not been exported yet.")
+        print("Real runs export with tools/judge_export_real.py; the built-in "
+              "`judge-export` is the mock twin.")
+        return 1
     rows = list(csv.DictReader(open(path, encoding="utf-8")))
     if not rows:
         print("empty sheet")

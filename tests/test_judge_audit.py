@@ -137,3 +137,25 @@ def test_bundle_specificity_is_lower_than_response_specificity():
     # and the drop is in the ballpark predicted by sp**t
     t = m.mean_admitted()
     assert bund.chars.sp < resp.chars.sp ** (0.5 * t)   # clearly compounding, not a blip
+
+
+def test_mock_judge_export_refuses_a_real_config(tmp_path, capsys):
+    """The mock exporter fills the same schema as the real one, so a sheet it writes into
+    a real audit directory looks finished while being unlabellable placeholders. A config
+    with a real lineage must therefore be refused, not silently screened as mock."""
+    import yaml
+    from recyclebench.cli import main
+
+    cfg_path = tmp_path / "real_like.yaml"
+    cfg_path.write_text(yaml.safe_dump({
+        "seed": 1,
+        "lineage": ["m-old", "m-new"],
+        "real": {"m-old": {"provider": "openai_compatible", "model_id": "x"},
+                 "m-new": {"provider": "openai_compatible", "model_id": "y"}},
+    }))
+    out = tmp_path / "judge_sheet.csv"
+    rc = main(["judge-export", "--config", str(cfg_path), "--out", str(out)])
+
+    assert rc == 1
+    assert not out.exists()                       # nothing unlabellable left behind
+    assert "judge_export_real.py" in capsys.readouterr().out
