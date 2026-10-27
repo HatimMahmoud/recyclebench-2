@@ -52,6 +52,31 @@ def test_reversal_is_after_tokenisation(tok):
         "the Remark 1 trap is not being exercised by this tokenizer")
 
 
+def test_boundary_token_marks_where_the_prompt_starts(tok):
+    """Without a stop condition the inverse problem has no defined output length.
+
+    s_rev ends at the prompt's FIRST token, and nothing marks it, so decoding runs to
+    a fixed budget and continues past the prompt into invented text. On the 27M local
+    run that overrun was most of the measured error: prompts average 10.8 tokens
+    against a 40-token budget, capping precision near 0.27 however good the model was.
+    Adding the marker lifted best-of-32 precision 0.140 -> 0.346 and token F1
+    0.217 -> 0.335 with nothing else changed, so the marker must stay where it is.
+    """
+    prompt, response = "Name three colours.", "Red, green and blue."
+    eop = 151643                                  # Qwen's <|endoftext|>
+    plain = build_training_sequence(prompt, response, tok)
+    marked = build_training_sequence(prompt, response, tok, eop=eop)
+
+    assert marked == plain + [eop], "the marker goes after x_1, at the very end"
+    assert marked[-1] == eop
+    assert eop not in plain, "an unmarked sequence must have no stop condition at all"
+
+    n_p = len(tok(prompt, add_special_tokens=False)["input_ids"])
+    _, prompt_rev = split_reversed(marked[:-1], n_p)
+    assert tok.decode(reverse_ids(prompt_rev)) == prompt, (
+        "appending the marker must not disturb the prompt span")
+
+
 def test_detokenize_round_trip(tok):
     text = "Explain how to reset a password."
     assert detokenize_reversed(reverse_text(text, tok), tok) == text

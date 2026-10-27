@@ -129,8 +129,8 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   experiments in `cache/wrapped_rs.jsonl` / `data/wrapped_rs.csv` were superseded by SORRY-Bench.)
 - Open tasks are in handoff §14. §14.1 (lineage dashboard) is covered by `tools/lineage_dashboard.py` instead of a
   `make_dashboard.py --lineage` mode. `cache/judge_lineage_sorrybench.jsonl` holds every canonical + RSR verdict
-  (reproduces P⁻ 18/3/49/12/13 and k 15/3/23/5/8 exactly) and ~7.7k of ~13k variant verdicts (PBR complete only for
-  llama2-7b/13b; finish with `judge_lineage.py --scope all`).
+  (reproduces P⁻ 18/3/49/12/13 and k 15/3/23/5/8 exactly) and, since 2026-10-27, all 13,325 variant verdicts:
+  `judge_lineage.py --scope all --dry-run` reports 0 remaining, so PBR is judged for all six models.
 - 2026-10-22 overnight (`overnight_20261021.sh`): `tools/cache_consolidate.py` merged `llama2_13b.jsonl` +
   `ollama_pilot.jsonl` into `llama_gen.jsonl` (backup `*.pre_consolidate_*`); `tools/fill_responses.py` filled the
   SMOKE HarmBench manifest for llama31-8b/llama2-13b. New `study_data` runs: `lineage-harmbench` (4 models; judged
@@ -143,6 +143,20 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   `tools/thesis_analysis.py` (pooled headline, RQ2/RQ3, sensitivity, PBR, RPE agreement → dated `results/analysis_*`),
   `tools/gate_audit.py` (blind gate audit sheet in `audit/gate/`), `tools/regate_intent.py` (gate layer (d) post hoc,
   gemma4:e4b with `extra_body: {reasoning_effort: none}`; config key `intent:` now wires L2 into `run-real`).
+- 2026-10-27 PTP arm: the local failure was mostly OUR measurement, not scale. `tools/ptp_diagnose.py`
+  (teacher-forced vs free-running, by depth into the prompt) showed the 27M model predicts 60.5% of prompt
+  tokens correctly given the true prefix on pairs it saw, so the mapping is largely learned and greedy
+  decoding was discarding it. Two defects: every figure was a single greedy decode (RSR/PBR/PRR are
+  "≥1 admitted candidate" estimands, so best-of-N is what the pipeline consumes), and `s_rev` carried no
+  end-of-prompt marker, so decoding ran a fixed 40 tokens against 10.8-token prompts and precision was
+  capped near 0.27. Fixing the marker (`reversal.build_training_sequence(..., eop=)`,
+  `ptp_build.py --boundary`) lifted best-of-32 token F1 0.217 → 0.335 and precision 0.140 → 0.346, and
+  replicates on the 92M. **But the gate-admissibility rate (≥1 candidate at cosine ≥ 0.75) is 1/86 either
+  way, so the arm still contributes nothing** — lexical recovery improved, semantic adequacy did not.
+  Full write-up in `PTP_FINDINGS_20261027.md`. Gate A was pre-registered against a single greedy decode;
+  best-of-N is a protocol change and must be registered before 0.335 is reported as a pass.
+  `tools/ptp_decode_sweep.py` is the comparison harness (`--vocab`, `--eos`, `--n-samples`).
+  The held-out 86 are now frozen in `ptp_build.py`, so adding pairs cannot silently move the denominator.
 - White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
   q/k un-permuted, rope factors and Llama-3 pre-tokenizer verified) and records per layer the refusal-direction score
   (Arditi difference-of-means), residual divergence, top MLP neurons and P(refusal opening) → `results/mech/*.json`

@@ -41,7 +41,8 @@ def detokenize_reversed(ids: Sequence[int], tokenizer) -> str:
     return tokenizer.decode(reverse_ids(ids), skip_special_tokens=True)
 
 
-def build_training_sequence(prompt: str, response: str, tokenizer) -> list[int]:
+def build_training_sequence(prompt: str, response: str, tokenizer,
+                            eop: int | None = None) -> list[int]:
     """The fine-tuning sequence of PTP section 3.4.
 
     s     = (x_1..x_n, y_1..y_T)             prompt then response, one sequence
@@ -51,10 +52,19 @@ def build_training_sequence(prompt: str, response: str, tokenizer) -> list[int]:
     response into the prompt: by the time it reaches the prompt tokens it is
     conditioned on the entire response, which is exactly the inference-time
     conditioning.
+
+    `eop` appends an end-of-prompt token after x_1. Without it the inverse problem has
+    no defined output length: s_rev simply stops, nothing marks the prompt's start, and
+    decoding runs to a fixed budget and continues past the prompt into invented text.
+    Measured on the 27M local run, that overrun was most of the reported error --
+    prompts average 10.8 tokens against a 40-token budget, so precision was capped near
+    0.27 however good the model was. Adding the token raised best-of-32 token F1 from
+    0.217 to 0.335 and precision from 0.140 to 0.346 with nothing else changed.
     """
     ids = tokenizer(prompt, add_special_tokens=False)["input_ids"] + \
         tokenizer(response, add_special_tokens=False)["input_ids"]
-    return reverse_ids(ids)
+    out = reverse_ids(ids)
+    return out + [eop] if eop is not None else out
 
 
 def split_reversed(ids_rev: Sequence[int], n_prompt_tokens: int) -> tuple[list[int], list[int]]:

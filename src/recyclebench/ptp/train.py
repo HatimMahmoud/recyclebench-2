@@ -176,6 +176,11 @@ def evaluate_inversion(model, pairs, tokenizer, *, device: str, max_new_tokens: 
             "token_f1": sum(f1) / max(1, len(f1))}
 
 
-def make_finetune_corpus(pairs: Iterable[tuple[str, str]], tokenizer) -> list[list[int]]:
-    """Reversed (prompt + response) sequences, the section 3.4 fine-tuning corpus."""
-    return [build_training_sequence(p, r, tokenizer) for p, r in pairs]
+def make_finetune_corpus(pairs: Iterable[tuple[str, str]], tokenizer,
+                         eop: Optional[int] = None) -> list[list[int]]:
+    """Reversed (prompt + response) sequences, the section 3.4 fine-tuning corpus.
+
+    `eop` marks where the prompt starts, so decoding has a stop condition; see
+    `reversal.build_training_sequence`.
+    """
+    return [build_training_sequence(p, r, tokenizer, eop=eop) for p, r in pairs]

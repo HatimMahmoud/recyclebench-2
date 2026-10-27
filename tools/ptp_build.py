@@ -47,6 +47,7 @@ from recyclebench.ptp.train import (evaluate_loss, invert_ids,          # noqa: 
 from recyclebench.ptp.vocab import CompactVocab, coverage              # noqa: E402
 
 PHASES = ("probe", "pretrain", "ftdata", "finetune", "eval")
+EOP_TOKENIZER_ID = 151643      # Qwen's <|endoftext|>; the probed corpus never emits it
 OUT = ROOT / "cache" / "ptp"
 
 
@@ -97,6 +98,11 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=1,
                     help="concurrent probe requests; needs OLLAMA_NUM_PARALLEL >= this")
     ap.add_argument("--minutes", type=float, default=None, help="budget for THIS phase")
+    ap.add_argument("--boundary", action="store_true",
+                    help="append an end-of-prompt token so decoding has a stop "
+                         "condition (see reversal.build_training_sequence); adds one "
+                         "vocabulary row, so checkpoints are not interchangeable with "
+                         "a run made without it")
     ap.add_argument("--gate-token-f1", type=float, default=0.30,
                     help="Gate A: held-out inversion token F1 floor")
     args = ap.parse_args(argv)
@@ -125,6 +131,20 @@ def main(argv=None) -> int:
             cv.save(vocab_p)
         log(f"compact vocabulary: {len(cv):,} of {len(tok):,} tokenizer ids "
             f"(min_count {args.vocab_min_count})")
+    # `eop` is the id the DECODER stops on, i.e. compact when a compact vocabulary is
+    # in use; the fine-tuning corpus is built in tokenizer ids and compacted after, so
+    # that stage is given EOP_TOKENIZER_ID instead.
+    eop = None
+    if args.boundary:
+        if cv is None:
+            eop = EOP_TOKENIZER_ID
+        else:
+            if EOP_TOKENIZER_ID not in cv.to_compact:   # appended last: rows keep their ids
+                cv = CompactVocab(list(cv.ids) + [EOP_TOKENIZER_ID])
+                cv.save(OUT / "compact_vocab_eop.json")
+            eop = cv.to_compact[EOP_TOKENIZER_ID]
+        log(f"end-of-prompt token: tokenizer id {EOP_TOKENIZER_ID} -> decoder id {eop} "
+            f"(vocabulary {len(cv) if cv else len(tok):,})")
     cfg = getattr(PTPConfig, args.size)(len(cv) if cv else len(tok))
     corpus_p = OUT / f"corpus_{args.forward_model.replace(':', '_')}.jsonl"
     ft_p = OUT / f"ftpairs_{args.forward_model.replace(':', '_')}.jsonl"
@@ -200,25 +220,49 @@ def main(argv=None) -> int:
             todo = [p for p in prompts if p not in done]
             log(f"[ftdata] {len(todo)} benign pairs to generate ({len(done)} stored)")
             spec = ProbeSpec(model_id=args.forward_model, temperature=0.7, seq_len=160)
-            n = 0
-            with ft_p.open("a", encoding="utf-8") as fh:
-                for i, p in enumerate(todo, 1):
-                    if deadline and time.time() > deadline:
-                        log(f"[ftdata] budget reached at {i-1}/{len(todo)}")
-                        break
-                    try:
-                        r = generate_raw(spec, p, 160)
-                    except Exception as e:
-                        log(f"[ftdata] {type(e).__name__}: {e}")
-                        continue
-                    if len(r.strip()) < 10:
-                        continue
-                    fh.write(json.dumps({"prompt": p, "response": r.strip()}) + "\n")
+            # Threaded for the same reason probing is: a single stream leaves a 3B model
+            # decoding one token at a time while the machine idles. Ollama batches
+            # concurrent requests only up to OLLAMA_NUM_PARALLEL, a SERVER-side setting.
+            import threading
+            from concurrent.futures import ThreadPoolExecutor
+            state = {"n": 0, "stop": False}
+            lock = threading.Lock()
+            fh = ft_p.open("a", encoding="utf-8")
+
+            def one_pair(prompt: str) -> None:
+                if state["stop"]:
+                    return
+                if deadline and time.time() > deadline:
+                    state["stop"] = True
+                    return
+                try:
+                    r = generate_raw(spec, prompt, 160)
+                except Exception as e:
+                    log(f"[ftdata] {type(e).__name__}: {e}")
+                    return
+                if len(r.strip()) < 10:
+                    return
+                with lock:
+                    fh.write(json.dumps({"prompt": prompt, "response": r.strip()}) + "\n")
                     fh.flush()
-                    n += 1
-                    if n % 25 == 0:
-                        log(f"[ftdata] {n}/{len(todo)}")
-            report["ftdata"] = {"generated": n, "file": str(ft_p.relative_to(ROOT))}
+                    state["n"] += 1
+                    n_done = state["n"]
+                if n_done % 25 == 0:
+                    log(f"[ftdata] {n_done}/{len(todo)}")
+
+            try:
+                if args.workers > 1:
+                    with ThreadPoolExecutor(args.workers) as ex:
+                        list(ex.map(one_pair, todo))
+                else:
+                    for prompt in todo:
+                        one_pair(prompt)
+            finally:
+                fh.close()
+            if state["stop"]:
+                log(f"[ftdata] budget reached at {state['n']}/{len(todo)}")
+            report["ftdata"] = {"generated": state["n"], "file": str(ft_p.relative_to(ROOT)),
+                                "workers": args.workers}
 
         elif ph == "finetune":
             pairs = [json.loads(l) for l in ft_p.read_text(encoding="utf-8").splitlines()
@@ -226,16 +270,28 @@ def main(argv=None) -> int:
             if len(pairs) < 40:
                 log(f"[finetune] only {len(pairs)} pairs -- run --phase ftdata first")
                 continue
-            rng = random.Random(11)
-            rng.shuffle(pairs)
-            cut = max(20, int(0.2 * len(pairs)))
-            held, trn = pairs[:cut], pairs[cut:]
-            (OUT / "heldout.json").write_text(json.dumps(held, indent=1))
+            held_p = OUT / "heldout.json"
+            if held_p.exists():
+                # Reuse the existing split. Re-deriving it would silently move the
+                # held-out set whenever pairs are added, and every PTP figure so far is
+                # scored on these 86 -- a changed denominator would break every
+                # comparison without showing up anywhere in the output.
+                held = json.loads(held_p.read_text())
+                frozen = {h["prompt"] for h in held}
+                trn = [x for x in pairs if x["prompt"] not in frozen]
+                log(f"[finetune] reusing the frozen held-out set ({len(held)} pairs)")
+            else:
+                rng = random.Random(11)
+                rng.shuffle(pairs)
+                cut = max(20, int(0.2 * len(pairs)))
+                held, trn = pairs[:cut], pairs[cut:]
+                held_p.write_text(json.dumps(held, indent=1))
             model = build_model(cfg)
             if not load_into(model, pre_w, device):
                 log("[finetune] NOTE: no pre-trained weights -- this is the Appendix E "
                     "ablation (fine-tune only), which the paper reports as failing")
-            seqs = make_finetune_corpus([(p["prompt"], p["response"]) for p in trn], tok)
+            seqs = make_finetune_corpus([(p["prompt"], p["response"]) for p in trn], tok,
+                                        eop=EOP_TOKENIZER_ID if args.boundary else None)
             if cv:
                 seqs = [cv.encode(x) for x in seqs]
             seqs = [s[:cfg.max_position_embeddings] for s in seqs]
@@ -267,7 +323,8 @@ def main(argv=None) -> int:
                 rid = rid[:cfg.max_position_embeddings - 48]
                 if cv:
                     rid = cv.encode(rid)
-                out_ids = invert_ids(model, rid, device=device, max_new_tokens=40)
+                out_ids = invert_ids(model, rid, device=device, max_new_tokens=40,
+                                     eos_id=eop)
                 if cv:
                     out_ids = cv.decode(out_ids)
                 got = tok.decode(out_ids, skip_special_tokens=True)
@@ -293,7 +350,7 @@ def main(argv=None) -> int:
                               "gate_passed": bool(passed), "examples": rows[:25]}
 
         report["generated"] = _dt.datetime.now().strftime("%Y%m%d_%H%M")
-        report["config"] = {"vocab_min_count": args.vocab_min_count,
+        report["config"] = {"vocab_min_count": args.vocab_min_count, "boundary": args.boundary,
                             "model_vocab": len(cv) if cv else len(tok),
                             "forward_model": args.forward_model, "tokenizer": args.tokenizer,
                             "size": args.size, "vocab": len(tok), "device": device,
