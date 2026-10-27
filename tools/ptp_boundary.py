@@ -63,6 +63,10 @@ def main() -> int:
     ap.add_argument("--pretrained", default=str(OUT / "local27m_25k" / "inverse_pretrained.pt"))
     ap.add_argument("--size", default="local", choices=("smoke", "local", "mid", "paper"))
     ap.add_argument("--ft-epochs", type=int, default=12)
+    ap.add_argument("--n-pairs", type=int, default=None,
+                    help="train on this many fine-tuning pairs (sampled with a fixed "
+                         "seed). With --ft-epochs chosen to hold total steps constant, "
+                         "this separates data diversity from optimisation compute.")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--out-ckpt", default=str(OUT / "inverse_boundary.pt"))
     ap.add_argument("--out-vocab", default=str(OUT / "compact_vocab_eop.json"))
@@ -89,6 +93,9 @@ def main() -> int:
     held = json.loads((OUT / "heldout.json").read_text())
     held_prompts = {h["prompt"] for h in held}
     trn = [p for p in pairs if p["prompt"] not in held_prompts]
+    if args.n_pairs and args.n_pairs < len(trn):
+        import random as _r
+        trn = _r.Random(11).sample(trn, args.n_pairs)
     print(f"{len(trn)} fine-tuning pairs, {len(held)} held out (same split as every run)",
           flush=True)
 

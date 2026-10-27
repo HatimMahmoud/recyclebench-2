@@ -113,6 +113,32 @@ Folded into the package: `reversal.build_training_sequence(..., eop=)`,
 `tests/test_ptp.py::test_boundary_token_marks_where_the_prompt_starts` so a future run
 cannot silently lose it.
 
+## Does more fine-tuning data close the semantic gap? (yes, partly)
+
+The boundary fix moved lexical recovery and left the semantic side flat. The depth
+profile said why: the break is at the hand-off from response into prompt, and that is
+what the fine-tuning stage teaches — with 347 pairs. Scaling the fine-tuning corpus to
+2,846 pairs (Alpaca instructions, responses from the same forward model, same frozen
+held-out 86) moved everything, including cosine.
+
+Because more pairs also means more optimisation steps, a compute-matched control was
+run: the original 347 pairs for 98 epochs = 4,251 steps, against the 2,846-pair run's
+4,272.
+
+| run | steps | bo32 F1 | precision | recall | cosine | hit F1≥.30 | hit cos≥.75 |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| 27M · 347 pairs · no stop | 528 | 0.217 | 0.140 | 0.522 | 0.408 | 8.1% | 0.0% |
+| 27M · 347 pairs · stop | 528 | 0.335 | 0.346 | 0.472 | 0.402 | 60.5% | 1.2% |
+| 92M · 347 pairs · stop | 528 | 0.269 | 0.277 | 0.437 | 0.346 | 39.5% | 1.2% |
+| 27M · 347 pairs · stop **[control]** | 4251 | 0.314 | 0.329 | 0.450 | 0.383 | 48.8% | 1.2% |
+| 27M · 2,846 pairs · stop | 4272 | **0.397** | 0.426 | 0.505 | **0.489** | 72.1% | **4.7%** |
+
+Eight times the compute on the *same* data made best-of-32 slightly **worse** (0.335 →
+0.314) and the fine-tune loss much lower (best 1.46 vs 2.34) — it memorised. At matched
+compute, eight times the *data* gave +0.083 token F1, +0.106 cosine and a four-fold
+gate-hit rate. The gain is data diversity, and the fine-tuning corpus is generated with
+Ollama, so this axis is cheap and not GPU-bound.
+
 ## What this does and does not change
 
 **Does:** the local runs were not a clean test of PTP at small scale. They measured an
@@ -127,10 +153,26 @@ selection. Lexical overlap improved sharply; semantic adequacy did not. That is 
 paper's own lexical/semantic split landing on the unfavourable side — fragments of
 wording recovered without the request being recovered.
 
-So the open question for the cluster is unchanged in kind but much better posed: does
-full-vocabulary probing close the *semantic* gap? The corpus here is 4.6M tokens reused
-across epochs against the paper's ~38M tokens per epoch regenerated on the fly — about
-12% of one paper epoch.
+So the open question for the cluster is better posed, and partly answered: the
+fine-tuning corpus moves the semantic side and costs Ollama time, not GPU time, while
+the pre-training corpus (3.5k → 25k seeds) and model capacity (27M → 92M) did not move
+it at all. Full-vocabulary probing remains untested — 4.6M tokens reused across epochs
+against the paper's ~38M per epoch regenerated on the fly, about 12% of one paper epoch.
+
+**Is the arm worth scaling?** On the evidence so far, no. The number that decides
+whether PTP contributes is the gate-admissibility rate, and at 4.7% it is roughly 17x
+short of the RPE arm's 80.0% PRR [49.0, 94.3] — achieved with an off-the-shelf
+`qwen2.5:14b` inverter and no training at all. PTP's conceptual advantage over RPE is
+that it is data-free and inverts the forward model's own dynamics rather than leaning
+on a general model's world knowledge, but that validity threat is already evidenced
+away by the blind and mismatched controls (equivalence medians 0.752 vs 0.172 / 0.175,
+zero control candidates reaching preimage at any threshold).
+
+Recommended stop rule rather than an open-ended cluster commitment: extend the
+gate-hit curve to a third point (1.2% → 4.7% → ?) with one more Ollama run, and if it
+does not extrapolate past ~20% at published scale, close the arm with evidence. Report
+PTP as a bounded negative with this method section; spend cluster time on the white-box
+arm, which speaks to RQ1 directly.
 
 ## What must be registered before this is reported
 

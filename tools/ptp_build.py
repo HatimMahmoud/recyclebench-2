@@ -98,6 +98,11 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=1,
                     help="concurrent probe requests; needs OLLAMA_NUM_PARALLEL >= this")
     ap.add_argument("--minutes", type=float, default=None, help="budget for THIS phase")
+    ap.add_argument("--pretrained", default=None,
+                    help="pre-trained checkpoint to load (default cache/ptp/"
+                         "inverse_pretrained.pt, which holds whichever size ran last)")
+    ap.add_argument("--finetuned", default=None,
+                    help="where to write/read the fine-tuned checkpoint")
     ap.add_argument("--boundary", action="store_true",
                     help="append an end-of-prompt token so decoding has a stop "
                          "condition (see reversal.build_training_sequence); adds one "
@@ -148,7 +153,11 @@ def main(argv=None) -> int:
     cfg = getattr(PTPConfig, args.size)(len(cv) if cv else len(tok))
     corpus_p = OUT / f"corpus_{args.forward_model.replace(':', '_')}.jsonl"
     ft_p = OUT / f"ftpairs_{args.forward_model.replace(':', '_')}.jsonl"
-    pre_w, ft_w = OUT / "inverse_pretrained.pt", OUT / "inverse_finetuned.pt"
+    # Explicit paths matter once more than one size has been trained: the default
+    # names hold whichever run wrote them last, and loading a 92M checkpoint into a
+    # 27M model fails late, after the Ollama phases have already been paid for.
+    pre_w = Path(args.pretrained) if args.pretrained else OUT / "inverse_pretrained.pt"
+    ft_w = Path(args.finetuned) if args.finetuned else OUT / "inverse_finetuned.pt"
     report_p = OUT / "report.json"
     report = json.loads(report_p.read_text()) if report_p.exists() else {}
 
