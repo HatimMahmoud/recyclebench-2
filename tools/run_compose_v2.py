@@ -174,6 +174,25 @@ def phase_judge(cfg, gen, cache, store, tag, deadline):
     return True
 
 
+def verdict_table(gen_mem, cache, store, tag, bids, top):
+    """{condition: {bid: 1 / 0 / None}} over candidate levels 0..top. None = no admitted candidate, or a
+    reply / verdict missing. Shared by `score` and the dashboard section."""
+    out = {}
+    for c in CONDITIONS:
+        row = {}
+        for b in bids:
+            vals = []
+            for i in range(top + 1):
+                d = gen_mem.get(f"{cname(c)}|{b}|{i}")
+                if not d or not d.get("admitted"):
+                    continue
+                t = cache.get(NEW, d["text"], SEED + i)
+                vals.append(None if t is None else store.get(lc.verdict_key(tag, d["text"], t)))
+            row[b] = lc._any(vals) if vals else None
+        out[cname(c)] = row
+    return out
+
+
 def holm(ps):
     """Holm-Bonferroni adjusted p-values, same order as given (None stays None)."""
     idx = sorted((p, i) for i, p in enumerate(ps) if p is not None)
@@ -192,21 +211,7 @@ def phase_score(behaviours, n_pm, gen, cache, store, tag, out_dir):
     if top < 0:
         raise SystemExit("no candidate index level is complete for every condition yet")
 
-    def verdicts(cond):
-        """bid -> 1 / 0 (resolved) or None (no admitted candidate, or a reply/verdict missing)."""
-        out = {}
-        for b, _ in behaviours:
-            vals = []
-            for i in range(top + 1):
-                d = gen.mem.get(f"{cname(cond)}|{b}|{i}")
-                if not d or not d.get("admitted"):
-                    continue
-                t = cache.get(NEW, d["text"], SEED + i)
-                vals.append(None if t is None else store.get(lc.verdict_key(tag, d["text"], t)))
-            out[b] = lc._any(vals) if vals else None
-        return out
-
-    V = {cname(c): verdicts(c) for c in CONDITIONS}
+    V = verdict_table(gen.mem, cache, store, tag, [b for b, _ in behaviours], top)
     conds = []
     for c in CONDITIONS:
         n_cand = sum(1 for b, _ in behaviours for i in range(top + 1) if gen.mem.get(f"{cname(c)}|{b}|{i}", {}).get("ok"))
