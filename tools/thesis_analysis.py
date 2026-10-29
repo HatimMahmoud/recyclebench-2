@@ -4,13 +4,18 @@
 No model calls. Every rate goes through the package estimators (compute_rsr, compute_pbr, wilson_interval,
 corrected_interval, mcnemar_exact, fit_drivers), so the numbers are the ones the instrument defines.
 
+  0  CONFIRMATORY replication        Amendment 1 §A2, read from results/runs/confirm_heldout_3_31/ and reported on its
+                                    own -- the only confirmatory figure here, never pooled with 1..6 below
   1  pooled matched-scale headline   llama3-8b -> llama3.1-8b over SORRY-Bench, HarmBench, AdvBench, StrongREJECT
   2  RQ2 per harm category / domain  (descriptive; exploratory by registration §8)
   3  RQ3 drivers                     mixed-effects logit of per-variant recovery on transform class + surface distance
   4  sensitivity                     gate thresholds tightened +0.05/+0.10 (loosening needs the rejected texts, which
                                      the manifests do not keep), budget t in {1, 2, 4, 8}, judge (qwen vs offline rule)
   5  PBR backbone                    per model, only where every needed verdict is stored
-  6  RPE agreement                   output-inversion vs paraphrase recovery, joined on the prompt text
+  6  inversion arm                   the current closed-loop runs per benchmark x pair: PRR under the intent gate,
+                                     the closed loop and both, beside RSR on the same judged P^-, plus the
+                                     harmful-ask audit bracket (tools/inversion_section.load); then the early RPE
+                                     runs' agreement with paraphrase recovery, joined on the prompt text (superseded)
 
 Writes results/analysis_<stamp>/analysis.json and analysis.md (never overwrites).
 
@@ -58,6 +63,11 @@ SOURCES = {
 }
 STRICT = sd.STRICT_GATE
 INTENT_MODEL = "gemma4:e4b"
+# The CONFIRMATORY replication (Amendment 1 §A2). Read, never recomputed here and never pooled with
+# §1-§6: those are exploratory, and mixing a registered result into them is what the registration
+# exists to prevent. The recalibrated file supersedes the original (see its own "why" field).
+CONFIRM_DIR = "results/runs/confirm_heldout_3_31"
+CONFIRM_FILES = ["corrected_heldout_recal_n60.json", "corrected_heldout.json"]
 
 
 def wil(k, n):
@@ -162,6 +172,7 @@ def main(argv=None):
     jc = sd.anchor_judge_chars(cal)
     res = {"generated": stamp, "judge_correction": (dict(se=jc.se, sp=jc.sp, source="SORRY-Bench human sheet, bundle level")
                                                    if jc else None)}
+    res["confirmatory"] = load_confirmatory()
     srcs = {b: Source(cfg, cache, tag, b) for b in SOURCES}
     offs = {b: Source(cfg, cache, tag, b, judge="offline") for b in SOURCES}
 
@@ -308,6 +319,27 @@ def main(argv=None):
     rpe_store.close()
     res["rpe_agreement"] = agree
 
+    # ---- 6. the inversion arm as it stands: every gate-scored closed-loop run ---------------------------
+    import inversion_section as invsec
+    inv = invsec.load(root=ROOT)
+    arm = []
+    for (bench, o, n), r in sorted(inv.runs.items()):
+        if not r.p_minus:
+            continue
+        v = r.view or {}
+        row = dict(bench=bench, old=o, new=n, posthoc=r.posthoc, p_minus=r.p_minus, gated=r.gated,
+                   closedloop=invsec._rel(r.closedloop) or None, RSR=v.get("RSR"),
+                   mcnemar_loop=(v.get("agreement") or {}).get("mcnemar_p"),
+                   mcnemar_both=(v.get("agreement_both") or {}).get("mcnemar_p"))
+        for a in ("loop", "both", "gate"):
+            row[f"PRR_{a}"] = r.adm(a) if (a == "loop" or r.gated) else None
+        hb = invsec.harm_bracket(inv, r)
+        if hb:
+            row["harm_audit"] = {k: hb[k] for k in ("verified", "refuted", "pending", "lower", "upper")}
+        arm.append(row)
+    res["inversion_arm"] = arm
+    res["inversion_reconcile"] = (inv.reconcile or {}).get("findings")
+
     out.mkdir(parents=True)
     (out / "analysis.json").write_text(json.dumps(res, indent=1, default=str))
     (out / "analysis.md").write_text(render_md(res))
@@ -320,9 +352,55 @@ def pct(x):
     return "—" if x is None else f"{100 * x:.1f}%"
 
 
+def load_confirmatory():
+    """The registered confirmatory headline, as its run directory recorded it."""
+    for name in CONFIRM_FILES:
+        p = ROOT / CONFIRM_DIR / name
+        if p.exists():
+            d = json.loads(p.read_text())
+            d["_file"] = f"{CONFIRM_DIR}/{name}"
+            d["_superseded_files"] = [f"{CONFIRM_DIR}/{o}" for o in CONFIRM_FILES
+                                      if o != name and (ROOT / CONFIRM_DIR / o).exists()]
+            return d
+    return None
+
+
+def render_confirmatory(c):
+    if not c:
+        return ["## 0. Confirmatory replication — NOT FOUND", "",
+                f"No corrected headline in `{CONFIRM_DIR}`. The exploratory sections below cannot "
+                "stand in for it.", ""]
+    cal, rsr, pbr = c["calibration"], c["RSR"], c["PBR_new"]
+    L = [f"## 0. CONFIRMATORY replication (Amendment 1 §A2) — {c['pair']}", "",
+         f"Held-out JBB+GuidedBench, stamped before the run. Source: `{c['_file']}`. "
+         "**This is the only confirmatory result in this document.** It is reported on its own and is "
+         "never pooled with §1–§6.", "",
+         "| estimand | k/n | raw | raw Wilson 95% | corrected | corrected 95% |",
+         "|---|--:|--:|---|--:|---|"]
+    for name, d in (("RSR", rsr), (f"PBR ({c['pair'].split('->')[-1].strip()})", pbr)):
+        L.append(f"| {name} | {d['k']}/{d['n']} | {d['raw']:.4f} | "
+                 f"{d['raw_wilson95'][0]:.4f}–{d['raw_wilson95'][1]:.4f} | {d['corrected']:.4f} | "
+                 f"{d['corrected_ci95_delta'][0]:.4f}–{d['corrected_ci95_delta'][1]:.4f} |")
+    L += ["", f"Judge admitted: se {cal['se']:.4f} · sp {cal['sp']:.4f} · κ {cal['kappa']:.4f} over "
+          f"{cal['n_bundles']} bundles ({cal['sheet']}). §A2 registers this SORRY-Bench calibration for "
+          "the confirmatory headline, so no held-out calibration is required.",
+          f"McNemar exact p = {c['mcnemar_p']:.3g}; mean admitted rewordings per P⁻ behaviour "
+          f"t = {c['t_mean']}.", ""]
+    if rsr.get("verdict"):
+        L.append(f"**RSR verdict: {rsr['verdict']}** against π\\* = {c.get('pi_star', 0.15)}.")
+    if pbr.get("verdict_warning"):
+        L += ["", f"**PBR verdict: reported as _{pbr['verdict_reported']}_** (mechanically "
+              f"_{pbr['verdict_mechanical']}_). {pbr['verdict_warning']}"]
+    if c.get("_superseded_files"):
+        L += ["", f"Superseded in the same directory: {', '.join('`' + f + '`' for f in c['_superseded_files'])}."]
+    return L + [""]
+
+
 def render_md(r):
     L = [f"# Exploratory analyses (prereg Amendment 1 §A3) — {r['generated']}", "",
-         "All figures RAW unless marked corrected. Exploratory: no result here is confirmatory.", ""]
+         "All figures RAW unless marked corrected. **Everything below §0 is exploratory**: no result "
+         "in §1–§6 is confirmatory, and none of them may be pooled with §0.", ""]
+    L += render_confirmatory(r.get("confirmatory"))
     h = r["headline"]
     L += [f"## 1. Pooled matched-scale headline: {h['pair']}", "",
           "| benchmark | judge | P⁻ | re-opened | unresolved | Wilson 95% |", "|---|---|--:|--:|--:|---|"]
@@ -383,7 +461,26 @@ def render_md(r):
             why = (f"{p['missing_responses']} rewording responses never generated" if p.get("missing_responses")
                    else f"{p['missing_variant_verdicts']} verdicts missing")
             L.append(f"| {p['bench']} | {p['model']} | {p['judge']} | not estimable ({why}) | | | |")
-    L += ["", "## 6. RPE vs paraphrase recovery (behaviours resolved by both, qwen judge)", "",
+    def kn(x):
+        return "—" if not x or not x.get("n") else f"{pct(x['rate'])} ({x['k']}/{x['n']})"
+    L += ["", "## 6. Inversion arm (current closed-loop runs, qwen2.5:14b judge)", "",
+          "Per pair only (a behaviour sits in several pairs' P⁻). Closed loop = the older model's reply to the "
+          "reconstruction matches its original answer (upper bound until the harmful-ask audit); intent gate = the "
+          "recycle arm's own gate against the original request; both = the intersection.", "",
+          "| benchmark | pair | P⁻ | RSR | PRR closed loop | PRR both | PRR intent gate | McNemar RSR vs loop | harmful-ask audit |",
+          "|---|---|--:|--:|--:|--:|--:|--:|---|"]
+    for a in r.get("inversion_arm", []):
+        au = "—"
+        if a.get("harm_audit"):
+            h = a["harm_audit"]
+            au = (f"[{pct(h['lower']['rate'])}, {pct(h['upper']['rate'])}] · {h['verified']} verified, {h['refuted']} refuted, "
+                  f"{h['pending']} pending" if h["verified"] + h["refuted"] else f"not labelled yet ({h['pending']} behaviours)")
+        mc = "—" if a["mcnemar_loop"] is None else f"{a['mcnemar_loop']:.3g}"
+        L.append(f"| {a['bench']} | {a['old']} → {a['new']}{' (post-hoc)' if a['posthoc'] else ''} | {a['p_minus']} | "
+                 f"{kn(a['RSR'])} | {kn(a['PRR_loop'])} | {kn(a['PRR_both'])} | {kn(a['PRR_gate'])} | {mc} | {au} |")
+    for f_ in r.get("inversion_reconcile") or []:
+        L.append(f"- {f_}")
+    L += ["", "## 6b. Early RPE runs vs paraphrase recovery (superseded; behaviours resolved by both, qwen judge)", "",
           "| run | both resolved | agree | rpe+/para+ | rpe+/para− | rpe−/para+ | rpe−/para− | not in P⁻ |",
           "|---|--:|--:|--:|--:|--:|--:|--:|"]
     for a in r["rpe_agreement"]:

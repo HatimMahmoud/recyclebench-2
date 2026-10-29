@@ -16,3 +16,9 @@ docs/thesis/*.aux
 docs/thesis/*.log
 docs/thesis/*.blg
 docs/thesis/*.bbl
+
+# PTP model checkpoints and corpora: GBs, regenerable (tools/ptp_build.py), over GitHub file limits
+cache/ptp/
+.DS_Store
+# model output the IBM secret scanner flags (example PHP login code written by llama3-8b): kept local
+cache/rpe_advbench_llama3-8b__llama31-8b.jsonl

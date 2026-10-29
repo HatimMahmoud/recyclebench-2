@@ -1383,59 +1383,27 @@ def sec_gate(an):
 </section>"""
 
 
-def _newest_inversion_report():
-    """Newest results/runs/rpe_lineage/lineage_report_*.json, or None."""
-    d = Path(__file__).resolve().parents[1] / "results" / "runs" / "rpe_lineage"
-    xs = sorted(d.glob("lineage_report_*.json")) if d.exists() else []
-    return json.loads(xs[-1].read_text()) if xs else None
-
-
 def sec_inversion():
-    """Convergent validity: perturb the REQUEST (recycle) vs reconstruct it from the ANSWER (inversion)."""
-    doc = _newest_inversion_report()
-    if not doc or not doc.get("views"):
+    """Convergent validity: perturb the REQUEST (recycle) vs reconstruct it from the ANSWER (inversion).
+
+    Rendered by tools/inversion_section.py (imported here, not at the top: it imports this module)."""
+    import inversion_section as iv
+    inv = iv.load()
+    body = iv.lineage_table(inv)
+    if not body:
         return ""
-    rows, any_scored = [], False
-    for v in doc["views"]:
-        o, n = v["pair"]
-        r, q, ag = v["RSR"], v.get("PRR"), v.get("agreement")
-        def cell(x):
-            if not x or x["rate"] is None:
-                return '<span class="sub">not scored</span>'
-            return (f'{pct(x["rate"])} <span class="sub">{x["k"]}/{x["n"]}</span>'
-                    + (f' <span class="sub">[{x["ci"][0]*100:.0f}, {x["ci"][1]*100:.0f}]</span>'
-                       if x["ci"][0] is not None else ""))
-        if q and q["rate"] is not None:
-            any_scored = True
-        rows.append([esc(f"{short(o)} \u2192 {short(n)}"), num(v["p_minus"]), cell(r), cell(q),
-                     num(ag["n_both_resolved"]) if ag else "\u2014",
-                     (f'{ag["cohen_kappa"]:.2f}' if ag and ag["cohen_kappa"] is not None else "\u2014"),
-                     (p_txt(ag["mcnemar_p"]) if ag and ag["mcnemar_p"] is not None else "\u2014")])
-    if not any_scored:
-        return ""
-    tbl = table(["pair", "P\u207b", "RSR \u00b7 recycle arm", "PRR \u00b7 inversion arm",
-                 "resolved by both", "\u03ba", "McNemar p"], rows, num_cols=(1, 4))
+    notes = iv.master_notes(inv)
     return f"""
 <section id="s-inversion" class="sec" aria-labelledby="h-inversion">
   <h2 id="h-inversion"><span class="sn">09</span>Inversion arm \u00b7 convergent validity</h2>
   <p class="note lede2">Two independent routes to the same question, scored on the same judged P\u207b of the
   same pair. The <b>recycle arm</b> perturbs the request and re-tests; the <b>inversion arm</b> never sees the
-  request \u2014 it reconstructs one from the older model's own answer and admits it only if the older model's
-  reply to the reconstruction lands in the response-equivalence class of the original answer
-  (Suhail et al., PTP 2026, Definition 1). The arms share no generator, so agreement is evidence the
-  estimand is not an artifact of the paraphraser.</p>
-  {tbl}
-  <div class="panel"><h3>How to read this</h3><ul class="take">
-    <li><b>\u03ba is degenerate here.</b> Both arms re-open most of what they resolve, so the marginals are
-    extreme and there is almost no room for chance-corrected agreement. McNemar tests the quantity that
-    matters \u2014 whether the two arms re-open at different <i>rates</i> on the same behaviours.</li>
-    <li><b>The inversion arm's denominator is smaller.</b> Behaviours with no preimage candidate drop out as
-    unresolved rather than counting as robust, and they may not be a random subset.</li>
-    <li><b>Not yet reportable.</b> Closed-loop admission establishes that a reconstruction reproduces the
-    older model's <i>answer</i>; it does not establish that it asks for the same harmful <i>thing</i>. Most
-    admitted candidates were rejected by this project's own intent gate and are awaiting human audit
-    (<code>audit/rpe/</code>). Until those labels exist the inversion figures are an upper bound.</li>
-  </ul></div>
+  request \u2014 it reconstructs one from the older model's own answer and asks the newer model. A reconstruction
+  is scored under the recycle arm's own <b>intent gate</b>, under the <b>closed loop</b> (the older model's reply to it
+  lands in the response-equivalence class of the original answer; Suhail et al., PTP 2026, Definition 1), and
+  under <b>both</b>. Post-hoc pairs (Llama 2 7B against the 8B models) are listed after the lineage rungs.</p>
+  <div class="panel"><h3>Coverage and re-opening, per admission rule</h3>{body}</div>
+  {notes}
 </section>"""
 
 
@@ -2176,6 +2144,11 @@ def sec_rq_lineage():
                              "llama3-8b → llama3.1-8b rung is firm, the other rungs are exploratory.")
 
 
+def _inv_css() -> str:
+    import inversion_section as iv
+    return iv.CSS
+
+
 def render(an: Analysis, args) -> str:
     today = _dt.date.today().isoformat()
     nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in NAV)
@@ -2189,7 +2162,7 @@ def render(an: Analysis, args) -> str:
             + "All figures are raw judge output unless marked corrected.")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
-            f'<title>{esc(title)}</title><style>{CSS}</style></head><body>'
+            f'<title>{esc(title)}</title><style>{CSS}{_inv_css()}</style></head><body>'
             f'<div class="layout"><nav class="side" aria-label="Sections">'
             f'{brand_html("SORRY-Bench · Llama lineage")}<div class="toc">{nav}</div>{legend_html()}'
             f'<button type="button" class="themebtn" id="themebtn" data-t="system">Theme: system</button></nav>'

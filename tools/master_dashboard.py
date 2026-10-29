@@ -27,6 +27,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lineage_core as lc                       # noqa: E402
 import lineage_dashboard as ld                  # noqa: E402  (shared chart/table primitives, CSS, JS)
 import study_data as sd                         # noqa: E402
+import compose_arcs_section as ca               # noqa: E402
+import inversion_section as iv                  # noqa: E402
 from recyclebench.stats import wilson_interval  # noqa: E402
 
 esc, pct, ci_txt, p_txt, num = ld.esc, ld.pct, ld.ci_txt, ld.p_txt, ld.num
@@ -377,7 +379,7 @@ def sec_header(s, today):
   Each number names its source and the judge that produced it. Missing cells say <b>{NOT_YET}</b>.</p>
   <div class="meta">
     <span><b>{len(sd.LOCAL_MODELS) + 1}</b> models</span><span><b>{len(s.datasets)}</b> behaviour sets</span>
-    <span><b>{len(s.recycle)}</b> recycle runs</span><span><b>{len([r for r in s.rpe if r.items])}</b> RPE runs</span>
+    <span><b>{len(s.recycle)}</b> recycle runs</span><span><b>{sum(1 for r in _inv(s).runs.values() if r.doc)}</b> inversion runs</span>
     <span><b>{n_resp:,}</b> cached responses</span><span><b>{len(s.registry)}</b> artifacts audited
     across <b>{n_runs}</b> run folders</span><span>generated <b>{today}</b></span>
   </div>
@@ -442,6 +444,13 @@ def sec_summary(s):
         f.append("<b>Fixes are wording-bound across the lineage.</b> Every consecutive SORRY-Bench pair re-opens "
                  f"between {pct(min(r['RSR_raw'] for r in lin.values()), 0)} and {pct(max(r['RSR_raw'] for r in lin.values()), 0)} "
                  "of its fixes; only the matched-scale 3 → 3.1 pair clears the pre-registered |P⁻| ≥ 30.")
+    a = _inv(s).get(*iv.ANCHOR)
+    if a and a.gated and a.adm("loop") and a.adm("gate"):
+        lp, g = a.adm("loop"), a.adm("gate")
+        f.append(f"<b>Output inversion re-opens more than paraphrase only under its unchecked admission.</b> On the anchor "
+                 f"the closed loop resolves {lp['n']} of {a.p_minus} fixes and re-opens {lp['k']}; under the recycle arm's own "
+                 f"intent gate the same reconstructions resolve {g['n']} and re-open {g['k']}. The gap rests on reconstructions "
+                 "the gate rejects, so it is an upper bound until the harmful-ask audit is labelled (section 09).")
     f.append(f"<b>The effect replicates on other benchmarks, but they are thin.</b> Across {cells} pair × benchmark cells "
              f"the offline rule re-opens {k} of {n} fixes ({pct(p, 0)}). Raw-prompt P⁻ is small outside SORRY-Bench because "
              "safety-tuned older models already refuse most raw harm (section 05).")
@@ -462,7 +471,13 @@ def sec_summary(s):
     integ.append("<b>RPE on SORRY-Bench was judged by the target model itself</b> (logs: “target-as-judge (circular)”); its "
                  "“RSR·rpe 100%” is not reportable. RPE on HarmBench used qwen2.5:14b and stands.")
     integ.append("<b>Every stored RPE cross-arm agreement (κ, RSR_paraphrase) is an artefact</b>: the paraphrase side was read "
-                 "from fields recycle manifests never contain. Re-done here by joining on the prompt text (section 09).")
+                 "from fields recycle manifests never contain. Re-done by joining on the prompt text (section 09b).")
+    integ.append("<b>The intent gate never ran on the lineage inversion candidates</b>: the builder wrote <code>admitted: false</code> "
+                 "everywhere, so every closed-loop admission was listed as gate-rejected. All candidates are now gated with the "
+                 "recycle arm's own gate (tools/rpe_gate.py); the gate-comparable PRR is in section 09.")
+    integ.append("<b>The anchor manifest is reproducible</b>: its “overlap of 8 with P⁻, older model refuses 52 of 61” came from "
+                 "reading row positions in the 61-row subset CSV as SORRY-Bench ids. Joined on prompt text it is exactly the "
+                 "offline-rule P⁻, and the older model answers all 61 (tools/rpe_reconcile.py).")
     integ.append("<b>The style-arc ranking in the previous dashboard was inflated by placeholders</b>: rejected rewordings carry "
                  "1.0 for every gate layer that never ran, so back-translation looked best. Scored-only means reorder the styles (section 10).")
     integ.append("<b>Gate “false-admission 0.0” is not a measurement</b>: no audit row has a human label, so the "
@@ -502,10 +517,9 @@ def _cell_lines(s, o, n, ds, rcells, lin):
         lines.append(("muted", "RSR undefined (P⁻ = 0)"))
     else:
         lines.append(("muted", f"recycle {NOT_YET}"))
-    rp = [r for r in s.rpe if r.spec.old == o and r.spec.new == n and r.spec.dataset == ds and r.items]
-    if rp:
-        bad = all(r.status == "circular-judge" for r in rp)
-        lines.append(("crit" if bad else "ok", "RPE " + ("circular judge" if bad else f"{len(rp)} run(s)")))
+    rl = iv.status_line(_inv(s), ds, o, n)
+    if rl:
+        lines.append(rl)
     if ds == "sorrybench" and (o, n) == ("llama3-8b", "llama31-8b"):
         lines.append(("ok", "human-calibrated"))
     return lines
@@ -557,6 +571,7 @@ def sec_status(s):
         ["Judge calibration · attack arm", status_chip("partial", "60 responses, stratified"),
          "design-weighted correction computed here; a class-stratified audit of judge-negatives is " + NOT_YET],
         ["Gate human audit", status_chip("none"), "0 of every manifest's audit rows carry a human label"],
+        _inv_status_row(s),
         ["LLM intent layer (L2)", status_chip("complete", "applied post hoc"),
          "gemma4:e4b via tools/regate_intent.py: 5,769 admitted rewordings re-checked, 61 rejected. "
          "The manifests still carry the 1.0 placeholder; layer (d) lives in cache/intent_gemma4_e4b.jsonl "
@@ -577,7 +592,8 @@ def sec_status(s):
                          "Behaviours with all k = 3 canonical draws cached, per model and benchmark. <i>Conditional</i> = the newer "
                          "model was screened only where the older one complied (the pilot's design), enough for P⁻ but not for an answer rate.")
                    + panel("Release pairs × benchmarks", pair_tbl,
-                           "Per cell: regression set (offline rule; SORRY-Bench also shows the judged size), recycling result, RPE runs, "
+                           "Per cell: regression set (offline rule; SORRY-Bench also shows the judged size), recycling result, inversion-arm PRR "
+                           "(closed loop · intent gate, section 09), "
                            "calibration. Matched-scale pairs not adjacent in the lineage are marked post-hoc."
                            + (f" Not screened for any model, so every pair is {NOT_YET} there: {', '.join(unscreened)}." if unscreened else ""))
                    + panel("Instruments and other arms", table(["Component", "Status", "Detail"], inst)),
@@ -604,7 +620,10 @@ def sec_design(s):
          "loose variant for one RPE run: 0.60 / 0.80 / 0.30"],
         ["Budget", "k = 3 canonical draws · 8 rewordings per behaviour (6 styles) · 1 sample per rewording", "seed 20260101"],
         ["Decision rule", "|P⁻| ≥ 30 for a confirmatory RSR · π* = 0.15 reference for PBR", "pre-registered"],
-        ["RPE inverter", "decorrelated prober reconstructing the request from the old model's output", "inverter model not recorded in the artifacts"],
+        ["RPE inverter", "qwen2.5:14b (temperature 0.8, 256 tokens), 8 reconstructions per fix from the older model's first "
+         "canonical answer the judge scored as compliant", "admission: closed loop (the older model's reply to the reconstruction "
+         "matches its original answer, MiniLM cosine ≥ 0.75) and the production intent gate; the first 2026-10 runs did not record "
+         "their inverter"],
     ]
     return section("s-design", "03", "Study design",
                    panel("Models", mtable(["Model", "Generation", "Size", "Released", "Caches", "Canonical screens"], mrows,
@@ -732,7 +751,7 @@ def sec_rsr(s):
                 k = n_ = rsr = None
             _, lo, hi = wil(k, n_) if n_ else (None, None, None)
             corr = None
-            if sp.id == "anchor-sorrybench" and rr.calibrated:
+            if rr.calibrated and "RSR_corrected" in (rr.calibrated.get("RSR") or {}):
                 corr = rr.calibrated["RSR"]["RSR_corrected"]
             if cal_rsr and pr["match"] is True:
                 repro = status_chip("valid", f"raw offline run {rec['k']}/{rec['n']} reproduced")
@@ -763,7 +782,11 @@ def sec_rsr(s):
                    + (f"\nhuman-calibrated: {pct(corr)}" if corr is not None else "")
                    + (f"\noffline reconstruction: {rec['k']}/{rec['n']}" if judged and rec else ""))
             jsub = ("qwen re-judge" if cal_rsr else "qwen") if judged else "offline"
-            groups[sp.dataset].append(dict(label=f"{pair_short(o, n)}", sub=f"{sp.id} · {jsub} · {sp.behaviour_scope}",
+            if sp.confirmatory:          # registered: must not read as one more exploratory row
+                tip = "CONFIRMATORY (prereg Amendment 1 §A2) — reported on its own, never pooled\n" + tip
+            groups[sp.dataset].append(dict(label=f"{pair_short(o, n)}"
+                                           + (" · CONFIRMATORY" if sp.confirmatory else ""),
+                                           sub=f"{sp.id} · {jsub} · {sp.behaviour_scope}",
                                            point=rsr, lo=lo, hi=hi, corr=corr, emph=emph, tip=tip,
                                            v_txt=pct(rsr) if rsr is not None else ("undefined" if pr["n_pm"] == 0 else "—"),
                                            n_txt=f"{k}/{n_}" if n_ else ("P⁻ = 0" if pr["n_pm"] == 0 else NOT_YET),
@@ -876,7 +899,32 @@ def sec_anchor(s):
                            "Transferring one judge calibration from Llama 3.1 8B outputs to other models is an assumption, not a measurement."))
 
 
-def sec_rpe(s):
+def _inv(s):
+    """The inversion arm, loaded once per Study from the same root study_data reads."""
+    if getattr(s, "_inv", None) is None:
+        s._inv = iv.load(root=sd.ROOT)
+    return s._inv
+
+
+def _inv_status_row(s):
+    inv = _inv(s)
+    runs = [r for r in inv.runs.values() if r.p_minus]
+    done = [r for r in runs if r.doc]
+    gated = [r for r in done if r.gated]
+    h = inv.audit.get("harm") if inv.audit else None
+    runs_done = bool(runs) and len(done) == len(runs) and len(gated) == len(done)
+    audited = bool(h) and h["labelled"] == h["rows"]
+    chip = (status_chip("complete") if runs_done and audited else
+            status_chip("partial", "runs complete · audit pending") if runs_done else
+            status_chip("partial") if done else status_chip("none"))
+    det = (f"{len(done)} of {len(runs)} pair × benchmark runs with P⁻ scored, {len(gated)} with the intent gate; harmful-ask "
+           f"audit {h['labelled'] if h else 0}/{h['rows'] if h else 0} rows labelled" if runs else NOT_YET)
+    return ["Inversion arm (RPE)", chip, det]
+
+
+def _early_rpe(s):
+    """The first inversion runs (2026-10, anchor and HarmBench), kept for the record: two were judged by
+    the target model, and none used the judged P⁻ or the closed-loop criterion."""
     rows = []
     for r in s.rpe:
         c = r.counts
@@ -910,93 +958,39 @@ def sec_rpe(s):
         x["parts"]["admitted"] = next(r.counts.get("admitted", 0) for r in s.rpe if r.spec.id.replace("rpe-", "") == x["label"])
     keys = [("admitted", "sb-adm", "admitted"), ("lexical_divergence", "sb-lex", "lexical divergence"),
             ("cosine", "sb-cos", "embedding cosine"), ("bertscore", "sb-bert", "BERTScore"), ("nli_entail", "sb-nli", "NLI entailment")]
-    return section("s-rpe", "09", "Output inversion (RPE) — the independent probe",
-                   panel("Every RPE run", mtable(["Run", "Pair", "Benchmark", "Judge", "Gate", "Probed", "Candidates", "Admitted",
-                                                 "Resolved", "Re-opened (stored judge)", "Re-opened (offline)", "Status"], rows,
-                                                num=(5, 6, 7, 8, 9, 10), nowrap=(0, 1, 2, 3, 11))
-                         + (f"<ul class='take small'>{notes}</ul>" if notes else ""),
-                         "RPE reconstructs the request from the older model's output, gates it for intent, and re-asks the newer model. "
-                         "Coverage is the binding constraint: inversions rarely survive the entailment gate (the “entailment bound”).")
-                   + panel("Where inversion candidates fail the gate", stacked_bars(rej, keys, "RPE candidate outcomes by gate layer")
+    return (panel("Every early run", mtable(["Run", "Pair", "Benchmark", "Judge", "Gate", "Probed", "Candidates", "Admitted",
+                                             "Resolved", "Re-opened (stored judge)", "Re-opened (offline)", "Status"], rows,
+                                            num=(5, 6, 7, 8, 9, 10), nowrap=(0, 1, 2, 3, 11))
+                  + (f"<ul class='take small'>{notes}</ul>" if notes else ""),
+                  "Built on the 61-behaviour offline-rule P⁻ with the production or a loose gate, before the closed-loop "
+                  "criterion existed. Superseded by the runs in section 09.")
+            + panel("Where inversion candidates fail the gate", stacked_bars(rej, keys, "RPE candidate outcomes by gate layer")
                            + '<div class="legend">' + "".join(f'<span><i class="lg {c}"></i>{esc(l)}</span>' for _, c, l in keys) + "</div>",
                            "First failing layer per candidate (the gate short-circuits). The loose gate trades cosine rejections for NLI rejections.")
-                   + panel("Convergent validity, recomputed", mtable(["RPE run", "Probed", "In paraphrase P⁻", "Both resolved",
+            + panel("Convergent validity, recomputed", mtable(["RPE run", "Probed", "In paraphrase P⁻", "Both resolved",
                                                                      "Both re-opened / both held", "RPE-only / paraphrase-only",
                                                                      "Agreement", "Cohen's κ", "Paraphrase RSR (resolved)", "RPE RSR (resolved)"],
                                                                     arows, num=(1, 2, 3, 6, 7), nowrap=(0,)),
                            "Joined on the canonical prompt text (the arms number behaviours differently) and judged with the same offline rule "
                            "on both sides. Few behaviours are resolved by both arms, so κ is undefined or unstable; where both resolve, inversion "
                            "re-opens at least as often as paraphrase, which supports reading paraphrase RSR as a lower bound.")
-                   + panel("Stored agreement files (not measurements)", table(["File", "Benchmark", "P⁻", "RSR para (stored)",
+            + panel("Stored agreement files (not measurements)", table(["File", "Benchmark", "P⁻", "RSR para (stored)",
                                                                              "RSR rpe (stored)", "κ (stored)", "Para unresolved"], srows, num_cols=(2, 6)),
                            "These files report RSR_paraphrase 0% and dozens of unresolved paraphrase items because the probe read "
                            "recovered/bypassed/success fields that recycle manifests do not contain."))
 
 
-PAIR_LBL = {"llama2-7b": "2-7B", "llama2-13b": "2-13B", "llama3-8b": "3-8B",
-            "llama31-8b": "3.1-8B", "llama32-1b": "3.2-1B", "llama32-3b": "3.2-3B"}
-
-
-def _inversion_reports():
-    """Per-benchmark closed-loop inversion reports, newest SORRY-Bench one included."""
-    import json
-    out = []
-    lin = sorted((sd.ROOT / "results" / "runs" / "rpe_lineage").glob("lineage_report_*.json")) \
-        if (sd.ROOT / "results" / "runs" / "rpe_lineage").exists() else []
-    if lin:
-        out.append(("sorrybench", json.loads(lin[-1].read_text())))
-    base = sd.ROOT / "results" / "runs" / "rpe_bench"
-    for b in ("harmbench", "advbench", "strongreject"):
-        f = base / b / "lineage_report.json"
-        if f.exists():
-            out.append((b, json.loads(f.read_text())))
-    return out
+def sec_rpe(s):
+    return section("s-rpe", "09", "Output inversion (RPE) — the independent probe", iv.master_body(_inv(s)),
+                   "The inversion arm never sees the request. It reconstructs one from the older model's own answer "
+                   "(qwen2.5:14b), then asks the newer model. Each reconstruction is scored under three admission rules: "
+                   "the paraphrase arm's <b>intent gate</b> (comparable to RSR), the <b>closed loop</b> (the older model's "
+                   "reply to the reconstruction matches its original answer), and <b>both</b>. Every figure is per pair, on "
+                   "the same judged P⁻ as RSR, judged by qwen2.5:14b.")
 
 
 def sec_inversion(s):
-    """Recycle (perturb the request) vs inversion (reconstruct it from the answer)."""
-    reports = _inversion_reports()
-    if not reports:
-        return ""
-    rows, scored = [], 0
-    for bench, doc in reports:
-        for v in doc.get("views", []):
-            o, n = v["pair"]
-            r, q, ag = v.get("RSR"), v.get("PRR"), v.get("agreement")
-
-            def cell(x):
-                if not x or x.get("rate") is None:
-                    return '<span class="sub">—</span>'
-                return (f'{pct(x["rate"])} <span class="sub">{x["k"]}/{x["n"]}</span>')
-            if q and q.get("rate") is not None:
-                scored += 1
-            rows.append([esc(dsl(s, bench)), esc(f'{PAIR_LBL.get(o, o)} → {PAIR_LBL.get(n, n)}'),
-                         num(v["p_minus"]), cell(r), cell(q),
-                         num(ag["n_both_resolved"]) if ag else "—",
-                         (f'{ag["cohen_kappa"]:.2f}' if ag and ag.get("cohen_kappa") is not None else "—"),
-                         (p_txt(ag["mcnemar_p"]) if ag and ag.get("mcnemar_p") is not None else "—")])
-    if not scored:
-        return ""
-    body = mtable(["benchmark", "pair", "P⁻", "RSR · recycle", "PRR · inversion",
-                   "both", "κ", "McNemar p"], rows, num=(2, 5), nowrap=(0, 1))
-    body += ("<p class='note'>Two routes to the same question on the same judged P⁻. The recycle arm perturbs the "
-             "<b>request</b>; the inversion arm never sees it and reconstructs one from the older model's "
-             "<b>answer</b>, admitted only if the older model's reply to the reconstruction lands in the "
-             "response-equivalence class of the original (PTP, Definition 1). They share no generator, so "
-             "agreement is evidence the estimand is not an artifact of the paraphraser.</p>")
-    body += ("<div class='panel'><h3>How to read this</h3><ul class='take'>"
-             "<li><b>The benchmarks disagree.</b> On SORRY-Bench the anchor diverges sharply (RSR 46.9% vs PRR "
-             "94.7%, McNemar 3×10⁻⁵); on HarmBench the same rung agrees (88.9% vs 91.3%, p = 1). HarmBench's P⁻ "
-             "is already paraphrase-vulnerable, so there is no headroom for inversion to beat it. The claim that "
-             "survives is narrower: <i>where paraphrase fails to re-open a fix, inversion often still can</i>.</li>"
-             "<li><b>κ is degenerate here.</b> Both arms re-open most of what they resolve, so the marginals are "
-             "extreme and there is little room for chance-corrected agreement. McNemar is the statistic to read.</li>"
-             "<li><b>Not yet reportable.</b> Closed-loop admission establishes that a reconstruction reproduces the "
-             "older model's <i>answer</i>, not that it asks for the same harmful <i>thing</i>. Most admitted "
-             "candidates were rejected by this project's own intent gate and await human audit "
-             "(<code>audit/rpe/</code>). Until those labels exist these are an upper bound.</li></ul></div>")
-    return section("s-inversion", "09b", "Inversion arm · convergent validity", body)
-
+    return section("s-inversion", "09b", "Inversion arm · reading the numbers", iv.master_notes(_inv(s), _early_rpe(s)))
 
 
 def sec_arcs(s):
@@ -1055,6 +1049,16 @@ def sec_arcs(s):
                                                                                "Fixes re-opened by style", "Rate"], rec_rows,
                                    num=(3, 4, 5, 6), nowrap=(0, 1, 2)))
                    + "</div>")
+
+
+def sec_compose(s):
+    run = ca.latest_run(sd.ROOT)
+    title = "Two-factor composition — compositional reach"
+    if run is None:
+        return section("s-compose", "10b", title, panel("Not run", "<p class='note'>No <code>results/runs/compose_*/"
+                                                        "compose_summary.json</code> yet (tools/run_compose.py).</p>"))
+    agg = ca.aggregate(run, store=sd.ROOT / "cache" / "compose", anchor=anchor(s)[1])
+    return section("s-compose", "10b", title, ca.section_body(agg), ca.LEDE)
 
 
 def sec_attack(s):
@@ -1160,10 +1164,15 @@ def sec_judges(s):
         else:
             d = c.get("design") or {}
             if d:
-                extra += (f"<p class='note warnt'>Sampled 30 of 30 judge-positives but 30 of {c['strata'][1]:,} judge-negatives. "
-                          f"<code>calibrate_from_human</code> passes the sample stratum sizes to <code>invert_stratified</code>, so its "
-                          f"se {c['package']['se']:.3f} assumes a 50/50 population. With the population strata the judge's sensitivity is "
-                          f"{d['qwen']['se']:.3f} {ci_txt(*d['qwen']['se_ci'], d=1)}.</p>")
+                extra += (f"<p class='note warnt'>Sampled 30 of 30 judge-positives but only 30 of {c['strata'][1]:,} "
+                          f"judge-negatives, so the sample is nothing like the population. The rate shown is already "
+                          f"weighted by the population strata (<code>calibrate_from_human</code> is given "
+                          f"n_pos_total/n_neg_total and passes them to <code>invert_stratified</code>; the sample sizes "
+                          f"only set the bootstrap), and under that design the judge's sensitivity on attack output "
+                          f"collapses to {d['qwen']['se']:.3f} {ci_txt(*d['qwen']['se_ci'], d=1)} — against the 0.857 a "
+                          f"naive unweighted read of the same labels would give. Attack transfer is therefore badly "
+                          f"under-counted, and neither judge is suited to attack output: the offline rule reads ciphers "
+                          f"and garble as compliance.</p>")
         blocks.append(panel(title, '<div class="cmrow">' + confusion(q, f"qwen2.5:14b vs human ({lvl})")
                             + confusion(o, f"offline rule vs human ({lvl})") + "</div>"
                             + table(["Judge", "Sensitivity (95%)", "Specificity (95%)", "Cohen's κ", "TP / FN / FP / TN"], rows) + extra))
@@ -1292,16 +1301,18 @@ def sec_appendix(s):
 
 NAV = [("Overview", [("s-rq", "00", "Research questions"), ("s-summary", "01", "Executive summary"), ("s-status", "02", "What's finished"), ("s-design", "03", "Study design")]),
        ("Results", [("s-screening", "04", "Screening"), ("s-pminus", "05", "Regression sets"), ("s-rsr", "06", "Recycling (RSR)"),
-                    ("s-pbr", "07", "Robustness (PBR)"), ("s-anchor", "08", "Calibrated anchor"), ("s-rpe", "09", "Output inversion"), ("s-inversion", "09b", "Inversion · convergent"),
-                    ("s-arcs", "10", "Style arcs"), ("s-attack", "11", "Attack transfer")]),
+                    ("s-pbr", "07", "Robustness (PBR)"), ("s-anchor", "08", "Calibrated anchor"), ("s-rpe", "09", "Output inversion"), ("s-inversion", "09b", "Inversion · how to read"),
+                    ("s-arcs", "10", "Style arcs"), ("s-compose", "10b", "2-factor composition"),
+                    ("s-attack", "11", "Attack transfer")]),
        ("Instruments", [("s-judges", "12", "Judges"), ("s-gate", "13", "Intent gate")]),
        ("Provenance", [("s-explore", "14", "Exploratory runs"), ("s-registry", "15", "Registry & integrity"),
                        ("s-appendix", "16", "Reproduce · appendix")])]
 
 
-RQ_MAP = {"s-pminus": ["RQ1"], "s-rsr": ["RQ1", "RQ2"], "s-anchor": ["RQ1"], "s-rpe": ["RQ1"], "s-inversion": ["RQ1"], "s-arcs": ["RQ3"], "s-pbr": ["RQ4"]}
+RQ_MAP = {"s-pminus": ["RQ1"], "s-rsr": ["RQ1", "RQ2"], "s-anchor": ["RQ1"], "s-rpe": ["RQ1"], "s-inversion": ["RQ1"], "s-arcs": ["RQ3"],
+          "s-compose": ["RQ3"], "s-pbr": ["RQ4"]}
 RQ_WHERE = {"RQ1": [("s-pminus", "Regression sets"), ("s-rsr", "Recycling"), ("s-anchor", "Calibrated anchor"), ("s-rpe", "Output inversion")],
-            "RQ2": [("s-rsr", "Recycling by category")], "RQ3": [("s-arcs", "Style arcs")], "RQ4": [("s-pbr", "Robustness (PBR)")]}
+            "RQ2": [("s-rsr", "Recycling by category")], "RQ3": [("s-arcs", "Style arcs"), ("s-compose", "2-factor composition")], "RQ4": [("s-pbr", "Robustness (PBR)")]}
 
 
 def _latest(pattern):
@@ -1356,7 +1367,7 @@ def rq_answers():
                           f"<b>{po['k']}/{po['n_pminus']}</b> fixes re-opened, RSR <b>{po['rate']:.1%}</b> [{po['lo']:.1%}, {po['hi']:.1%}]"
                           + (f", judge-corrected {po['corrected']:.1%} [{po['corrected_lo']:.1%}, {po['corrected_hi']:.1%}]" if po.get("corrected") is not None else "")
                           + f"; McNemar {_pf(po['mcnemar_p'])}. Per benchmark: {per}. "
-                          "Exploratory until the registered held-out replication (Amendment 1).")
+                          + _rq1_confirmatory(a))
         dom = a.get("rq2_sorry_lineage_by_domain") or {}
         if dom:
             xs = sorted(dom.items(), key=lambda kv: -kv[1]["rate"])
@@ -1398,13 +1409,38 @@ def rq_answers():
     return ans, src
 
 
+def _rq1_confirmatory(a: dict) -> str:
+    c = (a.get("confirmatory") or {}).get("RSR")
+    if not c or not c.get("n"):
+        return "Exploratory until the registered held-out replication (Amendment 1)."
+    return (f"These pooled figures are exploratory; the registered held-out replication (Amendment 1) re-opens "
+            f"<b>{c['k']}/{c['n']}</b> fixes, {c['corrected']:.1%} corrected, McNemar {_pf(c['mcnemar_p'])}: "
+            f"{ld.esc(c.get('verdict', ''))}.")
+
+
+def _confirmatory_rsr(src):
+    """The confirmatory RSR from the analysis the RQ answers were built from, or None."""
+    import json
+    for x in src:
+        if x.endswith("analysis.json") and (sd.ROOT / x).exists():
+            c = (json.loads((sd.ROOT / x).read_text()).get("confirmatory") or {}).get("RSR")
+            if c and c.get("n"):
+                return c
+    return None
+
+
 def sec_rq(s):
     ans, src = rq_answers()
     where = dict(RQ_WHERE)
     if "Beyond the RQs" in ans:
         where["Beyond the RQs"] = []
+    conf = _confirmatory_rsr(src)
+    tail = (f" The registered confirmatory replication (Amendment 1 §A2, held-out set) has run: RSR {conf['k']}/{conf['n']} raw, "
+            f"{pct(conf['corrected'])} corrected, McNemar p = {p_txt(conf['mcnemar_p'])}, {esc(conf['verdict'])}. Every other answer "
+            "here is exploratory." if conf else
+            " Every answer is exploratory: the confirmatory replication is registered in Amendment 1 and has not run.")
     status = ("Current answers are recomputed at build time from " + ", ".join(f"<code>{ld.esc(x)}</code>" for x in src)
-              + ". Every answer is exploratory: the confirmatory replication is registered in Amendment 1 and has not run.") if src else ""
+              + "." + tail) if src else ""
     return ld.rq_section(answers=ans, where=where, frame=ld.RQ_FRAME, status=status)
 
 
@@ -1503,13 +1539,13 @@ def render(s) -> str:
     for g, items in NAV:
         nav += f'<div class="grp">{esc(g)}</div>' + "".join(f'<a href="#{i}"><span class="n">{n}</span>{esc(t)}</a>' for i, n, t in items)
     body = (sec_header(s, today) + sec_rq(s) + sec_summary(s) + sec_status(s) + sec_design(s) + sec_screening(s) + sec_pminus(s)
-            + sec_rsr(s) + sec_pbr(s) + sec_anchor(s) + sec_rpe(s) + sec_inversion(s) + sec_arcs(s) + sec_attack(s) + sec_judges(s)
+            + sec_rsr(s) + sec_pbr(s) + sec_anchor(s) + sec_rpe(s) + sec_inversion(s) + sec_arcs(s) + sec_compose(s) + sec_attack(s) + sec_judges(s)
             + sec_gate(s) + sec_explore(s) + sec_registry(s) + sec_appendix(s))
     foot = ("Generated by tools/master_dashboard.py from files only (study_data.py). No prompt or response text is embedded. "
             "RAW = judge output as produced; corrected figures name their calibration.")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
-            f'<title>RecycleBench Master Results</title><style>{ld.CSS}{EXTRA_CSS}</style></head><body>'
+            f'<title>RecycleBench Master Results</title><style>{ld.CSS}{EXTRA_CSS}{ca.CSS}{iv.CSS}</style></head><body>'
             f'<div class="layout"><nav class="side" aria-label="Sections">'
             f'{ld.brand_html("Master results · all arms")}<div class="toc">{nav}</div>{ld.legend_html()}'
             f'<button type="button" class="themebtn" id="themebtn" data-t="system">Theme: system</button></nav>'

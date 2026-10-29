@@ -195,4 +195,4 @@ yet been shown.
 
 Candidate: **Hatim Mahmoud**  date: **2026-10-25**  
 _(reviewed and signed off by the candidate; recorded by Claude Code at their instruction)_
-Supervisor (acknowledged): ______________________ date: __________
+Supervisor (acknowledged): _signed off_  date: **2026-10-28**

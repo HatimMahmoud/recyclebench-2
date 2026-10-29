@@ -38,6 +38,8 @@ import lineage_core as lc                       # noqa: E402
 import mech_section                                    # noqa: E402
 import lineage_dashboard as ld                  # noqa: E402
 import master_dashboard as md                   # noqa: E402
+import compose_arcs_section as ca               # noqa: E402
+import inversion_section as invsec              # noqa: E402
 import study_data as sd                         # noqa: E402
 from recyclebench.judge import looks_like_refusal   # noqa: E402
 from recyclebench.realrun import _key           # noqa: E402
@@ -120,6 +122,17 @@ class DatasetView:
     @property
     def n(self):
         return self.ds.n
+
+
+_INV = None
+
+
+def inv():
+    """The inversion arm, loaded once from the root study_data reads."""
+    global _INV
+    if _INV is None or _INV.runs_root != sd.ROOT / "results" / "runs":
+        _INV = invsec.load(root=sd.ROOT)
+    return _INV
 
 
 def _draws(model, ds, bid_prompt, cname):
@@ -719,13 +732,16 @@ def fix_card(d: DatasetView, bid, o, n, redact):
             rows.append(f'<div class="vrow {cls}"><div class="vhead"><span class="vtc">{esc(v.transform_class)}</span>{_vpill(v.verdict)}'
                         f'<span class="sc">{esc(_score_txt(sc))}</span></div>{body}</div>')
         run_blocks.append(f'<div class="rblock">{head}{"".join(rows) or "<p class=note>No rewording passed the gate.</p>"}</div>')
+    cur = invsec.pair_fix(inv(), d.key, o, n, b.canonical_prompt, redact, cap, CAP, _vpill, label(n))
+    if cur:
+        run_blocks.append(cur)
     for rp in d.rpe:
         item = next((x for x in rp.items if x.get("prompt") == b.canonical_prompt), None)
         if not item:
             continue
         det = item.get("details") or []
         adm = [x for x in det if x.get("admitted")]
-        head = (f'<div class="rhead"><b>{esc(rp.spec.id)}</b> · output inversion · gate {esc(rp.spec.gate_label)} · '
+        head = (f'<div class="rhead"><b>{esc(rp.spec.id)}</b> · early inversion run (superseded) · gate {esc(rp.spec.gate_label)} · '
                 f'{len(det)} candidates, {len(adm)} admitted · judge {judge_chip(rp.judge)}</div>')
         rows = []
         for x in det:
@@ -946,7 +962,8 @@ def dataset_panel(s, d: DatasetView, o, n, idx, active, redact):
   {('<div class="grid2"><div class="panel"><h3>How many rewordings it takes</h3>' + recovery_curves(d) + '</div><div class="panel"><h3>Which styles re-open fixes</h3>' + sty + '</div></div>') if d.primary and d.primary.rsr else ''}
   {('<div class="panel"><h3>Did the successful rewordings drift in meaning?</h3><p class="note">Gate scores of every admitted rewording of a fix (all complete runs on this benchmark), split by whether the newer model answered it. If answered rewordings sat clearly lower on entailment or cosine, recovery could partly be meaning drift rather than wording; the test under each strip says whether the difference is distinguishable from noise (exploratory: two uncorrected tests per benchmark). Every point already cleared the gate.</p>' + strip + '</div>') if strip else ''}
   {('<div class="panel"><h3>Where the fixes are, by category</h3>' + cats + '</div>') if cats else ''}
-  {('<div class="panel"><h3>Output inversion (RPE) on this benchmark</h3><div class="rpegrid">' + rpe_html + '</div></div>') if rpe_html else ''}
+  {invsec.pair_panel(inv(), d.key, o, n)}
+  {('<details class="tv"><summary>Early inversion runs on this benchmark (superseded)</summary><div class="rpegrid">' + rpe_html + '</div></details>') if rpe_html else ''}
   <div class="panel"><h3>The fixes, case by case</h3>
     <p class="note">{"Text is redacted in this build." if redact else "Real prompt and response text, truncated and collapsed. Each fix shows the canonical request and both models' replies, then every admitted rewording from every recycle run with the newer model's reply, then every output-inversion candidate."} Verdict pills are the offline rule.</p>
     {case_lists(d, o, n, redact)}</div>
@@ -968,7 +985,7 @@ def sec_header(s, o, n, dvs, redact, today):
   <span><b>{esc(mn["gen"])}</b> {mn["size"]}B · {esc(mn["released"])}</span><span>{ld.chip(st["kind"])}</span>
   <span>{esc(st["why"])}</span></div>
   <div class="meta"><span><b>{len(dvs)}</b> benchmarks with data</span><span><b>{sum(len(d.runs) for d in dvs)}</b> recycle runs</span>
-  <span><b>{sum(len(d.rpe) for d in dvs)}</b> RPE runs</span><span>generated <b>{today}</b></span>
+  <span><b>{sum(1 for d in dvs if (r := inv().get(d.key, o, n)) and r.doc)}</b> inversion runs</span><span>generated <b>{today}</b></span>
   {"<span class='chip chip-warn'>redacted · no prompt or response text</span>" if redact else "<span class='chip chip-warn'>contains benchmark prompts and model replies (collapsed)</span>"}</div>
 </header>"""
 
@@ -1127,6 +1144,17 @@ def sec_attack(s, o, n):
                                "Attack transfer is a property of one model; it is shown here because this pair contains it."))
 
 
+def sec_compose(s, o, n):
+    """The compose arm, on the one pair it was run for (its summary names the pair)."""
+    run = ca.latest_run(sd.ROOT)
+    if run is None:
+        return ""
+    agg = ca.aggregate(run, store=sd.ROOT / "cache" / "compose", anchor=md.anchor(s)[1])
+    if [x.strip() for x in agg["pair"].split("->")] != [o, n]:
+        return ""
+    return md.section("s-compose", "02b", "Two-factor composition — compositional reach", ca.section_body(agg), ca.LEDE)
+
+
 def sec_judges(s, o, n, redact):
     if (o, n) != ("llama3-8b", "llama31-8b"):
         return ""
@@ -1205,7 +1233,7 @@ def sec_provenance(s, o, n, dvs):
             todo.append(f"{dsx.label}: the newer model's screen of the older model's answers")
         if d.status in ("complete", "p-minus-only") and d.pm and not d.primary:
             todo.append(f"{dsx.label}: recycling of the {len(d.pm)} fixes")
-        if d.status in ("complete", "p-minus-only") and d.pm and not d.rpe:
+        if d.status in ("complete", "p-minus-only") and d.pm and not invsec.has_run(inv(), d.key, o, n):
             todo.append(f"{dsx.label}: output inversion (RPE)")
     if not any(r.calibrated for d in dvs for r in d.runs):
         todo.append("human calibration of the judge for this pair")
@@ -1256,7 +1284,7 @@ details.rpeb>summary .rhead{margin-bottom:2px}
 """
 
 
-PAIR_RQ_MAP = {"s-overview": ["RQ1", "RQ4"], "s-bench": ["RQ1", "RQ2", "RQ3"]}
+PAIR_RQ_MAP = {"s-overview": ["RQ1", "RQ4"], "s-bench": ["RQ1", "RQ2", "RQ3"], "s-compose": ["RQ3"]}
 
 
 def sec_rq(o, n):
@@ -1277,6 +1305,9 @@ def render_pair(s, o, n, redact) -> str:
     dvs = build_pair(s, o, n)
     today = _dt.date.today().isoformat()
     secs = [("s-rq", "00", "Research questions"), ("s-overview", "01", "Across benchmarks"), ("s-bench", "02", "Benchmark by benchmark")]
+    cmp_ = sec_compose(s, o, n)
+    if cmp_:
+        secs.append(("s-compose", "02b", "2-factor composition"))
     att = sec_attack(s, o, n)
     if att:
         secs.append(("s-attack", "03", "Known attacks"))
@@ -1286,12 +1317,12 @@ def render_pair(s, o, n, redact) -> str:
     secs.append(("s-prov", "05", "Provenance"))
     nav = "".join(f'<a href="#{i}"><span class="n">{k}</span>{esc(t)}</a>' for i, k, t in secs)
     body = (sec_header(s, o, n, dvs, redact, today) + sec_rq(o, n) + sec_overview(s, o, n, dvs) + sec_benchmarks(s, o, n, dvs, redact)
-            + att + jud + sec_provenance(s, o, n, dvs))
+            + cmp_ + att + jud + sec_provenance(s, o, n, dvs))
     foot = ("Generated by tools/pair_dashboard.py from files only. Case-level verdicts are the offline refusal rule; reported figures name "
             "their judge. " + ("Prompt and response text omitted in this build." if redact else
                                "Contains benchmark prompts and model replies, collapsed and truncated: a working file, not a released artefact (ETHICS.md)."))
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
-            f'<title>{esc(label(o))} vs {esc(label(n))}</title><style>{ld.CSS}{md.EXTRA_CSS}{EXTRA_CSS}{mech_section.CSS}</style></head><body>'
+            f'<title>{esc(label(o))} vs {esc(label(n))}</title><style>{ld.CSS}{md.EXTRA_CSS}{EXTRA_CSS}{mech_section.CSS}{ca.CSS}{invsec.CSS}</style></head><body>'
             f'<div class="layout"><nav class="side" aria-label="Sections">{ld.brand_html(pair_short(o, n))}<div class="toc">{nav}</div>'
             f'<a href="../{esc(INDEX_NAME[0])}" class="navlink">← all pairs</a>{ld.legend_html()}'
             f'<button type="button" class="themebtn" id="themebtn" data-t="system">Theme: system</button></nav>'
@@ -1324,11 +1355,12 @@ def render_index(s, pairs, files, today, out_dir) -> str:
         dvs = build_pair(s, o, n)
         pm = sum(len(d.pm) for d in dvs if d.status in ("complete", "p-minus-only"))
         runs = sum(len(d.runs) for d in dvs)
+        n_inv = sum(1 for d in dvs if (r := inv().get(d.key, o, n)) and r.doc)
         k, m = tested_reopened(dvs)
         rel = os.path.relpath(f, out_dir)
         cards.append(f'<a class="card" href="{esc(rel)}"><div class="ct">{esc(label(o))} → {esc(label(n))}</div>'
                      f'<div class="cs">{esc(lc.pair_status(o, n)["kind"].replace("-", " "))}{" · post-hoc" if (o, n) not in sd.CONSECUTIVE else ""}</div>'
-                     f'<div class="cs">{_plural(len(dvs), "benchmark")} · {_plural(pm, "fix")} · {_plural(runs, "recycle run")}</div>'
+                     f'<div class="cs">{_plural(len(dvs), "benchmark")} · {_plural(pm, "fix")} · {_plural(runs, "recycle run")} · {_plural(n_inv, "inversion run")}</div>'
                      f'<div class="cs">re-opened by rewording: <b>{pct(k / m) if m else "—"}</b> ({k} of {m} tested, offline rule)</div></a>')
     masters = sorted((sd.ROOT / "results").glob("dashboard_master_2*.html"))
     master = (f'<p class="note">All results in one page: <a href="{esc(os.path.relpath(masters[-1], out_dir))}">{esc(masters[-1].name)}</a></p>'

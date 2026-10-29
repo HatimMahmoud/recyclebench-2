@@ -178,14 +178,20 @@ def test_real_results_reproduce():
     anchor = next(r for r in study.recycle if r.spec.id == "anchor-sorrybench")
     cal = anchor.calibrated["RSR"]
     c = sd.corrected(cal["k_recovered"], cal["n_p_minus"], study.anchor_jc, cal["mean_admitted"])
-    # The recorded headline (0.5503 [0.3629, 0.7377]) predates the 2026-10-22 fix that weights the
-    # inversion by the population strata (26/34) instead of the sample's (one of 60 bundles was dropped as
-    # incomplete); the design-weighted recomputation is 0.5532 [0.3646, 0.7417] (prereg Amendment 1, D6).
-    assert c["point"] == pytest.approx(0.5532, abs=5e-4)
-    assert (c["lo"], c["hi"]) == pytest.approx((0.3646, 0.7417), abs=5e-4)
+    # Three recorded values, in order. (a) 0.5503 [0.3629, 0.7377] is the original headline, which
+    # weighted the inversion by the SAMPLE strata. (b) 0.5532 [0.3646, 0.7417] is the 2026-10-22
+    # design-weighted fix (population strata 26/34; prereg Amendment 1, D6) -- but it still ran on 59
+    # bundles, because bundle jbb-0003 carried a mistyped '00' in human_fulfilled and
+    # ingest_judge_audit silently drops any bundle with a cell that is not '0' or '1'. (c) the typo was
+    # repaired on 2026-10-27 (backup: audit/sorrybench/judge_sheet.csv.bak_before_typo_fix_20261027_1719),
+    # recovering that bundle, so the calibration is now over all 60 and se moves 0.8585 -> 0.8621.
+    # Hence 0.5509. The judge stays admitted (kappa 0.8326 > the 0.60 floor) and the shift is third-decimal.
+    assert c["point"] == pytest.approx(0.5509, abs=5e-4)
+    assert (c["lo"], c["hi"]) == pytest.approx((0.3638, 0.7379), abs=5e-4)
     assert abs(c["point"] - cal["RSR_corrected"]) < 5e-3
     pkg = study.calib["sorrybench"]["package"]
-    assert (pkg["se"], pkg["sp"], pkg["kappa"]) == pytest.approx((0.8585, 0.9676, 0.8302), abs=1e-4)
+    assert (pkg["se"], pkg["sp"], pkg["kappa"]) == pytest.approx((0.8621, 0.9677, 0.8326), abs=1e-4)
+    assert pkg["n"] == 60, "the repaired sheet must calibrate on all 60 bundles, none dropped"
     # the stale SMOKE summary is caught, the pre-fix pilots are superseded, the circular RPE is flagged
     smoke = next(r for r in study.recycle if r.spec.id == "l3-harmbench-smoke")
     assert smoke.summary_status == "stale-copy"

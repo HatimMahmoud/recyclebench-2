@@ -79,6 +79,31 @@ def pminus_with_answers(cfg, behaviours, manifest, cache, verdicts, old, new):
     return out, len(pm), no_answer
 
 
+def reusable_inversions(globs, old):
+    """-> {(bid, prompt, old_answer): (candidate texts, source path)} from manifests already
+    built for the same OLD model.
+
+    The inversion is a function of the OLD answer alone, so a pair that shares the OLD model
+    (llama2-7b -> llama2-13b / -> llama3-8b / -> llama31-8b) can take the identical frozen
+    candidates instead of re-sampling them: the stimuli then stay fixed across NEW models, as
+    the recycle arm's frozen manifest does, and no inverter call is spent twice.
+    """
+    out = {}
+    for g in globs:
+        for p in sorted(ROOT.glob(g)):
+            if not p.name.startswith(f"rpe_manifest_{old}__to__"):
+                continue
+            for line in p.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                texts = [d["text"] for d in r.get("details") or [] if d.get("text")]
+                k = (r["bid"], r.get("prompt"), r.get("old_response"))
+                if texts and k not in out:
+                    out[k] = (texts, _rel(p))
+    return out
+
+
 def _rel(p: Path) -> str:
     """Printable path; --out-root may sit outside the repo."""
     try:
@@ -101,6 +126,11 @@ def main(argv=None) -> int:
     ap.add_argument("--pairs", default=None,
                     help="comma list old:new; default = adjacent rungs of cfg.lineage")
     ap.add_argument("--n-candidates", type=int, default=8)
+    ap.add_argument("--benchmark", default=None,
+                    help="label written into each row (default: the --behaviours file stem)")
+    ap.add_argument("--reuse-from", action="append", default=[],
+                    help="glob of existing probe manifests; a behaviour whose OLD answer was "
+                         "already inverted there is copied, not re-inverted (repeatable)")
     ap.add_argument("--out-root", default="results/runs/rpe_lineage")
     ap.add_argument("--minutes", type=float, default=None)
     ap.add_argument("--dry-run", action="store_true")
@@ -136,10 +166,12 @@ def main(argv=None) -> int:
 
     out_root = ROOT / args.out_root
     out_root.mkdir(parents=True, exist_ok=True)
+    bench = args.benchmark or Path(args.behaviours).stem
     summary = []
     for old, new in pairs:
         items, n_pm, no_ans = pminus_with_answers(cfg, behaviours, manifest, cache,
                                                   verdicts, old, new)
+        reuse = reusable_inversions(args.reuse_from, old) if args.reuse_from else {}
         dest = out_root / f"rpe_manifest_{old}__to__{new}.jsonl"
         done = set()
         if dest.exists():
@@ -147,9 +179,11 @@ def main(argv=None) -> int:
                 if l.strip():
                     done.add(json.loads(l)["bid"])
         todo = [x for x in items if x[0] not in done]
+        n_reuse = sum(1 for x in todo if x in reuse)
         print(f"{old} -> {new}:  P^- {n_pm}   with a compliant cached answer {len(items)}"
               + (f"   (no compliant draw: {no_ans})" if no_ans else "")
-              + f"   already built {len(done)}   to build {len(todo)}")
+              + f"   already built {len(done)}   to build {len(todo)}"
+              + (f"   (copied from an existing manifest: {n_reuse})" if reuse else ""))
         summary.append({"old": old, "new": new, "p_minus": n_pm,
                         "invertible": len(items), "no_compliant_answer": no_ans,
                         "manifest": _rel(dest)})
@@ -161,19 +195,26 @@ def main(argv=None) -> int:
                     print(f"  deadline reached, stopping cleanly at {i - 1}/{len(todo)}",
                           flush=True)
                     break
-                try:
-                    cands = engine.invert(answer, n_candidates=args.n_candidates)
-                except Exception as e:
-                    print(f"  {bid} FAILED: {type(e).__name__}: {e}", flush=True)
-                    continue
-                fh.write(json.dumps({
-                    "bid": bid, "benchmark": "sorrybench", "pair": [old, new],
+                src = None
+                if (bid, prompt, answer) in reuse:
+                    cands, src = reuse[(bid, prompt, answer)]
+                else:
+                    try:
+                        cands = engine.invert(answer, n_candidates=args.n_candidates)
+                    except Exception as e:
+                        print(f"  {bid} FAILED: {type(e).__name__}: {e}", flush=True)
+                        continue
+                row = {
+                    "bid": bid, "benchmark": bench, "pair": [old, new],
                     "rpe_recovered": None, "para_recovered": None,
                     "n_candidates": len(cands), "n_admitted": 0, "admitted": [],
                     "prompt": prompt, "old_response": answer,
                     "details": [{"text": c, "admitted": False, "scores": None,
                                  "response": None, "broke": None} for c in cands],
-                }, ensure_ascii=False) + "\n")
+                }
+                if src:
+                    row["reused_from"] = src
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
                 fh.flush()
                 if i % 10 == 0 or i == len(todo):
                     print(f"    {i}/{len(todo)}", flush=True)

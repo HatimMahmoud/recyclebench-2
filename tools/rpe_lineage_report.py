@@ -57,16 +57,50 @@ def recycle_side(cfg, behaviours, manifest, cache, verdicts, old, new):
     return pm, rec
 
 
-def inversion_side(path: Path):
-    """-> {bid: 0/1/None} from a closed-loop artifact, A_loop admission."""
-    if not path.exists():
+ADMISSIONS = ("loop", "both", "gate")
+
+
+def closedloop_path(root: Path, old: str, new: str):
+    """Newest gate-scored artifact for the pair, else the original (A_loop-only) one.
+
+    `closedloop_<o>__to__<n>_gated_<stamp>.json` is written by `rpe_closedloop.py --gate-store`;
+    the plain name predates it and carries an empty A_gate (the gate never ran).
+    """
+    gated = sorted(root.glob(f"closedloop_{old}__to__{new}_gated_*.json"))
+    if gated:
+        return gated[-1]
+    p = root / f"closedloop_{old}__to__{new}.json"
+    return p if p.exists() else None
+
+
+def inversion_side(path, admission: str = "loop"):
+    """-> {bid: 0/1/None} from a closed-loop artifact under one admission set.
+
+    loop = OLD(x_hat) complies and lands in the answer's equivalence class (upper bound);
+    gate = passed the intent gate against x (the admission RSR uses);
+    both = the intersection (primary).
+    """
+    if path is None or not Path(path).exists():
         return None
-    doc = json.loads(path.read_text())
+    doc = json.loads(Path(path).read_text())
     out = {}
     for bid, d in doc.get("per_behaviour", {}).items():
-        rows = d.get("loop") or []
+        rows = d.get(admission) or []
         out[bid] = lc._any([r.get("new_verdict") for r in rows]) if rows else None
     return out
+
+
+def agreement(pm, rec, inv):
+    items = []
+    for b in pm:
+        it = ProbeItem(bid=b, benchmark="", prompt="", old_response="")
+        it.para_recovered, it.rpe_recovered = rec.get(b), inv.get(b)
+        items.append(it)
+    rep = analyze(items)
+    return {"n_both_resolved": rep.n_both_resolved, "rate": rep.agreement_rate,
+            "cohen_kappa": rep.cohen_kappa, "mcnemar_p": rep.mcnemar_p,
+            "both_recovered": rep.both_recovered, "both_held": rep.both_held,
+            "rpe_only": rep.rpe_only, "para_only": rep.para_only}
 
 
 def rate(d, keys):
@@ -89,6 +123,8 @@ def main(argv=None) -> int:
     ap.add_argument("--cache", default="cache/llama_gen.jsonl")
     ap.add_argument("--verdicts", default="cache/judge_lineage_sorrybench.jsonl")
     ap.add_argument("--rpe-root", default="results/runs/rpe_lineage")
+    ap.add_argument("--pairs", default=None,
+                    help="comma list old:new; default = adjacent rungs of cfg.lineage")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
@@ -98,8 +134,11 @@ def main(argv=None) -> int:
     manifest = Manifest.load(args.manifest)
     cache = lc.load_response_cache(args.cache)
     verdicts = lc.StoredVerdicts(lc.VerdictStore(args.verdicts), tag)
-    L = cfg.lineage or []
-    pairs = list(zip(L, L[1:]))
+    if args.pairs:
+        pairs = [tuple(p.split(":", 1)) for p in args.pairs.split(",")]
+    else:
+        L = cfg.lineage or []
+        pairs = list(zip(L, L[1:]))
 
     print(f"judge    : {tag}")
     print(f"{'pair':<18}{'P^-':>5}{'RSR recycle':>22}{'PRR inversion':>22}"
@@ -107,38 +146,37 @@ def main(argv=None) -> int:
     rows, views = [], []
     for old, new in pairs:
         pm, rec = recycle_side(cfg, behaviours, manifest, cache, verdicts, old, new)
-        inv = inversion_side(Path(args.rpe_root) / f"closedloop_{old}__to__{new}.json")
+        path = closedloop_path(Path(args.rpe_root), old, new)
         lbl = f"{LABEL.get(old, old)} -> {LABEL.get(new, new)}"
         r = rate(rec, pm)
-        if inv is None:
+        if path is None:
             print(f"{lbl:<18}{len(pm):>5}{_fmt(r):>22}{'not scored yet':>22}")
             views.append({"pair": [old, new], "p_minus": len(pm), "RSR": r,
-                          "PRR": None, "agreement": None})
+                          "PRR": None, "agreement": None, "closedloop": None})
             continue
-        q = rate(inv, pm)
-        items = []
-        for b in pm:
-            it = ProbeItem(bid=b, benchmark="sorrybench", prompt="", old_response="")
-            it.para_recovered, it.rpe_recovered = rec.get(b), inv.get(b)
-            items.append(it)
-        rep = analyze(items)
-        kap = "n/a" if rep.cohen_kappa is None else f"{rep.cohen_kappa:.2f}"
-        mcn = "n/a" if rep.mcnemar_p is None else f"{rep.mcnemar_p:.3g}"
+        doc = json.loads(path.read_text())
+        view = {"pair": [old, new], "p_minus": len(pm), "RSR": r,
+                "closedloop": _rel(path), "gate_source": doc.get("gate_source", "manifest flag")}
+        for adm in ADMISSIONS:
+            inv = inversion_side(path, adm)
+            sfx = "" if adm == "loop" else f"_{adm}"
+            view["PRR" + sfx] = rate(inv, pm)
+            view["agreement" + sfx] = agreement(pm, rec, inv)
+        q, ag = view["PRR"], view["agreement"]
+        kap = "n/a" if ag["cohen_kappa"] is None else f"{ag['cohen_kappa']:.2f}"
+        mcn = "n/a" if ag["mcnemar_p"] is None else f"{ag['mcnemar_p']:.3g}"
         print(f"{lbl:<18}{len(pm):>5}{_fmt(r):>22}{_fmt(q):>22}"
-              f"{rep.n_both_resolved:>6}{kap:>8}{mcn:>10}")
-        views.append({"pair": [old, new], "p_minus": len(pm), "RSR": r, "PRR": q,
-                      "agreement": {"n_both_resolved": rep.n_both_resolved,
-                                    "rate": rep.agreement_rate,
-                                    "cohen_kappa": rep.cohen_kappa,
-                                    "mcnemar_p": rep.mcnemar_p,
-                                    "both_recovered": rep.both_recovered,
-                                    "both_held": rep.both_held,
-                                    "rpe_only": rep.rpe_only,
-                                    "para_only": rep.para_only}})
+              f"{ag['n_both_resolved']:>6}{kap:>8}{mcn:>10}"
+              f"   both {_fmt(view['PRR_both'])}   gate {_fmt(view['PRR_gate'])}")
+        views.append(view)
 
     out = {"generated": _dt.datetime.now().strftime("%Y%m%d_%H%M"), "judge_tag": tag,
            "note": "per-pair only: a behaviour appears in several pairs' P^-, so pooling "
                    "across pairs would count it more than once",
+           "admissions": {"PRR": "A_loop: OLD(x_hat) complies and ~= y (upper bound until the "
+                                 "harmful-ask audit)",
+                          "PRR_both": "A_both: A_loop and the intent gate (primary)",
+                          "PRR_gate": "A_gate: the intent gate against x (the admission RSR uses)"},
            "views": views}
     dest = Path(args.out) if args.out else \
         ROOT / "results" / "runs" / "rpe_lineage" / f"lineage_report_{out['generated']}.json"
@@ -148,6 +186,13 @@ def main(argv=None) -> int:
     dest.write_text(json.dumps(out, indent=2))
     print(f"\nwrote    : {dest}")
     return 0
+
+
+def _rel(p: Path) -> str:
+    try:
+        return str(Path(p).resolve().relative_to(ROOT))
+    except ValueError:
+        return str(p)
 
 
 def _fmt(r):

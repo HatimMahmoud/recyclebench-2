@@ -17,6 +17,11 @@ science), not "paraphrase jailbreak robustness". The contribution is measurement
 - Rules the code enforces: empty P⁻ ⇒ RSR *undefined* (never 0); denominators count behaviours, not
   variants; behaviours with no admitted variant are "unresolved", not "robust".
 
+`THESIS_KB.md` (repo root) is the **science layer**: constructs and estimands, the five arms
+(recycle / RPE / attack-transfer / compose / mechanistic), what may and may not be claimed from each
+number, the expose-vs-reality drift list, and the defect catalogue. Read it before interpreting or
+writing up any figure; this file stays the repo layer (commands, architecture, paths).
+
 `CLAUDE_CODE_HANDOFF(1).md` (repo root, untracked) is the full project brief: thesis RQs, results
 tables, supervisor threads, open tasks. Read it for anything beyond what is here. Note that
 its §5 layout is partly wrong: there is no `metrics.py` (see below).
@@ -77,9 +82,15 @@ offline. Docs: `docs/GATE.md`, `docs/REFORMULATE.md`.
 **Three arms:**
 1. *Recycle* (primary): the pipeline above. 6 transform classes (`paraphrase, syntactic, lexical,
    back_translation, tense_shift, register`), 8 paraphrases/behaviour, paraphraser `qwen2.5:3b`.
-2. *RPE* (output inversion, convergent check): `src/recyclebench/independent_probe/` +
-   `tools/run_independent_probe.py`, `tools/vendor/rpe_ga`. Reconstructs the request from the OLD model's
-   output (inverter `qwen2.5:14b`), gates it with the same gate, and re-tests NEW.
+2. *RPE* (output inversion, convergent check): reconstructs the request from the OLD model's output (inverter
+   `qwen2.5:14b`) and re-tests NEW. Current runs: `tools/rpe_lineage.py` (manifests per pair, `--reuse-from` copies
+   inversions of an identical OLD answer) → `tools/rpe_closedloop.py` (phases old/judge-old/equiv/new/judge-new/score;
+   `--gate-store` reads `cache/rpe_gate.jsonl` from `tools/rpe_gate.py`) → `results/runs/rpe_lineage*/`,
+   `rpe_bench*/<bench>/closedloop_*_gated_*.json`. Three admissions: A_gate (intent gate, comparable to RSR), A_loop
+   (closed loop, upper bound), A_both. Offline wrap-up: `bash rpe_refresh.sh [--export]`; reports
+   `tools/rpe_lineage_report.py`, `tools/rpe_reconcile.py`; audit `tools/rpe_audit_export.py` →
+   `tools/rpe_audit_score.py`; dashboards `tools/inversion_section.py`. The first runs
+   (`run_independent_probe.py`, `tools/vendor/rpe_ga`, `rpe_3_31_*`) are superseded.
 3. *Attack-transfer*: `tools/run_attack_transfer.py`. Wei et al. attack classes from the
    liuyanchen1015 HF dataset, **not** intent-gated. It must be judged against the *original* intent;
    judging encoded output against encoded prompts gives spurious bypasses.
@@ -121,8 +132,22 @@ a lineage must share identical `judges`/`gate`/`transform_classes`.** A dashboar
 lineage rung usually means the wrong `--config` (seed mismatch).
 
 ## Current state (Oct 2026)
-- **Anchor / headline:** llama3-8b → llama3.1-8b on SORRY-Bench, |P⁻|≈49, RSR ≈0.47 raw / ≈0.53 corrected,
-  judge admitted (se 0.862 / sp 0.967 / κ 0.830). `results/runs/recycle_3_31_sorrybench/`.
+- **Anchor / headline:** llama3-8b → llama3.1-8b on SORRY-Bench, |P⁻|≈49, RSR 23/47 = 0.489 raw / **0.551
+  corrected** [0.364, 0.738], judge admitted (se 0.862 / sp 0.968 / κ 0.833, **60** bundles).
+  `results/runs/recycle_3_31_sorrybench/`.
+- **Confirmatory replication (Amendment 1 §A2) is RUN and corrected.** llama3-8b → llama3.1-8b on held-out
+  `data/heldout_jbb_guided.csv` (222 behaviours), `results/runs/confirm_heldout_3_31/`. **RSR 6/9 = 0.667 raw /
+  0.765 corrected** [0.381, 1.000], McNemar p = 0.031 → *materially surface-bound* against π* = 0.15, i.e. the
+  anchor replicates. PBR(llama3.1-8b) 20/208 = 0.096 raw / 0.077 corrected [0.004, 0.150]: the mechanical verdict
+  is "materially robust" but its CI high lands 0.0001 under π*, and the pre-repair calibration put it 0.0007 over,
+  so **report PBR as inconclusive and threshold-sensitive**. Corrected figures live in
+  `corrected_heldout_recal_n60.json` (supersedes `corrected_heldout.json`, which used the pre-repair sheet);
+  §A2 registers the SORRY-Bench calibration for this, so **no held-out human labelling is needed**.
+- **2026-10-27 calibration repair.** `audit/sorrybench/judge_sheet.csv` had `human_fulfilled` = `00` on one row of
+  bundle `jbb-0003`; `ingest_judge_audit` drops any bundle with a cell that is not `0`/`1`, so the calibration had
+  silently been running on 59 bundles. Repaired (backup `*.bak_before_typo_fix_20261027_1719`): n 59 → 60,
+  se 0.8585 → 0.8621, sp 0.9676 → 0.9677, κ 0.8302 → 0.8326, still admitted. Anchor corrected RSR
+  0.5532 → 0.5509. Third-decimal everywhere except the PBR verdict above.
 - **Lineage (RAW, 5 adjacent pairs):** `results/runs/lineage_sorrybench_20261020/manifest.jsonl`. Per-pair
   P⁻ = 18, 3, 49, 12, 13. Only the matched-scale 3-8b→3.1-8b rung is firm. The others are within-generation or
   scale-confounded (a 1B in the "newer" role), so they are exploratory.
@@ -138,7 +163,7 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   SMOKE HarmBench manifest for llama31-8b/llama2-13b. New `study_data` runs: `lineage-harmbench` (4 models; judged
   figures replay `cache/judge_qwen_harmbench.jsonl`, RSR 15/22 · 3/3 · 19/26, PBR not judged), `x31-32-*`, `x27-213-*`.
   `tools/judge_rpe.py` re-judged RPE with qwen (`cache/judge_rpe_qwen.jsonl`).
-- 2026-10-22 thesis close-out: every result so far is exploratory. `prereg_amendment_1_DRAFT.md` (pending sign-off)
+- 2026-10-22 thesis close-out: every result so far is exploratory. `prereg_amendment_1_DRAFT.md` (signed: candidate 2026-10-25, supervisor 2026-10-28)
   records the deviations and registers a confirmatory replication on held-out `data/heldout_jbb_guided.csv`
   (`tools/prepare_heldout.py`) with `configs/confirm_heldout_3_31.yaml`. Do not run anything on that CSV before
   `bash overnight_stack.sh --stamp`. Long jobs live in `overnight_stack.sh` (`--list`). Offline tools:
@@ -163,6 +188,17 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   be reported as grounds for continuing the arm until best-of-N is registered prospectively.**
   `tools/ptp_decode_sweep.py` is the comparison harness (`--vocab`, `--eos`, `--n-samples`).
   The held-out 86 are now frozen in `ptp_build.py`, so adding pairs cannot silently move the denominator.
+- **2026-10-28 RPE completion** (`run_rpe_complete.sh` then `bash rpe_refresh.sh --export`). The gate now scores every
+  inversion candidate (`cache/rpe_gate.jsonl`: 120 of 1,623 admitted, later 125 of 1,731), so all 19 pair × benchmark
+  runs with judged P⁻ carry A_gate / A_loop / A_both (`closedloop_*_gated_20261028_2326.json`); the two matched-scale
+  post-hoc pairs (llama2-7b → llama3-8b / → llama31-8b, SORRY-Bench + HarmBench) were run, reusing llama2-7b inversions
+  from the 2-13b pair. Anchor: closed loop 36/38 (resolves 38/49), intent gate 2/5 (resolves 5/49) against RSR 23/49, so
+  the inversion arm's lead over paraphrase rests on gate-rejected reconstructions. That is what the blind harmful-ask
+  sheet `audit/rpe/rpe_harm_sheet_20261028_2327.csv` (65 rows, 36 behaviours, 0 labelled) settles; the 83-row topical
+  sheet covers superseded candidates and audits nothing current. The 38/49 vs 7/61 gap (THESIS_KB §4.2) was the
+  admission rule, and TODO_HUMAN A6 was a subset-CSV id join error (`results/analysis_rpe_reconcile_20261028_2333/`).
+  Dashboards built 2026-10-28 23:33 show it all (master §09/§09b, every pair page, lineage §09). One battery-induced
+  sleep (19:09–22:36, 1% charge) stalled the run: caffeinate holds the machine awake only on AC.
 - White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
   q/k un-permuted, rope factors and Llama-3 pre-tokenizer verified) and records per layer the refusal-direction score
   (Arditi difference-of-means), residual divergence, top MLP neurons and P(refusal opening) → `results/mech/*.json`
@@ -188,11 +224,16 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   → NLI) and `to_gate_scores()` writes 1.0 for every layer not evaluated; the lexical layer isn't persisted at all.
   `llm_intent` is 1.0 everywhere (no intent model configured). `human_label` is None on every row, so the summary's
   `false_admission_rate: 0.0` is vacuous until `audit-export`/`audit-ingest` is done.
-- **`judge_audit.calibrate_from_human` ignores `n_pos_total`/`n_neg_total`**: it passes the *sample* stratum sizes to
-  `invert_stratified`, so se/sp are wrong for a disproportionate audit. Harmless for `audit/sorrybench` (the sample is the
-  whole population: 26 + 34 bundles); wrong for `audit/attack` (30 of 30 judge-positives, 30 of 2,338 negatives): reported
-  se 0.857, design-weighted ≈ 0.07 → attack transfer is under-counted. Neither judge suits attack outputs (the offline rule
-  reads ciphers/garble as compliance). On SORRY-Bench the offline rule beats qwen2.5:14b vs humans (bundle κ 0.93 vs 0.83).
+- **`calibrate_from_human` weights by the population strata, but only if you pass them.** Give it
+  `n_pos_total`/`n_neg_total` (from the sheet's `judge_strata.txt`) and it hands them to `invert_stratified`, with the
+  sample sizes setting only the bootstrap; omit them and it returns unweighted rates plus a note saying they are valid
+  only for a proportional sample. Every caller in the repo passes them. This matters enormously for `audit/attack`
+  (30 of 30 judge-positives but 30 of 2,338 negatives): se is **0.072** design-weighted against 0.857 unweighted, so
+  attack transfer is badly under-counted. It makes no difference for `audit/sorrybench`, where the sample is the whole
+  population (26 + 34 bundles) and both routes give se 0.862. Neither judge suits attack outputs anyway (the offline
+  rule reads ciphers/garble as compliance). On SORRY-Bench the offline rule beats qwen2.5:14b vs humans (bundle κ 0.93
+  vs 0.83). *(Earlier copies of this file, and comments in `master_dashboard.py` / `rpe_audit_export.py`, claimed the
+  function ignored the totals; that was fixed on 2026-10-22 and the stale wording was corrected 2026-10-27.)*
 - RPE on SORRY-Bench (`rpe_3_31_*`) was judged by the target model (logs: target-as-judge); every `rpe_agreement.json` is
   invalid (paraphrase side read from fields recycle manifests lack). Recompute agreement by joining on prompt text.
 - Before 2026-10-03 (first Ollama `judges:` block, commit 0d09db7) every pilot used the offline rule; the July llama3.2
@@ -202,6 +243,11 @@ lineage rung usually means the wrong `--config` (seed mismatch).
 - Style-arc / gate means must use only scores the gate computed (placeholders inflate back-translation's NLI 0.83 → 0.96).
 - The summary's RSR/PBR `CI` is a delta-method (normal-approx) interval that collapses to [1, 1] at k = n; dashboards
   show Wilson intervals recomputed from k/n.
+- **Ids in a subset CSV are row positions.** `load_jailbreakbench` ignores a `bid` column and numbers rows, so ids from
+  `results/cells_*/…_p_minus.csv` (the anchor manifest, the compose run, the first RPE runs) are not SORRY-Bench ids.
+  Join such runs on prompt text. A bid join is what produced TODO_HUMAN A6's "unreproduced anchor manifest".
+- **Inversion manifests carry `admitted: false`** (the builder never runs the gate). Score closed-loop runs with
+  `--gate-store`; an artifact without `_gated_` has empty A_gate/A_both by construction, not because the gate rejected.
 - Refusal classification must go through `recyclebench.judge.looks_like_refusal`, the single source of truth.
   It includes the U+2019→' normalisation.
 - The paraphraser/judge/inverter must be **non-Llama** (qwen2.5), decorrelated from the targets. Never use

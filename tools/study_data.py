@@ -443,6 +443,7 @@ class RecycleSpec:
     behaviour_scope: str = "full"   # full | p-minus subset
     verdicts: Optional[str] = None  # stored LLM-judge verdicts (tools/judge_lineage.py): the "reported" figures replay them
     rescreen: Optional[list] = None # models this run re-screened on every rewording (default: all of `models`)
+    confirmatory: bool = False      # registered confirmatory run: must be shown apart, never pooled with the rest
 
 
 RUN_NOTES = {
@@ -499,6 +500,16 @@ RECYCLE_SPECS = [
                   RUN_NOTES["paraphraser_14b"], "scale step 2-7B → 2-13B on the llama3 run's frozen manifest; llama2-13b "
                   "re-screened only on this pair's fixes (2026-10-22)", rescreen=["llama2-7b"])
       for d in ("advbench", "strongreject")],
+    # The CONFIRMATORY replication (prereg Amendment 1 §A2). Every other spec in this list is
+    # exploratory; this one is the registered test on held-out behaviours, stamped 2026-10-25
+    # before it was run. It must never be pooled with the rest -- pooling a confirmatory result
+    # with exploratory ones is exactly what the registration exists to prevent.
+    RecycleSpec("confirm-heldout-3-31", "results/runs/confirm_heldout_3_31", "heldout_jbb_guided",
+                "data/heldout_jbb_guided.csv", "manifest.jsonl", "llama_gen", ["llama3-8b", "llama31-8b"],
+                "summary_real.json", "llm (qwen2.5:14b)", "qwen2.5:3b",
+                "CONFIRMATORY (Amendment 1 §A2), held-out JBB+GuidedBench, 222 behaviours; gate L2 intent layer "
+                "ON. Corrected with the registered SORRY-Bench calibration, not a calibration of its own",
+                calibrated="corrected_heldout_recal_n60.json", confirmatory=True),
 ]
 
 
@@ -1138,6 +1149,33 @@ class Artifact:
     mtime: str = ""
 
 
+def closedloop_artifacts() -> list:
+    """The current inversion runs (tools/rpe_closedloop.py). A file scored before the gate store
+    existed carries the manifest's `admitted: false`, so its A_gate / A_both are empty by
+    construction: superseded where a gate-scored sibling exists, flagged where none does."""
+    out = []
+    files = sorted((ROOT / "results/runs").glob("rpe_lineage*/closedloop_*.json")) + \
+        sorted((ROOT / "results/runs").glob("rpe_bench*/*/closedloop_*.json"))
+    for p in files:
+        try:
+            d = json.loads(p.read_text())
+        except (OSError, json.JSONDecodeError):
+            out.append(Artifact(rel(p), "RPE closed-loop", "—", "—", "invalid", ["unreadable JSON"], _mtime(p)))
+            continue
+        o, n = (d.get("pair") or ["?", "?"])[:2]
+        bench = p.parent.name if p.parent.parent.name.startswith("rpe_bench") else "sorrybench"
+        gated = d.get("gate_source", "manifest flag") != "manifest flag"
+        judge = "llm (qwen2.5:14b)" if "qwen" in str(d.get("judge_tag", "")) else str(d.get("judge_tag", "—"))
+        iss, st = [], "valid"
+        if not gated:
+            sib = list(p.parent.glob(f"closedloop_{o}__to__{n}_gated_*.json"))
+            st = "superseded" if sib else "partial"
+            iss.append("scored before the gate store: A_gate / A_both empty because the gate never ran"
+                       + (f"; superseded by {sib[-1].name}" if sib else ""))
+        out.append(Artifact(rel(p), "RPE closed-loop", f"{o} → {n} · {bench}", judge, st, iss, _mtime(p)))
+    return out
+
+
 def build_registry(pilots, recycle_runs, rpe_runs, attack, calib) -> list:
     reg = []
     for p in pilots:
@@ -1165,6 +1203,7 @@ def build_registry(pilots, recycle_runs, rpe_runs, attack, calib) -> list:
     for r in rpe_runs:
         reg.append(Artifact(rel(ROOT / r.spec.path), "RPE manifest", f"{r.spec.old} → {r.spec.new} · {r.spec.dataset}",
                             r.judge, r.status, r.issues, _mtime(ROOT / r.spec.path)))
+    reg += closedloop_artifacts()
     for a in stored_agreement_files():
         reg.append(Artifact(a["path"], "RPE agreement", a["dataset"], "—", "invalid",
                             ["paraphrase side read from manifest fields that recycle manifests never contain "

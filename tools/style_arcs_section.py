@@ -41,8 +41,10 @@ from pathlib import Path
 __all__ = ["aggregate", "render_fragment", "render_page", "inject"]
 
 # ---- palette (matches the results dashboard) ----
-_PAPER = "#FAFAFA"; _PANEL = "#FFFFFF"; _INK = "#14202E"; _SLATE = "#6B7A88"
-_GRID = "#E4E2DB"; _HELD = "#107C6E"; _FIX = "#E3A008"; _REGRESS = "#B5522E"
+# The SVG reads the .sa-root tokens, so the dark theme in _CSS re-colours it; the light hex
+# values live there too.
+_PAPER = "var(--sa-paper)"; _PANEL = "var(--sa-panel)"; _INK = "var(--sa-ink)"; _SLATE = "var(--sa-slate)"
+_GRID = "var(--sa-grid)"; _HELD = "var(--sa-held)"; _FIX = "var(--sa-fix)"; _REGRESS = "var(--sa-regress)"
 
 _STYLE_KEYS = ("transform_class", "tc", "transform", "style", "tclass", "family")
 _NLI_KEYS = ("nli_entail", "nli", "nli_entailment", "entailment")
@@ -275,6 +277,10 @@ _CSS = """<style>
   --sa-grid:#E4E2DB;--sa-held:#107C6E;--sa-fix:#E3A008;--sa-regress:#B5522E;
   background:var(--sa-paper);color:var(--sa-ink);
   font-family:"IBM Plex Sans",system-ui,sans-serif;line-height:1.55}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .sa-root{--sa-paper:#0F141A;--sa-panel:#161D25;
+  --sa-ink:#E6EAEE;--sa-slate:#93A1AE;--sa-grid:#2B3540;--sa-held:#2A9D8C;--sa-fix:#C09A12;--sa-regress:#C95E40;--panel:#161D25;--grid:#2B3540;--washed:#1E2731;--slate:#93A1AE;--ink:#E6EAEE;--fix:#C09A12}}
+:root[data-theme="dark"] .sa-root{--sa-paper:#0F141A;--sa-panel:#161D25;--sa-ink:#E6EAEE;--sa-slate:#93A1AE;
+  --sa-grid:#2B3540;--sa-held:#2A9D8C;--sa-fix:#C09A12;--sa-regress:#C95E40;--panel:#161D25;--grid:#2B3540;--washed:#1E2731;--slate:#93A1AE;--ink:#E6EAEE;--fix:#C09A12}
 .sa-root *{box-sizing:border-box}
 .sa-wrap{max-width:1040px;margin:0 auto;padding:10px 28px 40px}
 .sa-root h2{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:21px;

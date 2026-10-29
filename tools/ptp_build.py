@@ -108,6 +108,11 @@ def main(argv=None) -> int:
                          "condition (see reversal.build_training_sequence); adds one "
                          "vocabulary row, so checkpoints are not interchangeable with "
                          "a run made without it")
+    ap.add_argument("--max-pairs", type=int, default=None,
+                    help="ftdata: stop once the STORED pair total reaches this. The scaling "
+                         "ladder registers exact pair counts (12,000 / 18,000), and a "
+                         "--minutes budget would land wherever the night's throughput "
+                         "happened to put it, so the rungs would not be comparable.")
     ap.add_argument("--gate-token-f1", type=float, default=0.30,
                     help="Gate A: held-out inversion token F1 floor")
     args = ap.parse_args(argv)
@@ -227,6 +232,9 @@ def main(argv=None) -> int:
                 done = {json.loads(l)["prompt"] for l in
                         ft_p.read_text(encoding="utf-8").splitlines() if l.strip()}
             todo = [p for p in prompts if p not in done]
+            if args.max_pairs is not None:
+                todo = todo[:max(0, args.max_pairs - len(done))]
+                log(f"[ftdata] capped at a stored total of {args.max_pairs}")
             log(f"[ftdata] {len(todo)} benign pairs to generate ({len(done)} stored)")
             spec = ProbeSpec(model_id=args.forward_model, temperature=0.7, seq_len=160)
             # Threaded for the same reason probing is: a single stream leaves a 3B model

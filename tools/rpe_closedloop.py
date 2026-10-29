@@ -82,6 +82,27 @@ def candidates(rpe_manifest: Path):
     return out
 
 
+def apply_gate_store(cands, store_path, cfg):
+    """Replace each candidate's manifest `admitted` flag with the decision stored by
+    tools/rpe_gate.py. -> (cands, {(bid, ci): rejected_by}, n_missing).
+
+    Lineage manifests carry `admitted: false` because the gate never ran on them, so the
+    manifest flag cannot be read as a gate verdict.
+    """
+    import rpe_gate as rg
+    sig, store = rg.signature(cfg), rg.load_store(store_path)
+    out, why, missing = [], {}, 0
+    for bid, ci, text, _adm, pr, y in cands:
+        rec = rg.lookup(store, sig, pr, text)
+        if rec is None:
+            missing += 1
+            out.append((bid, ci, text, False, pr, y))
+            continue
+        why[(bid, ci)] = rec.get("rejected_by")
+        out.append((bid, ci, text, bool(rec["admitted"]), pr, y))
+    return out, why, missing
+
+
 def seed_for(bid: str, ci: int) -> int:
     """Deterministic and disjoint from the variant seeds (which use small indices)."""
     return _draw_seed(bid, 9000 + ci, 0)
@@ -94,8 +115,22 @@ class Resp:
         self.text = text
 
 
-def phase_generate(cands, model, cache: ResponseCache, label, limit=None, deadline=None):
+def phase_generate(cands, model, cache: ResponseCache, label, limit=None, deadline=None,
+                   reuse=()):
     todo = [c for c in cands if cache.get(model.name, c[2], seed_for(c[0], c[1])) is None]
+    copied = 0
+    for fb in reuse:               # read-only caches of other pairs: same key = same call
+        left = []
+        for c in todo:
+            t = fb.get(model.name, c[2], seed_for(c[0], c[1]))
+            if t is None:
+                left.append(c)
+            else:
+                cache.put(model.name, c[2], seed_for(c[0], c[1]), t)
+                copied += 1
+        todo = left
+    if copied:
+        print(f"[{label}] {copied} copied from --reuse-cache, no model call", flush=True)
     if limit:
         todo = todo[:limit]
     print(f"[{label}] {len(todo)} to generate of {len(cands)} candidates", flush=True)
@@ -116,14 +151,22 @@ def phase_generate(cands, model, cache: ResponseCache, label, limit=None, deadli
 
 
 def phase_judge(cands, judge, cache: ResponseCache, store, tag, model_name, label,
-                limit=None, deadline=None):
-    todo = []
+                limit=None, deadline=None, reuse=()):
+    todo, copied = [], 0
     for bid, ci, text, adm, p, y in cands:
         t = cache.get(model_name, text, seed_for(bid, ci))
         if t is None:
             continue
-        if store.get(lc.verdict_key(tag, text, t)) is None:
-            todo.append((bid, ci, text, t))
+        k = lc.verdict_key(tag, text, t)
+        if store.get(k) is None:
+            v = next((fb.get(k) for fb in reuse if fb.get(k) is not None), None)
+            if v is not None:      # verdict keys are content-addressed: same text, same verdict
+                store.put(k, v)
+                copied += 1
+            else:
+                todo.append((bid, ci, text, t))
+    if copied:
+        print(f"[{label}] {copied} verdicts copied from --reuse-verdicts, no judge call", flush=True)
     if limit:
         todo = todo[:limit]
     print(f"[{label}] {len(todo)} to judge", flush=True)
@@ -191,6 +234,15 @@ def main(argv=None) -> int:
     ap.add_argument("--embed-model", default="all-MiniLM-L6-v2")
     ap.add_argument("--equiv-threshold", type=float, default=0.75,
                     help="cosine(OLD(x_hat), y) floor for preimage membership")
+    ap.add_argument("--gate-store", default=None,
+                    help="take gate admission from tools/rpe_gate.py's store instead of the "
+                         "manifest flag; `new`/`judge-new` then also cover gate-admitted "
+                         "candidates, so A_gate is scored and not only A_loop")
+    ap.add_argument("--reuse-cache", action="append", default=[],
+                    help="read-only response cache of another pair; a hit is copied into "
+                         "--cache instead of calling the model (repeatable)")
+    ap.add_argument("--reuse-verdicts", action="append", default=[],
+                    help="read-only verdict store of another pair, same idea (repeatable)")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--minutes", type=float, default=None,
                     help="stop starting new work after this many minutes (clean exit)")
@@ -201,12 +253,21 @@ def main(argv=None) -> int:
     cfg = Config.load(args.config)
     tag = lc.judge_tag_from_cfg(cfg)
     cands = candidates(Path(args.rpe_manifest))
+    why = {}
+    if args.gate_store:
+        cands, why, missing = apply_gate_store(cands, ROOT / args.gate_store, cfg)
+        if missing and args.phase in ("new", "judge-new", "score", "all"):
+            raise SystemExit(f"{missing} candidates have no gate decision in {args.gate_store}; "
+                             "run tools/rpe_gate.py first")
     bids = {c[0] for c in cands}
     print(f"candidates : {len(cands)} over {len(bids)} behaviours "
-          f"({sum(1 for c in cands if c[3])} gate-admitted)")
+          f"({sum(1 for c in cands if c[3])} gate-admitted"
+          f"{', gate from ' + args.gate_store if args.gate_store else ', gate flag from the manifest'})")
     print(f"judge tag  : {tag}")
     cache = ResponseCache(Path(args.cache))
     store = lc.VerdictStore(args.verdicts)
+    rcaches = [ResponseCache(Path(p)) for p in args.reuse_cache]
+    rstores = [lc.VerdictStore(p) for p in args.reuse_verdicts]
 
     phases = PHASES if args.phase == "all" else (args.phase,)
     for ph in phases:
@@ -215,11 +276,11 @@ def main(argv=None) -> int:
             continue
         if ph == "old":
             models, _, _ = _build_real(cfg, [args.old])
-            phase_generate(cands, models[0], cache, "old", args.limit, deadline)
+            phase_generate(cands, models[0], cache, "old", args.limit, deadline, rcaches)
         elif ph == "judge-old":
             _, judge, _ = _build_real(cfg, [args.old])
             phase_judge(cands, judge, cache, store, tag, args.old, "judge-old",
-                        args.limit, deadline)
+                        args.limit, deadline, rstores)
         elif ph == "equiv":
             phase_equiv(cands, cache, args.old, ROOT / args.equiv_out, args.embed_model)
         elif ph in ("new", "judge-new", "score"):
@@ -241,29 +302,41 @@ def main(argv=None) -> int:
             print(f"[{ph}] A_loop candidates: {len(keep)} "
                   f"(of {len(cands)}; gate-admitted among them: {sum(1 for k in keep if k[3])})",
                   flush=True)
+            # NEW answers what either admission set scores. Without a real gate decision the
+            # manifest flag is not one, so only A_loop is extended (the original behaviour).
+            target = keep
+            if args.gate_store:
+                inloop = {(k[0], k[1]) for k in keep}
+                target = keep + [c for c in cands if c[3] and (c[0], c[1]) not in inloop]
+                print(f"[{ph}] + gate-admitted outside A_loop: {len(target) - len(keep)}", flush=True)
             if ph == "new":
                 models, _, _ = _build_real(cfg, [args.new])
-                phase_generate(keep, models[0], cache, "new", args.limit, deadline)
+                phase_generate(target, models[0], cache, "new", args.limit, deadline, rcaches)
             elif ph == "judge-new":
                 _, judge, _ = _build_real(cfg, [args.new])
-                phase_judge(keep, judge, cache, store, tag, args.new, "judge-new",
-                            args.limit, deadline)
+                phase_judge(target, judge, cache, store, tag, args.new, "judge-new",
+                            args.limit, deadline, rstores)
             else:
-                report(args, cfg, tag, cands, keep, cache, store, eq)
+                report(args, cfg, tag, cands, keep, cache, store, eq, why)
     return 0
 
 
-def report(args, cfg, tag, cands, keep, cache, store, eq):
+def report(args, cfg, tag, cands, keep, cache, store, eq, why=None):
     """Assemble A_gate / A_loop / A_both per behaviour and write a dated artifact."""
     from recyclebench.stats import wilson_interval
     per = {}
+    inloop = {(k[0], k[1]) for k in keep}
     for bid, ci, text, adm, pr, y in cands:
         d = per.setdefault(bid, {"gate": [], "loop": [], "both": [], "prompt": pr})
-        in_loop = any(k[0] == bid and k[1] == ci for k in keep)
+        in_loop = (bid, ci) in inloop
         t = cache.get(args.new, text, seed_for(bid, ci))
         v = store.get(lc.verdict_key(tag, text, t)) if t is not None else None
+        to = cache.get(args.old, text, seed_for(bid, ci))
+        vo = store.get(lc.verdict_key(tag, text, to)) if to is not None else None
         row = {"ci": ci, "text": text, "gate": adm, "loop": in_loop,
-               "equiv": eq.get(f"{bid}#{ci}"), "new_verdict": v}
+               "equiv": eq.get(f"{bid}#{ci}"), "new_verdict": v, "old_verdict": vo}
+        if why is not None:
+            row["gate_rejected_by"] = why.get((bid, ci))
         if adm:
             d["gate"].append(row)
         if in_loop:
@@ -292,6 +365,8 @@ def report(args, cfg, tag, cands, keep, cache, store, eq):
 
     out = {"generated": _dt.datetime.now().strftime("%Y%m%d_%H%M"),
            "pair": [args.old, args.new], "judge_tag": tag,
+           "rpe_manifest": str(args.rpe_manifest),
+           "gate_source": args.gate_store or "manifest flag",
            "equiv_threshold": args.equiv_threshold, "embed_model": args.embed_model,
            "n_behaviours": len(per), "n_candidates": len(cands),
            "admission": {k: rate(k) for k in ("gate", "loop", "both")},
