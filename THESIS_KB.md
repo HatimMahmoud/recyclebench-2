@@ -180,6 +180,9 @@ pairs `results/runs/rpe_lineage_posthoc/`). PRR is given under each admission ru
 | llama2-7b → 3-8b (post-hoc, matched 7–8B) | 6 | 5/5 | 6/6 (6) | — (0) | 1 |
 | llama2-7b → 3.1-8b (post-hoc, matched 7–8B) | 23 | 13/22 | 19/22 (22) | 2/2 (2) | 0.18 |
 
+The RSR column follows the report's convention, k / resolved fixes; the package estimator (`compute_rsr`,
+used by the master and the lineage summary) divides by |P⁻|, so the same data read 15/18 and 13/23 there.
+
 Under the closed loop the arms recover different behaviours (κ near zero or negative; McNemar is the
 statistic to read). On the anchor the closed loop strictly dominates paraphrase, but the intent gate
 resolves only 5 of the 49. HarmBench (`results/runs/rpe_bench/harmbench/lineage_report_20261028_2326.json`)
@@ -385,11 +388,11 @@ Cost scales as `E · B · k · (1 + c̄ + p̄·t̄)` — tens of thousands of ca
 κ 0.833 on **60** bundles. PBR(3.1-8b) = 26 of 60 resolved = **0.433 raw** → *materially
 surface-bound*. `results/runs/recycle_3_31_sorrybench/`.
 
-> **Trap:** the on-disk `corrected_sorrybench.json` is **pre-repair** — 59 bundles,
-> RSR_corrected 0.5503, PBR_corrected 0.4827. The authoritative post-repair RSR figures are the
-> ones above, pinned in `tests/test_master_dashboard.py`. The anchor **PBR corrected** value has
-> *not* been recomputed against the repaired calibration; expect a third-decimal shift from 0.4827,
-> and recompute before quoting it (the correction is offline arithmetic — no replay needed).
+> **Recomputed 2026-10-29:** `corrected_sorrybench_recal_n60.json` (tool `tools/recalibrate_corrected.py`,
+> which first reproduces the pre-repair file exactly from the backup sheet) supersedes
+> `corrected_sorrybench.json` (59 bundles, sample strata: RSR 0.5503, PBR 0.4827). Post-repair, design-weighted:
+> RSR corrected **0.5509** [0.3638, 0.7379] (= the value pinned in `tests/test_master_dashboard.py`), PBR(3.1-8b)
+> corrected **0.4833** [0.3181, 0.6486], still *materially surface-bound*. Dashboards read the new file.
 
 ### 7.2 FIRM — the confirmatory replication (Amendment 1 §A2)
 Held-out `data/heldout_jbb_guided.csv` (222 behaviours), same pair, gate L2 intent layer ON,
@@ -408,6 +411,11 @@ put it 0.0007 **over** — a verdict decided by one mistyped cell in one of 60 b
 `results/runs/lineage_sorrybench_20261020/`. Judged per-pair P⁻ = **18, 3, 49, 12, 13**,
 k = 15, 3, 23, 5, 8. Only the matched-scale 3-8b→3.1-8b rung is firm; the others are
 within-generation or scale-confounded (a 1B in the "newer" role).
+
+**Matched-scale 7–8B chain, post-hoc pairs** (computed from the same frozen manifests, judged by replaying the
+stored qwen verdicts; `study_data` flags them `post_hoc` and keeps them out of pooled cells and style aggregates):
+llama2-7b → llama3-8b RSR **5/6** (SORRY-Bench), 6/8 (HarmBench lineage manifest); llama2-7b → llama3.1-8b
+**13/23** (SORRY-Bench), 10/13 (HarmBench). Exploratory: both |P⁻| < 30.
 `cache/judge_lineage_sorrybench.jsonl` holds every canonical + RSR verdict and, since 2026-10-27,
 all 13,325 variant verdicts, so PBR is judged for all six models.
 

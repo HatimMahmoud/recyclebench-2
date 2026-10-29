@@ -157,7 +157,8 @@ def _run_view(rr, o, n, ds, full_bids_by_prompt) -> RunView:
         _, lo, hi = wil(r.k_recovered, r.n_p_minus)
         rsr = dict(n=r.n_p_minus, k=r.k_recovered, rsr=r.rsr_raw, lo=lo, hi=hi, p=r.mcnemar_p, t=r.mean_admitted)
     adjacent = any(models[i] == o and models[i + 1] == n for i in range(len(models) - 1))
-    rep = rr.pairs.get((o, n), {}).get("reported") if adjacent else None
+    pr_ = rr.pairs.get((o, n), {})
+    rep = pr_.get("reported") if (adjacent or pr_.get("post_hoc")) else None   # post-hoc: judged replay, study_data
     audit = {(a.bid, a.index): a.scores() for a in rr.manifest.audit}
     by_class = defaultdict(lambda: [0, 0, 0, 0])
     scores = []

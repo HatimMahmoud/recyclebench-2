@@ -142,7 +142,8 @@ def recycle_cells(s):
 
 
 def pooled_offline(s):
-    cells = recycle_cells(s)
+    # consecutive pairs only: a post-hoc pair re-counts behaviours its adjacent rungs already hold
+    cells = {k: v for k, v in recycle_cells(s).items() if not v[1].get("post_hoc")}
     k = sum(pr["recon"]["k"] for _, pr in cells.values())
     n = sum(pr["recon"]["n"] for _, pr in cells.values())
     return k, n, len(cells), sorted({ds for (_, _, ds) in cells})
@@ -512,6 +513,9 @@ def _cell_lines(s, o, n, ds, rcells, lin):
         lab = f"RSR {pct(r['rsr'], 0)} ({r['k']}/{r['n']})"
         if ds == "sorrybench" and (o, n) in lin:
             lab = f"RSR {pct(lin[(o, n)]['RSR_raw'], 0)} judged · {pct(r['rsr'], 0)} offline"
+        elif pr.get("post_hoc") and (pr.get("reported") or {}).get("n_p_minus"):
+            j = pr["reported"]
+            lab = f"RSR {pct(j['RSR_raw'], 0)} judged ({j['k_recovered']}/{j['n_p_minus']}) · {pct(r['rsr'], 0)} offline"
         lines.append(("ok", lab))
     elif c and c.status in ("complete", "p-minus-only") and not c.p_minus:
         lines.append(("muted", "RSR undefined (P⁻ = 0)"))
@@ -757,6 +761,8 @@ def sec_rsr(s):
                 repro = status_chip("valid", f"raw offline run {rec['k']}/{rec['n']} reproduced")
             elif pr["match"] is True:
                 repro = status_chip("valid", "reproduced")
+            elif pr.get("post_hoc") and judged and rec:
+                repro = f"post-hoc · replay of stored qwen verdicts · offline {rec['k']}/{rec['n']}"
             elif judged and rec:
                 repro = f"judge differs · offline {rec['k']}/{rec['n']}"
             elif not pr["complete"]:
@@ -785,7 +791,8 @@ def sec_rsr(s):
             if sp.confirmatory:          # registered: must not read as one more exploratory row
                 tip = "CONFIRMATORY (prereg Amendment 1 §A2) — reported on its own, never pooled\n" + tip
             groups[sp.dataset].append(dict(label=f"{pair_short(o, n)}"
-                                           + (" · CONFIRMATORY" if sp.confirmatory else ""),
+                                           + (" · CONFIRMATORY" if sp.confirmatory else "")
+                                           + (" · post-hoc" if pr.get("post_hoc") else ""),
                                            sub=f"{sp.id} · {jsub} · {sp.behaviour_scope}",
                                            point=rsr, lo=lo, hi=hi, corr=corr, emph=emph, tip=tip,
                                            v_txt=pct(rsr) if rsr is not None else ("undefined" if pr["n_pm"] == 0 else "—"),
@@ -795,7 +802,8 @@ def sec_rsr(s):
             mp = cal_rsr.get("mcnemar_p") if cal_rsr else (rep.get("mcnemar_p") if rep else None)
             if mp is None and rec:
                 mp = rec["p"]
-            trows.append([esc(sp.id), esc(pair_short(o, n)), esc(dsl(s, sp.dataset)), judge_chip(jtxt), para_cell,
+            trows.append([esc(sp.id), esc(pair_short(o, n) + (" · post-hoc" if pr.get("post_hoc") else "")),
+                          esc(dsl(s, sp.dataset)), judge_chip(jtxt), para_cell,
                           num(n_) if n_ else ("0" if pr["n_pm"] == 0 else "—"), num(k) if n_ else "—",
                           (f"{pct(rsr)} <span class='sub'>{ci_txt(lo, hi)}</span>" if n_ else "—"), p_txt(mp), repro])
     gl = [(f"{dsl(s, d)}", groups[d]) for d in DS_ORDER if groups.get(d)]
@@ -860,6 +868,14 @@ def sec_pbr(s):
                          "above AdvBench (1–9%)."))
 
 
+def _sheet_bundles(s) -> str:
+    c = (s.calib or {}).get("sorrybench") or {}
+    n, drop = (c.get("package") or {}).get("n"), c.get("dropped_bundles", 0)
+    if n is None:
+        return NOT_YET
+    return f"{n} complete bundles" + (f", {drop} dropped for a non-0/1 cell" if drop else ", none dropped")
+
+
 def sec_anchor(s):
     rr, cal = anchor(s)
     if not cal:
@@ -891,8 +907,8 @@ def sec_anchor(s):
                    f'<div class="tiles">{tiles}</div>'
                    + panel("Provenance", f"<p class='note'>{check} {esc(raw_line)}</p>"
                            f"<p class='note'>Sources: <code>{esc(sd.rel(sd.ROOT / rr.spec.run_dir / rr.spec.calibrated))}</code> · "
-                           f"<code>audit/sorrybench/judge_sheet.csv</code> (60 bundles labelled; 59 complete) · the audit sampled every resolved "
-                           f"bundle, so no stratum re-weighting is needed.</p>")
+                           f"<code>audit/sorrybench/judge_sheet.csv</code> ({_sheet_bundles(s)}) · the audit sampled every resolved "
+                           f"bundle, so the design-weighted and unweighted calibrations agree.</p>")
                    + panel("The same calibration applied to every lineage pair",
                            table(["Pair", "P⁻", "Re-opened", "RSR raw", "Wilson 95%", "Corrected", "Corrected 95% CI"], lrows, num_cols=(1, 2, 3, 5)),
                            "Corrected intervals propagate the calibration variance (delta method, recyclebench.stats.corrected_interval). "

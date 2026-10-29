@@ -22,7 +22,7 @@ No model calls. Writes a DATED file and never overwrites an existing one.
 Defaults: --config configs/real_llama_lineage_all.yaml  --cache cache/llama_gen.jsonl
           --behaviours data/sorrybench.csv  --run-dir results/runs/lineage_sorrybench_20261020
           (manifest.jsonl + summary_real.json inside it)  --verdicts cache/judge_lineage_sorrybench.jsonl
-          --anchor results/runs/recycle_3_31_sorrybench/corrected_sorrybench.json
+          --anchor results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json
 """
 from __future__ import annotations
 
@@ -2210,7 +2210,7 @@ def main(argv=None):
     ap.add_argument("--run-dir", default="results/runs/lineage_sorrybench_20261020")
     ap.add_argument("--manifest", default=None, help="default: <run-dir>/manifest.jsonl")
     ap.add_argument("--summary", default=None, help="default: <run-dir>/summary_real.json")
-    ap.add_argument("--anchor", default="results/runs/recycle_3_31_sorrybench/corrected_sorrybench.json")
+    ap.add_argument("--anchor", default="results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json")
     ap.add_argument("--verdicts", default="cache/judge_lineage_sorrybench.jsonl")
     ap.add_argument("--offline", action="store_true", help="use the offline refusal rule even if verdicts exist")
     ap.add_argument("--redact", action="store_true", help="omit every prompt and response text")

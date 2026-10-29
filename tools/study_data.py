@@ -444,6 +444,7 @@ class RecycleSpec:
     verdicts: Optional[str] = None  # stored LLM-judge verdicts (tools/judge_lineage.py): the "reported" figures replay them
     rescreen: Optional[list] = None # models this run re-screened on every rewording (default: all of `models`)
     confirmatory: bool = False      # registered confirmatory run: must be shown apart, never pooled with the rest
+    pair_verdicts: Optional[str] = None  # stored LLM verdicts for pairs the summary omits (the EXTRA_PAIRS); default `verdicts`
 
 
 RUN_NOTES = {
@@ -454,12 +455,13 @@ RUN_NOTES = {
 RECYCLE_SPECS = [
     RecycleSpec("lineage-sorrybench", "results/runs/lineage_sorrybench_20261020", "sorrybench", "data/sorrybench.csv",
                 "manifest.jsonl", "llama_gen", LOCAL_MODELS, "summary_real.json", "llm (qwen2.5:14b)", "qwen2.5:3b",
-                "six-model lineage, five consecutive pairs; frozen manifest over all 440 behaviours"),
+                "six-model lineage, five consecutive pairs; frozen manifest over all 440 behaviours",
+                pair_verdicts="cache/judge_lineage_sorrybench.jsonl"),
     RecycleSpec("anchor-sorrybench", "results/runs/recycle_3_31_sorrybench", "sorrybench",
                 "results/cells_llama3-8b_llama31-8b/sorrybench_p_minus.csv", "manifest_sorrybench.jsonl", "llama_gen",
                 ["llama3-8b", "llama31-8b"], "log:logs/recycle_3_31.log", "offline", "qwen2.5:3b",
                 "calibrated anchor; raw run used the offline rule, the headline re-judges with qwen2.5:14b",
-                calibrated="corrected_sorrybench.json", behaviour_scope="offline P⁻ subset (61)"),
+                calibrated="corrected_sorrybench_recal_n60.json", behaviour_scope="offline P⁻ subset (61)"),
     RecycleSpec("l32-harmbench", "results/runs/20260801_165721_llama32-1b_to_3b_recycle", "harmbench", "data/harmbench.csv",
                 "manifest_harmbench.jsonl", "ollama_pilot", ["llama32-1b", "llama32-3b"], "summary_harmbench.json",
                 "offline", "qwen2.5:3b", "within-generation scale step"),
@@ -511,6 +513,20 @@ RECYCLE_SPECS = [
                 "ON. Corrected with the registered SORRY-Bench calibration, not a calibration of its own",
                 calibrated="corrected_heldout_recal_n60.json", confirmatory=True),
 ]
+
+
+def _judged_runs(sp: RecycleSpec, bs, man, path):
+    """(obs, runs, canon_ok) rebuilt with the stored LLM verdicts at `path` (no judge call)."""
+    store = lc.VerdictStore(ROOT / path)
+    tag = lc.judge_tag_from_cfg(_lineage_cfg())
+    obs, runs = lc.build_runs(CFG, bs, man, cache(sp.cache), lc.StoredVerdicts(store, tag), sp.models)
+    store.close()
+    return obs, runs, {m: obs[m].missing_verdicts["canonical"] == 0 for m in sp.models}
+
+
+def posthoc_pairs(models) -> list:
+    """The matched-scale non-consecutive pairs (EXTRA_PAIRS) a run with these models can compute."""
+    return [(o, n) for o, n in EXTRA_PAIRS if o in models and n in models and models.index(o) < models.index(n)]
 
 
 def judge_replay(sp: RecycleSpec, bs, man) -> tuple:
@@ -645,6 +661,25 @@ def build_recycle_runs(gate_fn) -> list:
             rr.pairs[(o, n)] = dict(recon=rec, recon_defined=(r.defined if r else None), complete=complete,
                                     n_pm=len(pm), reported=rep, match=match,
                                     unresolved=sum(1 for b in pm if runs[n].recovery[b].n_admitted == 0))
+        # The matched-scale 7-8B chain also needs llama2-7b -> llama3-8b / -> llama31-8b. Every model of the run
+        # answered the same frozen rewordings, so these are computable with no new call. Flagged post_hoc: the
+        # run's summary never reported them, and they stay out of the pooled cells and the style aggregates.
+        ph = [p for p in posthoc_pairs(list(sp.models)) if p not in rr.pairs]
+        jpath = sp.pair_verdicts or sp.verdicts
+        jobs = _judged_runs(sp, bs, man, jpath) if ph and jpath and (ROOT / jpath).exists() else None
+        for o, n in ph:
+            pm = lc.regression_set(runs[o], runs[n])
+            complete = all(obs[n].recovery_complete(b) for b in pm)
+            r = compute_rsr(runs[o], runs[n], pm, IDENTITY, 30) if complete else None
+            jrep = None
+            if jobs:
+                jo, jr, ok = jobs
+                jpm = lc.regression_set(jr[o], jr[n])
+                if ok[o] and ok[n] and all(jo[n].recovery_complete(b) for b in jpm):
+                    jrep = compute_rsr(jr[o], jr[n], jpm, IDENTITY, CFG.decision.min_p_minus).summary()
+            rr.pairs[(o, n)] = dict(recon=_rsr_ci(r), recon_defined=(r.defined if r else None), complete=complete,
+                                    n_pm=len(pm), reported=jrep, match=None, post_hoc=True,
+                                    unresolved=sum(1 for b in pm if runs[n].recovery[b].n_admitted == 0))
         for m in sp.models:
             cm = runs[m].C_M()
             ok = all(obs[m].recovery_complete(b) for b in cm)
@@ -720,7 +755,7 @@ def recovery_by_style(rr: RecycleRun) -> dict:
     """(o, n) -> {class: [variant_hits, variants, items_hit, items]} on that pair's P^- (offline)."""
     out = {}
     for (o, n), pr in rr.pairs.items():
-        if not pr["complete"]:
+        if not pr["complete"] or pr.get("post_hoc"):     # consecutive pairs only, as before: no double counting
             continue
         pm = lc.regression_set(rr.runs[o], rr.runs[n])
         acc = defaultdict(lambda: [0, 0, 0, 0])

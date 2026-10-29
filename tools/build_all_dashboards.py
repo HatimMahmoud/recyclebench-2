@@ -124,8 +124,8 @@ def main():
 
         # best-effort extras found inside the run folder
         corr = sorted(glob.glob(str(rd / "corrected_*.json")))
-        if corr:
-            cmd += ["--corrected", corr[0]]
+        if corr:      # newest name sorts last: *_recal_n60.json supersedes the pre-repair file
+            cmd += ["--corrected", corr[-1]]
         rpe = sorted(glob.glob(str(rd / "**/rpe_manifest_*.jsonl"), recursive=True))
         rpe_path = rpe[0] if rpe else None
         if name in RPE_OVERRIDE and Path(RPE_OVERRIDE[name]).exists():

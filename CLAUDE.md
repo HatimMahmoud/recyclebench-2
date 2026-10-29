@@ -188,6 +188,12 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   be reported as grounds for continuing the arm until best-of-N is registered prospectively.**
   `tools/ptp_decode_sweep.py` is the comparison harness (`--vocab`, `--eos`, `--n-samples`).
   The held-out 86 are now frozen in `ptp_build.py`, so adding pairs cannot silently move the denominator.
+- **2026-10-29 anchor recalibration + 7–8B chain.** `tools/recalibrate_corrected.py` wrote
+  `results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json` (reproduces the pre-repair file from the backup
+  sheet first): RSR corrected 0.5509 [0.3638, 0.7379], PBR(3.1-8b) corrected 0.4833 [0.3181, 0.6486]; `study_data`, the
+  lineage dashboard default `--anchor` and `build_all_dashboards.py` read it. `study_data` now also computes the post-hoc
+  matched-scale pairs (`EXTRA_PAIRS`) inside every run holding both models, judged via `pair_verdicts` / `verdicts`
+  (SORRY-Bench 5/6 and 13/23), flagged `post_hoc` and excluded from `pooled_offline` and `recovery_by_style`.
 - **2026-10-28 RPE completion** (`run_rpe_complete.sh` then `bash rpe_refresh.sh --export`). The gate now scores every
   inversion candidate (`cache/rpe_gate.jsonl`: 120 of 1,623 admitted, later 125 of 1,731), so all 19 pair × benchmark
   runs with judged P⁻ carry A_gate / A_loop / A_both (`closedloop_*_gated_20261028_2326.json`); the two matched-scale
