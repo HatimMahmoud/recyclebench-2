@@ -27,10 +27,10 @@ verified/38 (lower) to 36/38 (upper), and the dashboards pick it up on the next 
 Why it matters: under the intent gate the inversion arm re-opens 2 of the 5 anchor fixes it resolves (RSR 23/49);
 its 36/38 comes entirely from reconstructions no automated check certifies.
 
-### A3. Label `audit/gate/gate_sheet.csv` — 178 rows, 0 labelled
-Until these exist the gate summary's `false_admission_rate: 0.0` is vacuous (every
-`human_label` is None), and an examiner can argue the re-opened rewordings drifted in
-meaning. This is the main standing threat to RQ1.
+### A3. ~~Label `audit/gate/gate_sheet.csv`~~ — done 2026-10-29
+178/178. False admissions: 3 of 98 rewordings that re-opened an anchor fix (3.1% [1.0, 8.6]), 0 of 80 others;
+no RSR moves when the 3 are dropped (`audit/gate/gate_audit_result.json`). Rows 19–178 were labelled with a
+gemma4 guess shown (`audit/gate/MODEL_ASSISTED.txt`): report the audit as model-assisted.
 
 ### A4. Label `audit/harmbench/judge_sheet.csv` — 196 rows, 0 human labels, label blind
 The qwen2.5:14b judge is calibrated on SORRY-Bench only (se 0.862 / sp 0.967 /

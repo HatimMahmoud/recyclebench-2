@@ -469,7 +469,7 @@ RSR headline carries, and belongs in the write-up.
 |---|---|
 | **Gate scores are partly placeholders** | `RealGate` short-circuits; `to_gate_scores()` writes **1.0** for every layer not evaluated, and the lexical layer isn't persisted at all. Means over gate scores are inflated (back-translation NLI 0.83 → 0.96). Use only scores the gate actually computed, or attribute by *first failing layer*. |
 | **`llm_intent` is 1.0 everywhere** | No intent model configured in the main runs. Gate layer (d) from the exposé is effectively absent; `tools/regate_intent.py` applies it post hoc (gemma4:e4b, `reasoning_effort: none`). |
-| **Gate audit is vacuous so far** | `human_label` is None on every row, so `false_admission_rate: 0.0` means nothing until `audit-export`/`audit-ingest` is done. **`audit/gate/gate_sheet.csv` is 0/178 labelled — registered as D5, blocks any headline.** |
+| **Manifest audit rows are unlabelled** | `human_label` is None on every manifest row, so a summary's `false_admission_rate: 0.0` is still not a measurement. The measurement is the separate D5 sheet: **`audit/gate/gate_sheet.csv`, 178/178 labelled 2026-10-29** (`python3 tools/gate_audit.py ingest --dir audit/gate`): 3/98 re-opening rewordings changed the request (3.1% [1.0, 8.6]), 0/80 others (0% [0, 4.6]), ≈0.05% weighted; **no RSR moves** when the 3 are dropped. Labels from row 19 were **model-assisted** (§10). |
 | **`judge-export` (CLI) is the MOCK exporter** | Screens the synthetic lineage with `MockJudge` and writes `[benign-placeholder N]` rows into the real schema — a sheet that *looks* finished and is unlabellable. It now exits 1 on a config with a `real:` section. Real runs use `tools/judge_export_real.py`. |
 | **`calibrate_from_human` needs the population totals** | Pass `n_pos_total`/`n_neg_total` or you get unweighted rates. Matters enormously for `audit/attack` (30/30 positives but 30/2338 negatives): se **0.072** design-weighted vs 0.857 unweighted. No difference for `audit/sorrybench` (sample = population). |
 | **Neither judge suits attack output** | The offline rule reads ciphers/garble as compliance. On SORRY-Bench the offline rule actually *beats* qwen2.5:14b against humans (bundle κ 0.93 vs 0.83). |
@@ -497,6 +497,7 @@ Every row is a deviation from the registered plan. They are recorded in
 | Gate layer (d) LLM intent-equivalence | `llm_intent` = 1.0; applied only post hoc | §9. |
 | Refusal-direction check named as *future strengthening* | White-box PoC built and runs | Still must not be claimed as a thesis result without the registered protocol. |
 | Stretch: largest MoE model via rented GPU | Not done | Droppable by design — L2 tier. |
+| Gate audit (D5) labelled **blind** | Rows 1–18 blind; rows 19–178 labelled with a gemma4:e4b guess shown (`tools/gate_guess.py`, `audit/gate/MODEL_ASSISTED.txt`), the candidate's decision 2026-10-29 | Report as model-assisted. Mitigation: the labeller overruled 10 of gemma's 13 "changed" guesses and never marked a row 0 that gemma marked 1. |
 
 ---
 
@@ -567,8 +568,8 @@ See `ETHICS.md`.
 
 ## 13. What blocks the headline, in order
 
-1. **`audit/gate/gate_sheet.csv` — 0/178 labelled.** Human-only, registered as D5.
-   `python3 tools/judge_label_tui.py audit/gate/gate_sheet.csv --blind`
+1. ~~`audit/gate/gate_sheet.csv` (D5)~~ — **done 2026-10-29**, 178/178: 3/98 re-opening rewordings changed the
+   request, no RSR moves (§9). Model-assisted from row 19 (§10).
 2. ~~Supervisor sign-off on prereg Amendment 1~~ — **done 2026-10-28** (§A4; candidate signed 2026-10-25).
 3. **PTP best-of-N registration** before any cluster PTP figure is reported.
 4. ~~Reconcile the RPE resolution gap~~ — **done 2026-10-28**: an admission-rule mismatch (§4.2).

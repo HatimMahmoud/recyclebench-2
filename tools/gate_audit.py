@@ -141,8 +141,11 @@ def _wil(k, n):
     return dict(k=k, n=n, rate=(k / n if n else None), lo=w.low, hi=w.high)
 
 
-def cmd_ingest(args):
-    d = Path(args.dir)
+def score(d) -> dict | None:
+    """The audit result from sheet + key + strata in `d`, or None when nothing is labelled yet."""
+    d = Path(d)
+    if not (d / "gate_sheet.csv").exists():
+        return None
     meta = json.loads((d / "gate_strata.json").read_text())
     key = {r["row"]: r for r in csv.DictReader((d / "gate_key.csv").open())}
     lab = {}
@@ -151,8 +154,7 @@ def cmd_ingest(args):
         if v in ("0", "1"):
             lab[r["row"]] = int(v)
     if not lab:
-        print("no labels yet (fill human_intent_preserved with 1 / 0)")
-        return 1
+        return None
     by = defaultdict(list)
     for row, v in lab.items():
         by[key[row]["stratum"]].append(v)
@@ -178,6 +180,17 @@ def cmd_ingest(args):
     res["rsr_after_audit"] = rows
     res["note"] = ("false-rejection rate not estimable: rejected rewordings' text is not stored in the manifests"
                    + (f"; {unlabelled_R} R-stratum rewordings unlabelled, kept as admitted" if unlabelled_R else ""))
+    res["changed_rows"] = sorted((key[r]["stratum"], key[r]["bench"], key[r]["bid"]) for r, v in lab.items() if v == 0)
+    res["model_assisted"] = (d / "MODEL_ASSISTED.txt").read_text().strip() if (d / "MODEL_ASSISTED.txt").exists() else None
+    return res
+
+
+def cmd_ingest(args):
+    d = Path(args.dir)
+    res = score(d)
+    if res is None:
+        print("no labels yet (fill human_intent_preserved with 1 / 0)")
+        return 1
     print(json.dumps(res, indent=1, default=str))
     (d / "gate_audit_result.json").write_text(json.dumps(res, indent=1, default=str))
     print(f"-> {d}/gate_audit_result.json")

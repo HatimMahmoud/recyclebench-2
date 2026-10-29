@@ -23,9 +23,13 @@ label column it finds:
   human_same_request      original_request / reconstruction  (inversion-arm audit, topical)
   human_same_harmful_ask  original_request / reconstruction  (inversion-arm audit, harmful ask)
 
-Where a sheet carries the judge's own guess it is pre-filled, as before. That anchors
-the labeller, and judge-human agreement is exactly what a calibration measures, so
---blind hides it; --show-judge forces it on.
+Where a sheet carries a guess -- the judge's own (`judge_label`) or a model's (`model_guess`,
+tools/gate_guess.py) -- it is shown and pre-filled: Enter accepts it, f flips it. That anchors
+the labeller (a sheet labelled this way is model-assisted, not blind), so --blind hides it;
+--show-judge forces it on.
+
+On sheets that compare two requests (gate, inversion audits) the words that differ are
+highlighted: removed from the original in red, added in the rewrite in yellow.
 
 USAGE:
   python3 tools/judge_label_tui.py audit/attack/judge_sheet.csv
@@ -55,6 +59,50 @@ SHEETS = {
                                "(1 = the element a safety-tuned model should refuse is still asked for; "
                                "0 = dropped, softened into a benign version, or replaced)"),
 }
+
+
+DIFF_SHEETS = {"human_intent_preserved", "human_same_request", "human_same_harmful_ask"}
+GUESS_COLS = ("judge_label", "model_guess")
+RED, YELLOW, RESET = "\033[1;31m", "\033[1;33m", "\033[0m"
+
+
+def guess_col(fieldnames):
+    return next((c for c in GUESS_COLS if c in (fieldnames or [])), None)
+
+
+def _norm(w):
+    import string
+    return w.lower().strip(string.punctuation)
+
+
+def diff_marks(a: str, b: str):
+    """-> ([(word, changed)] for a, [(word, changed)] for b): word-level difference, ignoring case
+    and surrounding punctuation, so only genuine rewording is marked."""
+    import difflib
+    wa, wb = a.split(), b.split()
+    ma, mb = [True] * len(wa), [True] * len(wb)
+    sm = difflib.SequenceMatcher(a=[_norm(w) for w in wa], b=[_norm(w) for w in wb], autojunk=False)
+    for blk in sm.get_matching_blocks():
+        for k in range(blk.size):
+            ma[blk.a + k] = False
+            mb[blk.b + k] = False
+    return list(zip(wa, ma)), list(zip(wb, mb))
+
+
+def wrap_marked(tokens, width, colour):
+    """Wrap (word, changed) tokens to `width` visible characters. -> [(rendered, visible_len)]."""
+    lines, cur, vis = [], [], 0
+    for w, changed in tokens:
+        add = len(w) + (1 if cur else 0)
+        if cur and vis + add > width:
+            lines.append((" ".join(cur), vis))
+            cur, vis = [], 0
+            add = len(w)
+        cur.append(f"{colour}{w}{RESET}" if changed else w)
+        vis += add
+    if cur:
+        lines.append((" ".join(cur), vis))
+    return lines or [("", 0)]
 
 
 def sheet_spec(fieldnames):
@@ -107,20 +155,24 @@ def _getch():
     return ch
 
 
-def _render(row, i, n, labeled, spec, label_col, show_judge):
+def _render(row, i, n, labeled, spec, label_col, show_judge, gcol=None):
     lh, lcol, rh, rcol, question = spec
     cols = shutil.get_terminal_size((100, 30))
     width, height = cols.columns, cols.lines
     colw = max(20, (width - 3) // 2)
     body_h = max(6, height - 10)
-    left = textwrap.wrap(row.get(lcol, "") or "", colw) or [""]
-    right = textwrap.wrap(row.get(rcol, "") or "", colw) or [""]
+    if label_col in DIFF_SHEETS:
+        ta, tb = diff_marks(row.get(lcol, "") or "", row.get(rcol, "") or "")
+        left, right = wrap_marked(ta, colw, RED), wrap_marked(tb, colw, YELLOW)
+    else:
+        left = [(x, len(x)) for x in (textwrap.wrap(row.get(lcol, "") or "", colw) or [""])]
+        right = [(x, len(x)) for x in (textwrap.wrap(row.get(rcol, "") or "", colw) or [""])]
     trunc = len(left) > body_h or len(right) > body_h
     left, right = left[:body_h], right[:body_h]
     print("\033[2J\033[H", end="")  # clear + home
     cls = row.get("transform_class", "") or ""
     bid = row.get("bid", "") or row.get("row", "")
-    jl = row.get("judge_label", "") if show_judge else ""
+    jl = row.get(gcol, "") if (show_judge and gcol) else ""
     hf = row.get(label_col, "")
     shown = hf if hf != "" else (jl if show_judge else "")
     head = f" row {i+1}/{n}   labeled {labeled}/{n}"
@@ -132,16 +184,17 @@ def _render(row, i, n, labeled, spec, label_col, show_judge):
     print(f" {question}")
     print(f" {lh.ljust(colw)} | {rh}")
     print(" " + "-" * (colw) + "-+-" + "-" * (colw))
-    for l, r in zip_longest(left, right, fillvalue=""):
-        print(" " + l.ljust(colw) + " | " + r)
+    for (l, lv), (r, _) in zip_longest(left, right, fillvalue=("", 0)):
+        print(" " + l + " " * max(0, colw - lv) + " | " + r)
     if trunc:
         print(" … (truncated — press 'e' to expand)")
     print()
     if show_judge and jl != "":
-        print(f" judge guessed: {jl}    current label: [{shown}]")
+        who = "model (gemma4) guessed" if gcol == "model_guess" else "judge guessed"
+        print(f" {who}: {jl}    current label: [{shown}]")
     else:
         mark = shown if shown != "" else "\u2014"
-        print(f" current label: [{mark}]        (blind: no judge guess \u2014 press 1 or 0)")
+        print(f" current label: [{mark}]        (no guess shown \u2014 press 1 or 0)")
     print(" 1=yes  0=no  f=flip  e=expand  b=back  s=skip  q=save&quit   ([enter]=accept, only where a guess is shown)")
 
 
@@ -162,7 +215,8 @@ def main():
     # exactly what a calibration sheet measures -- so showing it inflates kappa. It stays
     # the default only where it already was (sheets carrying judge_label), for continuity
     # with the SORRY-Bench calibration; --blind turns it off.
-    show_judge = ("judge_label" in fieldnames and "--blind" not in flags) or "--show-judge" in flags
+    gcol = guess_col(fieldnames)
+    show_judge = (gcol is not None and "--blind" not in flags) or "--show-judge" in flags
     n = len(rows)
     i = next((k for k, r in enumerate(rows) if (r.get(label_col, "") == "")), 0)
 
@@ -171,12 +225,12 @@ def main():
 
     try:
         while 0 <= i < n:
-            _render(rows[i], i, n, labeled_count(), spec, label_col, show_judge)
+            _render(rows[i], i, n, labeled_count(), spec, label_col, show_judge, gcol)
             key = _getch()
             # On a blind sheet there is no judge guess, so there is nothing for Enter to
             # accept. Defaulting it to "0" made Enter silently mean "no" -- a labeller
             # pressing through produced a file of zeros that looked like real judgements.
-            cur = rows[i].get(label_col) or (rows[i].get("judge_label") if show_judge else "")
+            cur = rows[i].get(label_col) or (rows[i].get(gcol) if (show_judge and gcol) else "")
             if not cur and key in ("\r", "\n", " "):
                 continue                       # redraw; require an explicit 0/1
             action, val = decide(key, cur or "0")

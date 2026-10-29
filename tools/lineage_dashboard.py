@@ -1349,7 +1349,16 @@ def sec_gate(an):
                     f"(lexical-divergence floor){f', {bt:,} of them back-translations that round-tripped to nearly the same sentence' if bt else ''}. "
                     f"That layer's score is not persisted in the manifest, so these rows carry placeholder 1.0 scores; they are "
                     f"excluded from the histograms below.</li>")
-    if g["human_labelled"] == 0:
+    import gate_audit as _ga
+    ga_res = _ga.score(Path(__file__).resolve().parents[1] / "audit" / "gate")
+    if ga_res and ga_res["contamination_R"]["n"]:
+        c = ga_res["contamination_R"]
+        warn.append(f"<li><b>Human gate audit (separate sheet, audit/gate/).</b> {c['k']} of the {c['n']} admitted rewordings that "
+                    f"re-opened a 3-8B → 3.1-8B fix changed the request ({pct(c['rate'])}); 0 of "
+                    f"{ga_res['contamination_A']['n']} other admitted rewordings did. No RSR moves when they are dropped. "
+                    "The manifest's own audit rows stay unlabelled, so the run summary's “false-admission rate 0.0” is still "
+                    "not that measurement. Labels from row 19 on were model-assisted (gemma4 guess shown).</li>")
+    elif g["human_labelled"] == 0:
         warn.append("<li><b>No human audit yet.</b> None of the audit rows carries a human label. The run summary's "
                     "“false-admission rate 0.0” is computed against a default of <i>preserved</i> for every variant, so it "
                     "is not evidence that the gate admits only intent-preserving rewordings. Run <code>audit-export</code> → "

@@ -228,8 +228,10 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   confirmatory calibration showed "0/398 labelled" for days with nothing anyone could label.
 - **Gate audit scores in the manifest are partly placeholders.** `RealGate` short-circuits (lexical → cosine → BERTScore
   → NLI) and `to_gate_scores()` writes 1.0 for every layer not evaluated; the lexical layer isn't persisted at all.
-  `llm_intent` is 1.0 everywhere (no intent model configured). `human_label` is None on every row, so the summary's
-  `false_admission_rate: 0.0` is vacuous until `audit-export`/`audit-ingest` is done.
+  `llm_intent` is 1.0 everywhere (no intent model configured). `human_label` is None on every manifest row, so a summary's
+  `false_admission_rate: 0.0` is vacuous; the real measurement is the D5 sheet `audit/gate/gate_sheet.csv` (178/178, scored by
+  `tools/gate_audit.py ingest`, read by `gate_audit.score()` on the dashboards): 3/98 re-opening rewordings changed the request,
+  no RSR moves. Rows 19–178 were model-assisted (`tools/gate_guess.py`, gemma4 guess shown; `audit/gate/MODEL_ASSISTED.txt`).
 - **`calibrate_from_human` weights by the population strata, but only if you pass them.** Give it
   `n_pos_total`/`n_neg_total` (from the sheet's `judge_strata.txt`) and it hands them to `invert_stratified`, with the
   sample sizes setting only the bootstrap; omit them and it returns unweighted rates plus a note saying they are valid

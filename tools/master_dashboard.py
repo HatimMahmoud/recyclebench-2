@@ -29,6 +29,7 @@ import lineage_dashboard as ld                  # noqa: E402  (shared chart/tabl
 import study_data as sd                         # noqa: E402
 import compose_arcs_section as ca               # noqa: E402
 import inversion_section as iv                  # noqa: E402
+import gate_audit as ga                         # noqa: E402
 from recyclebench.stats import wilson_interval  # noqa: E402
 
 esc, pct, ci_txt, p_txt, num = ld.esc, ld.pct, ld.ci_txt, ld.p_txt, ld.num
@@ -481,8 +482,15 @@ def sec_summary(s):
                  "offline-rule P⁻, and the older model answers all 61 (tools/rpe_reconcile.py).")
     integ.append("<b>The style-arc ranking in the previous dashboard was inflated by placeholders</b>: rejected rewordings carry "
                  "1.0 for every gate layer that never ran, so back-translation looked best. Scored-only means reorder the styles (section 10).")
-    integ.append("<b>Gate “false-admission 0.0” is not a measurement</b>: no audit row has a human label, so the "
-                 "gate’s error is unmeasured regardless of how many layers ran (section 13).")
+    g = _gate_audit()
+    if g and g["contamination_R"]["n"]:
+        c = g["contamination_R"]
+        integ.append(f"<b>The gate’s false-admission rate is now measured</b>: {c['k']} of the {c['n']} admitted rewordings that "
+                     f"re-opened an anchor fix changed the request ({pct(c['rate'])}, Wilson {ci_txt(c['lo'], c['hi'])}), and no RSR "
+                     "moves once they are dropped. Labels from row 19 on were model-assisted (section 13).")
+    else:
+        integ.append("<b>Gate “false-admission 0.0” is not a measurement</b>: no audit row has a human label, so the "
+                     "gate’s error is unmeasured regardless of how many layers ran (section 13).")
     n_stale = sum(1 for a_ in s.registry if a_.status == "stale-copy")
     integ.append(f"<b>{n_stale} stale copies</b> were found (a HarmBench summary that is StrongREJECT's, pilots copied across "
                  "benchmarks by a failed run) and are excluded (section 15).")
@@ -574,7 +582,7 @@ def sec_status(s):
          status_chip("none", "HarmBench / AdvBench / StrongREJECT / lineage pairs: " + NOT_YET)],
         ["Judge calibration · attack arm", status_chip("partial", "60 responses, stratified"),
          "design-weighted correction computed here; a class-stratified audit of judge-negatives is " + NOT_YET],
-        ["Gate human audit", status_chip("none"), "0 of every manifest's audit rows carry a human label"],
+        _gate_status_row(),
         _inv_status_row(s),
         ["LLM intent layer (L2)", status_chip("complete", "applied post hoc"),
          "gemma4:e4b via tools/regate_intent.py: 5,769 admitted rewordings re-checked, 61 rejected. "
@@ -922,6 +930,18 @@ def _inv(s):
     return s._inv
 
 
+def _gate_status_row():
+    g = _gate_audit()
+    if not g:
+        return ["Gate human audit", status_chip("none"), "audit/gate/gate_sheet.csv: no row labelled"]
+    n = sum(g["labelled"].values())
+    c = g["contamination_R"]
+    return ["Gate human audit", status_chip("complete" if n == g["of_sheet"] else "partial",
+                                            "complete · model-assisted" if g.get("model_assisted") and n == g["of_sheet"] else None),
+            f"{n}/{g['of_sheet']} rows; false admissions among re-opening rewordings {c['k']}/{c['n']} ({pct(c['rate'])}), "
+            "no RSR changes (section 13)"]
+
+
 def _inv_status_row(s):
     inv = _inv(s)
     runs = [r for r in inv.runs.values() if r.p_minus]
@@ -1206,6 +1226,34 @@ def sec_judges(s):
                            "calibration; it is never applied to the attack arm.</li></ul>"))
 
 
+def _gate_audit():
+    try:
+        return ga.score(sd.ROOT / "audit" / "gate")
+    except (OSError, KeyError, ValueError):
+        return None
+
+
+def _gate_audit_panel(g) -> str:
+    if not g:
+        return panel("Human audit of the gate", f"<p class='note'>{NOT_YET}: no row of audit/gate/gate_sheet.csv is labelled.</p>")
+    def cell(x):
+        return f"{x['k']}/{x['n']} · {pct(x['rate'])} <span class='sub'>{ci_txt(x['lo'], x['hi'])}</span>"
+    rows = [["Admitted rewordings that re-opened an anchor fix (census)", cell(g["contamination_R"])],
+            ["Other admitted rewordings (random sample)", cell(g["contamination_A"])],
+            ["All admitted rewordings, weighted to the population", pct(g["contamination_admitted_weighted"], 2)]]
+    rsr = [[esc(r["bench"]), num(r["n_pminus"]), num(r["reopened"]), num(r["reopened_after_audit"])] for r in g["rsr_after_audit"]]
+    ch = ", ".join(f"{b} {x}" for _, b, x in g.get("changed_rows", [])) or "none"
+    ma = ("<p class='flag'>▲ Model-assisted: from row 19 the labeller saw a gemma4 guess per row "
+          "(audit/gate/MODEL_ASSISTED.txt), a deviation from the blind protocol registered in Amendment 1 (D5). "
+          "Rows 1–18 were labelled blind.</p>") if g.get("model_assisted") else ""
+    return panel("Human audit of the gate — false admissions",
+                 ma + table(["Stratum", "Request changed · rate [Wilson 95%]"], rows)
+                 + table(["Benchmark", "P⁻ (anchor pair)", "Re-opened", "Re-opened without the changed rewordings"], rsr, num_cols=(1, 2, 3)),
+                 f"{sum(g['labelled'].values())} of {g['of_sheet']} rows labelled (audit/gate/gate_sheet.csv, rubric RUBRIC.txt). "
+                 f"Changed: {esc(ch)}. Every behaviour they re-opened is still re-opened by another admitted rewording, so no RSR "
+                 "moves. The false-rejection rate is not estimable: manifests do not keep rejected rewordings' text.")
+
+
 def sec_gate(s):
     rows, keys = [], [("adm", "sb-adm", "admitted"), ("lexical_divergence", "sb-lex", "lexical divergence"),
                       ("cosine", "sb-cos", "embedding cosine"), ("bertscore", "sb-bert", "BERTScore"), ("nli_entail", "sb-nli", "NLI entailment")]
@@ -1224,8 +1272,9 @@ def sec_gate(s):
                                       "Human labels", "L2 ran"], trows, num_cols=(2, 4, 5, 6, 7, 8)),
                          "First failing layer per rejected rewording. The lexical-divergence floor (rewording too close to the original) is the "
                          "largest single rejecter on several manifests; its score is not persisted. Layer (d) was applied post hoc "
-                         "(gemma4:e4b, 61 of 5,769 rewordings rejected), but no manifest has a human-labelled audit row, "
-                         "so the gate's false-admission rate is still unmeasured.")
+                         "(gemma4:e4b, 61 of 5,769 rewordings rejected). The manifests' own audit rows carry no human label; the "
+                         "human audit is the separate sheet below.")
+                   + _gate_audit_panel(_gate_audit())
                    , lede="Thresholds: cosine ≥ 0.75, BERTScore ≥ 0.85, NLI ≥ 0.60 (strict) — ANDed after a lexical-divergence floor.")
 
 
@@ -1304,8 +1353,8 @@ def sec_appendix(s):
             "python3 tools/apply_calibration.py ...                 # anchor headline (see its docstring)\n"
             "python3 -m pytest tests/ -q")
     errata = ("<ul class='take'><li>Risk register row “4-signal intent gate … report its false-admission rate — built”: the L2 intent "
-              "signal was not run inside any run-real pass -- it was applied post hoc from cache/intent_gemma4_e4b.jsonl -- and no "
-              "audit row is human-labelled, so the gate's false-admission rate is still unmeasured.</li>"
+              "signal was not run inside any run-real pass -- it was applied post hoc from cache/intent_gemma4_e4b.jsonl. The "
+              "false-admission rate was measured on 2026-10-29 by the human gate audit (section 13).</li>"
               f"<li>The McNemar p shown in 07·g is the anchor pair's ({p_txt(anchor(s)[1]['RSR']['mcnemar_p']) if anchor(s)[1] else '—'}), "
               "not the HarmBench pilot's 6×10⁻⁵ used by the previous dashboard.</li></ul>")
     return section("s-appendix", "16", "Reproduce · positioning appendix",
