@@ -200,7 +200,8 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   post-hoc pairs (llama2-7b → llama3-8b / → llama31-8b, SORRY-Bench + HarmBench) were run, reusing llama2-7b inversions
   from the 2-13b pair. Anchor: closed loop 36/38 (resolves 38/49), intent gate 2/5 (resolves 5/49) against RSR 23/49, so
   the inversion arm's lead over paraphrase rests on gate-rejected reconstructions. That is what the blind harmful-ask
-  sheet `audit/rpe/rpe_harm_sheet_20261028_2327.csv` (65 rows, 36 behaviours, 0 labelled) settles; the 83-row topical
+  sheet `audit/rpe/rpe_harm_sheet_20261028_2327.csv` settled on 2026-10-29 (65/65 blind: 61 keep the harmful ask, all 36
+  behaviours verified, anchor PRR 36/38 confirmed); the 83-row topical
   sheet covers superseded candidates and audits nothing current. The 38/49 vs 7/61 gap (THESIS_KB §4.2) was the
   admission rule, and TODO_HUMAN A6 was a subset-CSV id join error (`results/analysis_rpe_reconcile_20261028_2333/`).
   Dashboards built 2026-10-28 23:33 show it all (master §09/§09b, every pair page, lineage §09). One battery-induced

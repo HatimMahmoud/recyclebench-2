@@ -449,10 +449,19 @@ def sec_summary(s):
     a = _inv(s).get(*iv.ANCHOR)
     if a and a.gated and a.adm("loop") and a.adm("gate"):
         lp, g = a.adm("loop"), a.adm("gate")
-        f.append(f"<b>Output inversion re-opens more than paraphrase only under its unchecked admission.</b> On the anchor "
-                 f"the closed loop resolves {lp['n']} of {a.p_minus} fixes and re-opens {lp['k']}; under the recycle arm's own "
-                 f"intent gate the same reconstructions resolve {g['n']} and re-open {g['k']}. The gap rests on reconstructions "
-                 "the gate rejects, so it is an upper bound until the harmful-ask audit is labelled (section 09).")
+        done = iv.audited(_inv(s), a)
+        if done:
+            f.append(f"<b>Output inversion re-opens far more fixes than paraphrase, and a blind audit confirms it.</b> On the "
+                     f"anchor the closed loop re-opens {lp['k']} of the {lp['n']} fixes it resolves, against RSR "
+                     f"{(a.view or {}).get('RSR', {}).get('k', '—')}/{a.p_minus}; a blind harmful-ask audit verified all "
+                     f"{done['verified']} re-openings. The intent gate admits few reconstructions ({g['n']} of {a.p_minus} "
+                     "resolved), but the audited ones still ask for the same harmful thing: the gate under-admits inversions "
+                     "(section 09). Exploratory, anchor pair only.")
+        else:
+            f.append(f"<b>Output inversion re-opens more than paraphrase only under its unchecked admission.</b> On the anchor "
+                     f"the closed loop resolves {lp['n']} of {a.p_minus} fixes and re-opens {lp['k']}; under the recycle arm's own "
+                     f"intent gate the same reconstructions resolve {g['n']} and re-open {g['k']}. The gap rests on reconstructions "
+                     "the gate rejects, so it is an upper bound until the harmful-ask audit is labelled (section 09).")
     f.append(f"<b>The effect replicates on other benchmarks, but they are thin.</b> Across {cells} pair × benchmark cells "
              f"the offline rule re-opens {k} of {n} fixes ({pct(p, 0)}). Raw-prompt P⁻ is small outside SORRY-Bench because "
              "safety-tuned older models already refuse most raw harm (section 05).")

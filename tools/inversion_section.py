@@ -169,6 +169,12 @@ def load(root: Path = None, runs_root: Path = None, audit_dir: Path = None) -> I
                json.loads(rec.read_text()) if rec else None, runs_root, root)
 
 
+def audited(inv: Inv, r: InvRun) -> Optional[dict]:
+    """The audit row when every behaviour on the sheet is labelled (the bracket is closed), else None."""
+    hb = harm_bracket(inv, r) if r else None
+    return hb if hb and hb["pending"] == 0 else None
+
+
 def brackets(inv: Inv) -> dict:
     """{(bench, old, new): audit row} for every run the newest harmful-ask sheet covers."""
     return {k: hb for k, r in (inv.runs.items() if inv else []) if (hb := harm_bracket(inv, r))}
@@ -374,10 +380,14 @@ def master_body(inv: Inv, uid="inv") -> str:
     tiles = []
     if a and a.doc:
         lp, g, b = a.adm("loop"), a.adm("gate"), a.adm("both")
-        tiles.append(ld.tile("Anchor · closed loop (upper bound)", _kn(lp),
+        done = audited(inv, a)
+        tiles.append(ld.tile("Anchor · closed loop" + (" · human-audited" if done else " (upper bound)"),
+                             (f'{pct(done["lower"]["rate"], 0)} <span class="sub">{done["lower"]["k"]}/{done["lower"]["n"]}</span>'
+                              if done else _kn(lp)),
                              f"resolved {lp['n']}/{a.p_minus} of P⁻ · Wilson {ld.ci_txt(*lp['ci'])}" if lp and lp.get("n") else "",
-                             emph=True, tip="A_loop: the older model's reply to the reconstruction is equivalent to its original answer. "
-                                            "No intent check, so an upper bound until the harmful-ask audit."))
+                             emph=True, tip=("A_loop, with every re-opened behaviour verified by the blind harmful-ask audit."
+                                             if done else "A_loop: the older model's reply to the reconstruction is equivalent to its "
+                                             "original answer. No intent check, so an upper bound until the harmful-ask audit.")))
         if a.gated:
             tiles.append(ld.tile("Anchor · intent gate (RSR's admission)", _kn(g, "none resolved"),
                                  f"resolved {g['n'] if g else 0}/{a.p_minus} of P⁻ · RSR {pct(((a.view or {}).get('RSR') or {}).get('rate'))}",
@@ -386,7 +396,8 @@ def master_body(inv: Inv, uid="inv") -> str:
                                  f"resolved {b['n'] if b else 0}/{a.p_minus} of P⁻"))
     h = inv.audit.get("harm") if inv.audit else None
     tiles.append(ld.tile("Harmful-ask audit", f"{h['labelled']}/{h['rows']}" if h else "—",
-                         "rows labelled · closes the bracket" if h else "no sheet exported yet",
+                         (f"rows labelled · {sum(p['verified'] for p in h['pairs'])} re-opened behaviours verified"
+                          if h and h["labelled"] == h["rows"] else "rows labelled · closes the bracket") if h else "no sheet exported yet",
                          tip="audit/rpe/rpe_harm_sheet_*.csv: does the reconstruction still ask for the same harmful thing?"))
 
     tabs, panels = [], []
@@ -430,16 +441,25 @@ def master_notes(inv: Inv, early_html: str = "") -> str:
     """Section 09b: why the numbers differ, what is audited, the controls, and the superseded runs."""
     out = []
     a = inv.get(*ANCHOR) if inv else None
-    take = ["<li><b>Read the closed-loop column as an upper bound.</b> It admits a reconstruction when the older "
-            "model's reply to it matches its original answer; nothing checks that the reconstruction still asks "
-            "for the same harmful thing.</li>"]
+    done = audited(inv, a) if a else None
+    if done:
+        take = [f"<li><b>On the anchor the closed loop is human-audited.</b> A blind harmful-ask audit verified all "
+                f"{done['verified']} re-opened behaviours: each has at least one reconstruction that still asks for the same "
+                f"harmful thing, so PRR {done['lower']['k']}/{done['lower']['n']} stands. Other pairs' closed-loop figures "
+                "remain unaudited upper bounds.</li>"]
+    else:
+        take = ["<li><b>Read the closed-loop column as an upper bound.</b> It admits a reconstruction when the older "
+                "model's reply to it matches its original answer; nothing checks that the reconstruction still asks "
+                "for the same harmful thing.</li>"]
     if a and a.gated and a.adm("gate") and a.adm("loop"):
         g, lp, rs = a.adm("gate"), a.adm("loop"), (a.view or {}).get("RSR") or {}
         take.append(f"<li><b>Under the intent gate, inversion looks like paraphrase, on very few fixes.</b> On the anchor "
                     f"the gate resolves {g['n']} of {a.p_minus} fixes and re-opens {g['k']} ({pct(g['rate'])}), next to "
                     f"RSR {pct(rs.get('rate'))}; the closed loop resolves {lp['n']} and re-opens {lp['k']} "
                     f"({pct(lp['rate'])}). So the arm's lead over paraphrase on the anchor is carried by reconstructions "
-                    "the gate rejects, which is exactly the set the harmful-ask audit has to settle.</li>")
+                    + ("the gate rejects; the human audit finds those still ask for the same harmful thing, so the gate "
+                       "under-admits inversions rather than filtering out drift.</li>" if done else
+                       "the gate rejects, which is exactly the set the harmful-ask audit has to settle.</li>"))
     out.append(f"<div class='panel'><h3>How to read the inversion arm</h3><ul class='take'>{''.join(take)}</ul></div>")
     rec = inv.reconcile if inv else None
     if rec:
@@ -519,7 +539,8 @@ def pair_panel(inv: Inv, bench: str, old: str, new: str) -> str:
     if not r.doc:
         return f"<div class='panel'><h3>Output inversion (RPE)</h3><p class='note'>{NOT_YET}: manifest built, closed loop not scored.</p></div>"
     tiles = []
-    for a, lab in (("loop", "closed loop · upper bound"), ("gate", "intent gate · RSR's admission"), ("both", "gate + loop · primary")):
+    for a, lab in (("loop", "closed loop · " + ("human-audited" if audited(inv, r) else "upper bound")),
+                   ("gate", "intent gate · RSR's admission"), ("both", "gate + loop · primary")):
         x = r.adm(a) if (a == "loop" or r.gated) else None
         tiles.append(ld.tile("PRR · " + lab, _kn(x, "none resolved" if r.gated or a == "loop" else "gate not scored"),
                              f"resolved {x['n']}/{r.p_minus} of P⁻" if x and x.get("n") is not None else ""))

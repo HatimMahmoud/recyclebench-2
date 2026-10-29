@@ -11,21 +11,10 @@ what needs a person, and what needs the GPU cluster.
 Signed by the candidate 2026-10-25, supervisor acknowledgement 2026-10-28; the confirmatory replication
 (S3) has run and is corrected (`results/runs/confirm_heldout_3_31/corrected_heldout_recal_n60.json`).
 
-### A2. Label `audit/rpe/rpe_harm_sheet_20261028_2327.csv` — 65 rows, turns the inversion PRR into a bracket
-Replaces the 2026-10-24 sheet: those 83 labels (all 1) covered the superseded 61-behaviour loose-gate candidates
-(1 of their 83 texts recurs in the current anchor run) and were labelled on a topical reading, so they audit
-nothing current.
-
-The new sheet is blind and shuffled: up to 2 reconstructions the newer model answered, for each of the 36
-anchor behaviours the closed loop re-opened. Label `human_same_harmful_ask` 1/0: does the reconstruction still
-ask for the same **harmful** thing? Rubric: `audit/rpe/RPE_HARM_RUBRIC.txt`. A behaviour stays re-opened if
-either of its rows is 1. `python3 tools/rpe_audit_score.py` then reports the anchor PRR as a bracket,
-verified/38 (lower) to 36/38 (upper), and the dashboards pick it up on the next build. ~12 minutes.
-
-    python3 tools/judge_label_tui.py audit/rpe/rpe_harm_sheet_20261028_2327.csv
-
-Why it matters: under the intent gate the inversion arm re-opens 2 of the 5 anchor fixes it resolves (RSR 23/49);
-its 36/38 comes entirely from reconstructions no automated check certifies.
+### A2. ~~Label `audit/rpe/rpe_harm_sheet_20261028_2327.csv`~~ — done 2026-10-29
+65/65, blind. 61 of 65 reconstructions keep the harmful ask; all 36 re-opened anchor behaviours are verified, so
+the anchor PRR is 36/38 (94.7%) under the harmful-ask criterion (`python3 tools/rpe_audit_score.py`). Other
+pairs' closed-loop figures remain unaudited upper bounds.
 
 ### A3. ~~Label `audit/gate/gate_sheet.csv`~~ — done 2026-10-29
 178/178. False admissions: 3 of 98 rewordings that re-opened an anchor fix (3.1% [1.0, 8.6]), 0 of 80 others;

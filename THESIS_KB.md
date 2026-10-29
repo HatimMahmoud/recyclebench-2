@@ -210,8 +210,13 @@ scores as refusals, which is the "total collapse" mode in §4.4.
 **What the gate-scored numbers show.** On the anchor the intent gate re-opens 2 of the 5 fixes it
 resolves, beside RSR 23/49; the closed loop re-opens 36 of 38. So the inversion arm's lead over
 paraphrase on the anchor rests on reconstructions the gate rejects, which is exactly the set no
-automated check has certified. **The A_loop PRR is an upper bound until the harmful-ask audit is
-labelled**, and `A_gate` is the only figure directly comparable to RSR (tiny n).
+automated check has certified. **Harmful-ask audit, labelled blind 2026-10-29**
+(`audit/rpe/rpe_harm_sheet_20261028_2327.csv`, 65 rows over the 36 re-opened anchor behaviours): 61 of 65
+reconstructions still ask for the same harmful thing, and every one of the 36 behaviours has at least one that does.
+The bracket closes: **anchor PRR = 36/38 (94.7%) under the harmful-ask criterion**, against RSR 23/49 (McNemar
+3.1e-5). The gate-rejected reconstructions are mostly faithful, i.e. the intent gate under-admits inversions (the
+entailment bound) rather than filtering out drift. Exploratory (an addition, single labeller); other pairs' A_loop
+figures remain unaudited upper bounds.
 
 **Audit.** The 83-row sheet labelled on 2026-10-26 (`audit/rpe/rpe_sheet_20261024_1505.csv`, all 1)
 covers the superseded 61-behaviour loose-gate candidates (1 of its 83 texts recurs in the current
@@ -577,8 +582,7 @@ See `ETHICS.md`.
 5. ~~`audit/harmbench/judge_sheet.csv`~~ — **done 2026-10-29**, 196/196 blind: qwen2.5:14b se 0.865 [0.720, 1.000],
    sp 1.000, κ 0.933 (60 bundles, design-weighted 113/264), admitted. Its sensitivity matches SORRY-Bench's (0.862), so
    carrying the SORRY-Bench calibration to HarmBench in the pooled estimate (A3.1) is supported, not just assumed.
-6. Label the harmful-ask inversion audit (`audit/rpe/rpe_harm_sheet_*.csv`, `python3 tools/judge_label_tui.py <sheet>`),
-   which turns the anchor's A_loop PRR from an upper bound into a bracket. The old topical pass does not count (§4.2).
+6. ~~Harmful-ask inversion audit~~ — **done 2026-10-29**: anchor PRR 36/38 verified, bracket closed (§4.2).
 7. Blind re-label of the SORRY-Bench sheet, to measure anchoring (it was labelled unblinded).
 
 ---
