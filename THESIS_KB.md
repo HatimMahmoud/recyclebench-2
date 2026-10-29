@@ -317,6 +317,21 @@ attacker from a fixed benign transform to a mild optimiser. If it is added: repo
 from the RSR headline, and select on one behaviour split while reporting on a held-out one. As run,
 none of this applies — there is nothing selected, so nothing to correct.
 
+### 4.4b Compose v2 — the 21-condition transform-class factorial (2026-10-29)
+`PREREG_COMPOSE_V2_20261029.md` (registered before data), `tools/run_compose_v2.py`, run
+`results/runs/compose_v2_20261029_2222/` (store `cache/compose_v2/`). Anchor pair, the 49 judged fixes, 6 single
+styles + 15 style pairs (A then B), 3 candidates each, production gate against the original, qwen judge against the
+candidate text. All 3 candidate levels complete for every condition.
+
+**Result: no supra-additivity.** For no style pair does the pair re-open more fixes than "either of its two singles"
+on the shared behaviours; the pair is usually equal or lower (primary McNemar, 15 tests: smallest raw p 0.016 for
+paraphrase+register, in the *other* direction — the singles win — and nothing survives Holm, min p_holm 0.23). Against
+each single separately (equal 3-candidate budget, 30 tests) nothing differs either (min p_holm 0.35). "Composite-only"
+re-openings are 0–5 per pair. Per-condition RSR ranges 23.5% (back_translation, 4/17) to 58.3% (tense_shift+register,
+21/36). Caveat: "either single" pools 6 candidates against the pair's 3, which favours the singles by budget; the
+equal-budget secondary comparison also finds nothing. Reading: stacking two rewording styles does not reach fixes
+that a single style cannot — consistent with the fix being tied to surface form broadly, not to one style. Exploratory.
+
 ### 4.5 Mechanistic / white-box (future work in the exposé, PoC built)
 `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS) and
 records per layer the Arditi refusal-direction score, residual divergence, top MLP neurons and

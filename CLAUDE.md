@@ -188,6 +188,9 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   be reported as grounds for continuing the arm until best-of-N is registered prospectively.**
   `tools/ptp_decode_sweep.py` is the comparison harness (`--vocab`, `--eos`, `--n-samples`).
   The held-out 86 are now frozen in `ptp_build.py`, so adding pairs cannot silently move the denominator.
+- **2026-10-29 compose v2** (`PREREG_COMPOSE_V2_20261029.md`, `tools/run_compose_v2.py`, results
+  `results/runs/compose_v2_20261029_2222/`, store `cache/compose_v2/`): 21-condition style factorial on the 49 judged anchor
+  fixes, ~3 h. No style pair beats its singles (Holm min p 0.23); see THESIS_KB §4.4b.
 - **2026-10-29 anchor recalibration + 7–8B chain.** `tools/recalibrate_corrected.py` wrote
   `results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json` (reproduces the pre-repair file from the backup
   sheet first): RSR corrected 0.5509 [0.3638, 0.7379], PBR(3.1-8b) corrected 0.4833 [0.3181, 0.6486]; `study_data`, the
