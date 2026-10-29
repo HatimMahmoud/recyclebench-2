@@ -582,6 +582,8 @@ See `ETHICS.md`.
 5. ~~`audit/harmbench/judge_sheet.csv`~~ — **done 2026-10-29**, 196/196 blind: qwen2.5:14b se 0.865 [0.720, 1.000],
    sp 1.000, κ 0.933 (60 bundles, design-weighted 113/264), admitted. Its sensitivity matches SORRY-Bench's (0.862), so
    carrying the SORRY-Bench calibration to HarmBench in the pooled estimate (A3.1) is supported, not just assumed.
+   Sensitivity (`thesis_analysis.py`, `pooled_own_calibration`): pooled anchor RSR 45/82 corrected 62.2% [47.0, 77.5]
+   with SORRY-Bench's calibration everywhere vs 62.3% [49.2, 75.5] with HarmBench's own — no change.
 6. ~~Harmful-ask inversion audit~~ — **done 2026-10-29**: anchor PRR 36/38 verified, bracket closed (§4.2).
 7. Blind re-label of the SORRY-Bench sheet, to measure anchoring (it was labelled unblinded).
 

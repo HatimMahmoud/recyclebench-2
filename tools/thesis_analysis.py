@@ -142,6 +142,29 @@ def pooled(blocks, jc, t_mean):
     return out
 
 
+def pooled_by_benchmark_calibration(blocks, jcs: dict, default_jc, t_mean):
+    """Sensitivity to the calibration-transfer assumption: correct each benchmark's k/n with its OWN human
+    calibration where one exists (else the default, SORRY-Bench), then pool the corrected rates weighted by
+    |P^-|. Interval: delta method per benchmark, variances summed with weights (n_b / N)^2."""
+    import math
+    blocks = [b for b in blocks if b.get("complete") and b["n_pminus"]]
+    N = sum(b["n_pminus"] for b in blocks)
+    if not N or default_jc is None:
+        return None
+    point, var, per = 0.0, 0.0, []
+    for b in blocks:
+        jc = jcs.get(b["bench"]) or default_jc
+        iv = corrected_interval(b["k"], b["n_pminus"], jc, t_mean=t_mean)
+        w = b["n_pminus"] / N
+        point += w * iv.point
+        var += (w * (iv.high - iv.low) / 3.92) ** 2
+        per.append(dict(bench=b["bench"], calibration=("own" if b["bench"] in jcs else "SORRY-Bench"),
+                        k=b["k"], n=b["n_pminus"], corrected=iv.point, lo=iv.low, hi=iv.high))
+    half = 1.959963984540054 * math.sqrt(var)
+    return dict(corrected=point, lo=max(0.0, point - half), hi=min(1.0, point + half), per_benchmark=per,
+                calibrations={k: dict(se=v.se, sp=v.sp) for k, v in jcs.items()})
+
+
 def tighten(delta):
     thr = {k: v + delta for k, v in STRICT.items() if k in ("cosine", "bertscore", "nli_entail")}
 
@@ -183,6 +206,11 @@ def main(argv=None):
     res["headline"] = dict(pair=f"{OLD} -> {NEW}", per_benchmark=[{k: v for k, v in b.items() if k != "rec"} for b in blocks],
                            pooled=pooled(blocks, jc, t_mean) if all(b["complete"] for b in blocks) else None,
                            mean_admitted=t_mean)
+    hb = (cal or {}).get("harmbench")
+    own = {"harmbench": sd.JudgeChars(se=hb["package"]["se"], sp=hb["package"]["sp"], var_se=hb["package"]["var_se"],
+                                      var_sp=hb["package"]["var_sp"], response_level=False)} if hb else {}
+    res["headline"]["pooled_own_calibration"] = (pooled_by_benchmark_calibration(blocks, own, jc, t_mean)
+                                                 if own and res["headline"]["pooled"] else None)
     oblocks = [rsr_block(offs[b], OLD, NEW) for b in SOURCES]
     res["headline_offline_rule"] = dict(per_benchmark=[{k: v for k, v in b.items() if k != "rec"} for b in oblocks],
                                         pooled=pooled(oblocks, None, t_mean))
@@ -418,6 +446,11 @@ def render_md(r):
               f"McNemar exact p = {p['mcnemar_p']:.2g}"
               + (f"; corrected {pct(p['corrected'])} ({pct(p['corrected_lo'])}–{pct(p['corrected_hi'])}) with the "
                  f"SORRY-Bench bundle calibration (transfer to other benchmarks assumed)" if "corrected" in p else "") + "."]
+        q = h.get("pooled_own_calibration")
+        if q:
+            L += ["", f"Sensitivity, each benchmark with its own human calibration where one exists "
+                  f"({', '.join(x['bench'] + ' ' + x['calibration'] for x in q['per_benchmark'])}): corrected "
+                  f"{pct(q['corrected'])} ({pct(q['lo'])}–{pct(q['hi'])})."]
     po = r["headline_offline_rule"]["pooled"]
     L += [f"Offline refusal rule on the same items: {po['k']}/{po['n_pminus']} = {pct(po['rate'])} "
           f"(Wilson {pct(po['lo'])}–{pct(po['hi'])}).", ""]
