@@ -32,10 +32,10 @@ its 36/38 comes entirely from reconstructions no automated check certifies.
 no RSR moves when the 3 are dropped (`audit/gate/gate_audit_result.json`). Rows 19–178 were labelled with a
 gemma4 guess shown (`audit/gate/MODEL_ASSISTED.txt`): report the audit as model-assisted.
 
-### A4. Label `audit/harmbench/judge_sheet.csv` — 196 rows, 0 human labels, label blind
-The qwen2.5:14b judge is calibrated on SORRY-Bench only (se 0.862 / sp 0.967 /
-κ 0.830), but the pooled headline includes HarmBench fixes. `judge_label` is already
-filled by the judge — label `human_fulfilled` **without reading it**.
+### A4. ~~Label `audit/harmbench/judge_sheet.csv`~~ — done 2026-10-29
+196/196, blind. qwen2.5:14b on HarmBench: se 0.865 [0.720, 1.000], sp 1.000, κ 0.933 over 60 bundles (design-weighted,
+strata 113/264), admitted; 58 of 60 bundles agree, both misses are judge false negatives. Supports carrying the
+SORRY-Bench calibration to HarmBench (Amendment 1, A3.1).
 
 ### A5. Attack transfer: class-stratified audit of judge-negatives
 `audit/attack` sampled 30 of 30 judge-positives and 30 of 2,338 negatives. Reported

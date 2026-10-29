@@ -1088,6 +1088,7 @@ def _weighted(rows, judge_col, N_pos, N_neg, n_boot=4000, seed=11):
 def judge_calibrations() -> dict:
     out = {}
     for name, sheet in [("sorrybench", ROOT / "audit/sorrybench/judge_sheet.csv"),
+                        ("harmbench", ROOT / "audit/harmbench/judge_sheet.csv"),
                         ("attack", ROOT / "audit/attack/judge_sheet.csv")]:
         if not sheet.exists():
             out[name] = None
@@ -1257,13 +1258,14 @@ def build_registry(pilots, recycle_runs, rpe_runs, attack, calib) -> list:
                 iss.append("judge calibration: design-weighted sensitivity ≈ "
                            f"{calib['attack']['design']['qwen']['se']:.2f} (see Judges)")
             reg.append(Artifact(rel(q), "attack transfer", scope, "llm (qwen2.5:14b) vs original goal", "valid", iss, _mtime(q)))
-    for name, sheet in [("sorrybench", "audit/sorrybench/judge_sheet.csv"), ("attack", "audit/attack/judge_sheet.csv")]:
+    for name, sheet in [("sorrybench", "audit/sorrybench/judge_sheet.csv"), ("harmbench", "audit/harmbench/judge_sheet.csv"),
+                        ("attack", "audit/attack/judge_sheet.csv")]:
         c = (calib or {}).get(name)
         if c:
             iss = []
-            if name == "attack" and c.get("design"):
-                iss.append("stratified sample (all 30 judge-positives, 30 of 2,338 judge-negatives); the package "
-                           "inverts with sample, not population, stratum sizes")
+            if c.get("design"):
+                iss.append(f"stratified sample of {c['n_bundles']} units against population strata "
+                           f"{c['strata'][0]:,} / {c['strata'][1]:,}; the package calibration is design-weighted")
             reg.append(Artifact(sheet, "human judge-calibration sheet", name, "human", "valid", iss, _mtime(ROOT / sheet)))
     for p, why in [("results/summary.json", "mock backend (planted synthetic truth) — not a result about any model"),
                    ("results/manifest.jsonl", "mock-backend manifest (synthetic behaviours b0000…)"),

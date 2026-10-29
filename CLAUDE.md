@@ -238,7 +238,8 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   only for a proportional sample. Every caller in the repo passes them. This matters enormously for `audit/attack`
   (30 of 30 judge-positives but 30 of 2,338 negatives): se is **0.072** design-weighted against 0.857 unweighted, so
   attack transfer is badly under-counted. It makes no difference for `audit/sorrybench`, where the sample is the whole
-  population (26 + 34 bundles) and both routes give se 0.862. Neither judge suits attack outputs anyway (the offline
+  population (26 + 34 bundles) and both routes give se 0.862. `audit/harmbench` (labelled blind 2026-10-29, 60 of 113 + 264
+  bundles) gives se 0.865 / sp 1.000 / κ 0.933, supporting the SORRY-Bench calibration's transfer to HarmBench. Neither judge suits attack outputs anyway (the offline
   rule reads ciphers/garble as compliance). On SORRY-Bench the offline rule beats qwen2.5:14b vs humans (bundle κ 0.93
   vs 0.83). *(Earlier copies of this file, and comments in `master_dashboard.py` / `rpe_audit_export.py`, claimed the
   function ignored the totals; that was fixed on 2026-10-22 and the stale wording was corrected 2026-10-27.)*

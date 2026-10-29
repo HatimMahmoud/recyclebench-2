@@ -1169,20 +1169,22 @@ def sec_judges(s):
     inv = [
         ["Offline refusal-prefix rule", "<code>recyclebench.judge.looks_like_refusal</code>",
          "all August pilots and recycle runs; October SORRY-Bench pilots; the anchor's raw run; every reconstruction on this page",
-         "calibrated here on both human sheets"],
+         "calibrated here on all three human sheets"],
         ["qwen2.5:14b rubric", "decorrelated LLM judge, temperature 0, 1-token answer",
          "SORRY-Bench lineage run; anchor headline (re-judge); attack transfer 8B + 70B; RPE on HarmBench; FRESH HarmBench and llama32jb pilots",
-         "calibrated on both sheets (SORRY-Bench admitted κ 0.83)"],
+         "calibrated on three sheets (SORRY-Bench κ 0.83 and HarmBench κ 0.93 admitted; attack sensitivity ≈ 0.07)"],
         ["Target-as-judge", "the newer model grading its own reply", "RPE on SORRY-Bench (strict and loose gate)", "circular: not reportable"],
         ["Proposal ensemble", "StrongREJECT evaluator + HarmBench classifier + Llama Guard 3", "configured in configs/real.yaml (vLLM ids) only", NOT_YET],
     ]
     blocks = []
-    for name, title in [("sorrybench", "SORRY-Bench recycle arm · anchor pair responses"), ("attack", "Attack-transfer arm · Llama 3.1 8B responses")]:
+    for name, title in [("sorrybench", "SORRY-Bench recycle arm · anchor pair responses"),
+                        ("harmbench", "HarmBench recycle arm · anchor pair responses"),
+                        ("attack", "Attack-transfer arm · Llama 3.1 8B responses")]:
         c = (s.calib or {}).get(name)
         if not c:
             blocks.append(panel(title, f"<p class='note'>{NOT_YET}</p>"))
             continue
-        lvl = "bundle" if name == "sorrybench" else "response"
+        lvl = "response" if name == "attack" else "bundle"
         q, o = c[lvl]["qwen"], c[lvl]["offline"]
         rows = []
         for jn, r in [("qwen2.5:14b", q), ("offline rule", o)]:
@@ -1194,7 +1196,12 @@ def sec_judges(s):
                  f"Package calibration (used for the headline): se {c['package']['se']:.3f}, sp {c['package']['sp']:.3f}, "
                  f"κ {c['package']['kappa']:.3f}, {c['package']['n']} complete bundles"
                  + (f", {c['dropped_bundles']} dropped as incomplete" if c.get("dropped_bundles") else "") + ".</p>")
-        if name == "sorrybench":
+        if name == "harmbench":
+            extra += (f"<p class='note'>Labelled blind, 2026-10-29: {c['n_bundles']} bundles sampled from {c['strata'][0]} judge-positive "
+                      f"and {c['strata'][1]} judge-negative ones, so the table shows the sample's raw rates and the package "
+                      "calibration above is the design-weighted one. Its sensitivity matches SORRY-Bench's, which supports "
+                      "carrying the SORRY-Bench calibration over to HarmBench (prereg Amendment 1, A3.1).</p>")
+        elif name == "sorrybench":
             extra += ("<p class='note'>The sheet labels every resolved bundle of the anchor pair (strata 26 judge-positive + 34 "
                       "judge-negative = the whole population), so these rates need no re-weighting.</p>")
         else:
@@ -1222,8 +1229,20 @@ def sec_judges(s):
                            "compliance, its RSR is the more conservative of the two.</li>"
                            "<li>On attack outputs neither judge is adequate: qwen under-detects compliance in transformed replies, the offline rule "
                            "over-detects it in garbled ones. A per-class human audit of judge-negatives is the missing piece.</li>"
+                           + _harmbench_transfer_li(s) +
                            "<li>Every corrected figure on this page uses the package's bundle-level Rogan–Gladen correction with the SORRY-Bench "
                            "calibration; it is never applied to the attack arm.</li></ul>"))
+
+
+def _harmbench_transfer_li(s) -> str:
+    h, so = (s.calib or {}).get("harmbench"), (s.calib or {}).get("sorrybench")
+    if not h or not so:
+        return ""
+    ph, ps = h["package"], so["package"]
+    return (f"<li>The SORRY-Bench calibration transfers to HarmBench: on a blind HarmBench sheet qwen2.5:14b reaches se "
+            f"{ph['se']:.3f}, sp {ph['sp']:.3f}, κ {ph['kappa']:.3f} against se {ps['se']:.3f}, sp {ps['sp']:.3f} on "
+            "SORRY-Bench. So correcting the pooled matched-scale estimate with the SORRY-Bench calibration is supported "
+            "for HarmBench; AdvBench and StrongREJECT remain an assumption.</li>")
 
 
 def _gate_audit():

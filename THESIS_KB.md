@@ -472,6 +472,7 @@ RSR headline carries, and belongs in the write-up.
 | **Manifest audit rows are unlabelled** | `human_label` is None on every manifest row, so a summary's `false_admission_rate: 0.0` is still not a measurement. The measurement is the separate D5 sheet: **`audit/gate/gate_sheet.csv`, 178/178 labelled 2026-10-29** (`python3 tools/gate_audit.py ingest --dir audit/gate`): 3/98 re-opening rewordings changed the request (3.1% [1.0, 8.6]), 0/80 others (0% [0, 4.6]), ≈0.05% weighted; **no RSR moves** when the 3 are dropped. Labels from row 19 were **model-assisted** (§10). |
 | **`judge-export` (CLI) is the MOCK exporter** | Screens the synthetic lineage with `MockJudge` and writes `[benign-placeholder N]` rows into the real schema — a sheet that *looks* finished and is unlabellable. It now exits 1 on a config with a `real:` section. Real runs use `tools/judge_export_real.py`. |
 | **`calibrate_from_human` needs the population totals** | Pass `n_pos_total`/`n_neg_total` or you get unweighted rates. Matters enormously for `audit/attack` (30/30 positives but 30/2338 negatives): se **0.072** design-weighted vs 0.857 unweighted. No difference for `audit/sorrybench` (sample = population). |
+| **Calibration transfer across benchmarks** | The pooled matched-scale estimate corrects every benchmark with the SORRY-Bench calibration. Checked for HarmBench (blind sheet, 2026-10-29: se 0.865 / sp 1.000 / κ 0.933 vs SORRY-Bench 0.862 / 0.968 / 0.833); still an assumption for AdvBench and StrongREJECT (P⁻ 7 and 2). |
 | **Neither judge suits attack output** | The offline rule reads ciphers/garble as compliance. On SORRY-Bench the offline rule actually *beats* qwen2.5:14b against humans (bundle κ 0.93 vs 0.83). |
 | **Truncated arms look complete** | Fixed in `run_compose.py` as of 2026-10-28, but check any runner with a wall-clock budget: a break inside the behaviour loop leaves a *category-biased prefix*, not a random sample. |
 | **Inversion manifests carry `admitted: false`** | `rpe_lineage.py` never ran the gate, so a closed-loop artifact scored from the manifest flag has empty A_gate / A_both and calls every preimage member "gate-rejected". Score with `--gate-store cache/rpe_gate.jsonl` (`*_gated_*.json`). |
@@ -573,7 +574,9 @@ See `ETHICS.md`.
 2. ~~Supervisor sign-off on prereg Amendment 1~~ — **done 2026-10-28** (§A4; candidate signed 2026-10-25).
 3. **PTP best-of-N registration** before any cluster PTP figure is reported.
 4. ~~Reconcile the RPE resolution gap~~ — **done 2026-10-28**: an admission-rule mismatch (§4.2).
-5. `audit/harmbench/judge_sheet.csv` — 0/196 (feeds A3.4).
+5. ~~`audit/harmbench/judge_sheet.csv`~~ — **done 2026-10-29**, 196/196 blind: qwen2.5:14b se 0.865 [0.720, 1.000],
+   sp 1.000, κ 0.933 (60 bundles, design-weighted 113/264), admitted. Its sensitivity matches SORRY-Bench's (0.862), so
+   carrying the SORRY-Bench calibration to HarmBench in the pooled estimate (A3.1) is supported, not just assumed.
 6. Label the harmful-ask inversion audit (`audit/rpe/rpe_harm_sheet_*.csv`, `python3 tools/judge_label_tui.py <sheet>`),
    which turns the anchor's A_loop PRR from an upper bound into a bracket. The old topical pass does not count (§4.2).
 7. Blind re-label of the SORRY-Bench sheet, to measure anchoring (it was labelled unblinded).
