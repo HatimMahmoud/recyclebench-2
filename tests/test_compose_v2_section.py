@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import compose_v2_section as cv2                              # noqa: E402
 
-HAVE = cv2.latest(ROOT) is not None and (ROOT / "cache/compose_v2/candidates.jsonl").exists()
+HAVE = cv2.latest(ROOT, cv2.ANCHOR) is not None and (ROOT / "cache/compose_v2/candidates.jsonl").exists()
 
 
 def test_absent_run_renders_a_note(tmp_path):
@@ -23,6 +23,7 @@ def test_real_run_section():
     agg = cv2.aggregate(ROOT)
     body = cv2.section_body(agg)
     assert "<script" not in body and "<style" not in body and 'role="tablist"' in body
+    assert 'id="panel-cv2-radial"' in body and body.count('class="cv2-ring"') == 10
     # the per-behaviour verdicts reproduce the summary's per-condition counts exactly
     for c in agg["summary"]["conditions"]:
         v = [x for x in agg["verdicts"][c["condition"]].values() if x is not None]

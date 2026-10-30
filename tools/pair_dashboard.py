@@ -1158,9 +1158,9 @@ def sec_compose(s, o, n):
 
 
 def sec_compose2(o, n):
-    """The style factorial, on the anchor pair it was run for."""
-    agg = cv2.aggregate(sd.ROOT)
-    if not agg or [x.strip() for x in agg["summary"]["pair"].split("->")] != [o, n]:
+    """The style factorial, on whichever pair it was run for (the anchor; llama2-7b -> llama31-8b)."""
+    agg = cv2.aggregate(sd.ROOT, (o, n))
+    if not agg:
         return ""
     return md.section("s-compose2", "02c", "Style factorial — 21 conditions", cv2.section_body(agg), cv2.LEDE)
 

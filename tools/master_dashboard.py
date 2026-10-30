@@ -1098,10 +1098,11 @@ def sec_arcs(s):
 
 
 def sec_compose2(s):
-    agg = cv2.aggregate(sd.ROOT)
+    agg = cv2.aggregate(sd.ROOT, cv2.ANCHOR)
     if not agg:
         return ""
-    return section("s-compose2", "10c", "Style factorial — 21 conditions", cv2.section_body(agg), cv2.LEDE)
+    second = cv2.aggregate(sd.ROOT, ("llama2-7b", "llama31-8b"))
+    return section("s-compose2", "10c", "Style factorial — 21 conditions", cv2.section_body(agg, second=second), cv2.LEDE)
 
 
 def sec_compose(s):

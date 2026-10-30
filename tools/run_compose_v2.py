@@ -203,7 +203,7 @@ def holm(ps):
     return adj
 
 
-def phase_score(behaviours, n_pm, gen, cache, store, tag, out_dir):
+def phase_score(behaviours, n_pm, gen, cache, store, tag, out_dir, store_dir=None):
     from recyclebench.stats import mcnemar_exact, wilson_interval
     full = [lvl for lvl in range(N_CAND)
             if all(f"{cname(c)}|{b}|{lvl}" in gen.mem for c in CONDITIONS for b, _ in behaviours)]
@@ -242,10 +242,13 @@ def phase_score(behaviours, n_pm, gen, cache, store, tag, out_dir):
             r["p_holm"] = q
     out = {"generated": _dt.datetime.now().strftime("%Y%m%d_%H%M"), "spec": "PREREG_COMPOSE_V2_20261029.md",
            "exploratory": True, "pair": f"{OLD} -> {NEW}", "p_minus": n_pm, "behaviours": len(behaviours),
+           "store": (str(Path(store_dir).resolve().relative_to(ROOT)) if store_dir and Path(store_dir).resolve().is_relative_to(ROOT)
+                     else str(store_dir) if store_dir else None),
            "candidate_levels_used": top + 1, "candidates_per_condition_registered": N_CAND,
            "judge_tag": tag, "judged_against": "candidate text (as run-real)",
            "conditions": conds, "primary_pair_vs_either_single": prim, "secondary_pair_vs_each_single": sec}
-    out_dir = Path(out_dir) if out_dir else ROOT / "results" / "runs" / f"compose_v2_{out['generated']}"
+    tag_pair = "" if (OLD, NEW) == ("llama3-8b", "llama31-8b") else f"_{OLD}__to__{NEW}"
+    out_dir = Path(out_dir) if out_dir else ROOT / "results" / "runs" / f"compose_v2{tag_pair}_{out['generated']}"
     dest = out_dir / "compose_v2_summary.json"
     if dest.exists():
         raise SystemExit(f"{dest} exists -- refusing to overwrite")
@@ -259,14 +262,21 @@ def phase_score(behaviours, n_pm, gen, cache, store, tag, out_dir):
 
 
 def main(argv=None) -> int:
+    global OLD, NEW
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--phase", required=True, choices=PHASES + ("all",))
     ap.add_argument("--minutes", type=float, default=None, help="overall wall-clock budget")
     ap.add_argument("--n-behaviours", type=int, default=None, help="cap, for smoke tests")
-    ap.add_argument("--store", default=str(STORE), help="separate store for smoke tests")
+    ap.add_argument("--store", default=None,
+                    help=f"default {STORE.relative_to(ROOT)} for the anchor, cache/compose_v2__<old>__<new> otherwise")
+    ap.add_argument("--old", default=OLD, help="older model (cfg key); the anchor by default")
+    ap.add_argument("--new", default=NEW, help="newer model (cfg key in configs/recycle_3_31.yaml)")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
+    OLD, NEW = args.old, args.new
+    if args.store is None:
+        args.store = str(STORE if (OLD, NEW) == ("llama3-8b", "llama31-8b") else ROOT / "cache" / f"compose_v2__{OLD}__{NEW}")
     deadline = time.time() + args.minutes * 60 if args.minutes else None
     cfg = Config.load(ROOT / CFG)
     behaviours, n_pm = pminus()
@@ -288,7 +298,7 @@ def main(argv=None) -> int:
         elif ph == "judge":
             phase_judge(cfg, gen, cache, store, tag, deadline)
         elif ph == "score":
-            phase_score(behaviours, n_pm, gen, cache, store, tag, args.out)
+            phase_score(behaviours, n_pm, gen, cache, store, tag, args.out, store_dir)
     return 0
 
 
