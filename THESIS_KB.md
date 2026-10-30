@@ -332,6 +332,11 @@ re-openings are 0–5 per pair. Per-condition RSR ranges 23.5% (back_translation
 equal-budget secondary comparison also finds nothing. Reading: stacking two rewording styles does not reach fixes
 that a single style cannot — consistent with the fix being tied to surface form broadly, not to one style. Exploratory.
 
+**Second pair (addendum `PREREG_COMPOSE_V2_ADDENDUM_20261030.md`): llama2-7b → llama3.1-8b**, 23 judged fixes, run
+`results/runs/compose_v2_llama2-7b__to__llama31-8b_20261030_1334/`. The null replicates: no pair beats its singles
+(smallest raw p 0.0625, again favouring the singles; all Holm p ≥ 0.94; equal-budget min Holm 0.94). Little power at
+n = 23, so supporting, not independent, evidence. Per-condition RSR 22% (tense_shift, 2/9) to 75% (paraphrase+syntactic, 12/16).
+
 ### 4.5 Mechanistic / white-box (future work in the exposé, PoC built)
 `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS) and
 records per layer the Arditi refusal-direction score, residual divergence, top MLP neurons and

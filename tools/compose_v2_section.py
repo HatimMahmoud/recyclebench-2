@@ -183,7 +183,7 @@ def _radial(summ, top=10) -> str:
             f"<p class='note'>Ranked by re-opening rate; {singles_in} of the top {n} are single styles. Rates rest on "
             f"{min(c['resolved'] for c in cs)}–{max(c['resolved'] for c in cs)} resolved fixes each, so neighbouring rings "
             "overlap within their intervals: the ranking is "
-            "descriptive, and the registered test (next tab) finds no pair better than its singles.</p>")
+            "descriptive, and the registered pair-vs-singles test finds no pair better than its singles.</p>")
 
 
 def _comparisons(summ) -> str:
