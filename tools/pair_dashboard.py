@@ -152,7 +152,7 @@ def _run_view(rr, o, n, ds, full_bids_by_prompt) -> RunView:
     runs, obs = rr.runs, rr.obs
     pm = lc.regression_set(runs[o], runs[n])
     complete = all(obs[n].recovery_complete(b) for b in pm)
-    r = compute_rsr(runs[o], runs[n], pm, sd.IDENTITY, 30) if (complete and pm) else None
+    r = compute_rsr(runs[o], runs[n], pm, sd.IDENTITY, 30, denominator=lc.RSR_DENOMINATOR) if (complete and pm) else None
     rsr = None
     if r is not None:
         _, lo, hi = wil(r.k_recovered, r.n_p_minus)
@@ -992,6 +992,18 @@ def sec_header(s, o, n, dvs, redact, today):
 </header>"""
 
 
+_CTL = None
+
+
+def _overrefusal_strip(o, n) -> str:
+    """benign over-refusal of both models (XSTest, controls_section), or '' when either is not judged."""
+    global _CTL
+    import controls_section as ctl
+    if _CTL is None:
+        _CTL = ctl.aggregate()
+    return ctl.pair_strip(_CTL, o, n)
+
+
 def sec_overview(s, o, n, dvs):
     pm_tot = sum(len(d.pm) for d in dvs if d.status in ("complete", "p-minus-only"))
     k = m = 0
@@ -1080,7 +1092,8 @@ def sec_overview(s, o, n, dvs):
                       + (f'<div class="panel"><h3>Reading</h3><ul class="take">{"".join(f"<li>{x}</li>" for x in findings)}</ul></div>' if findings else "")
                       + md.panel("Does the newer model refuse more?", answer_dumbbell(dvs)
                                  + '<div class="legend"><span><i class="lg dd-old-l"></i>older model</span><span><i class="lg dd-new-l"></i>newer model</span>'
-                                 '<span><i class="lg dl-safer-l"></i>newer refuses more</span><span><i class="lg dl-riskier-l"></i>newer answers more</span></div>',
+                                 '<span><i class="lg dl-safer-l"></i>newer refuses more</span><span><i class="lg dl-riskier-l"></i>newer answers more</span></div>'
+                                 + _overrefusal_strip(o, n),
                                  "Canonical answer rate per benchmark (offline rule, any of k = 3 draws). Hover for counts and Wilson intervals.")
                       + md.panel("Where every behaviour goes, and what rewording does to the fixes", composition_chart(dvs)
                                  + '<div class="legend"><span><i class="lg cb-both"></i>refused by both</span><span><i class="lg cb-reg"></i>regression</span>'

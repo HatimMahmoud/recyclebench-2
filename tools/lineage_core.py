@@ -31,6 +31,11 @@ from recyclebench.realrun import _key                       # noqa: E402
 from recyclebench.screening import ModelRun, Recovery, _draw_seed, regression_set  # noqa: E402
 
 
+# RSR denominator for every dashboard and study_data figure: "p_minus" (re-opened / |P^-|, unresolved fixes counted as
+# held) or "resolved" (re-opened / fixes with >= 1 admitted rewording, the registered convention). Flip to "resolved"
+# once prereg Amendment 2 (B3) is signed, then rebuild; the package default stays "p_minus".
+RSR_DENOMINATOR = "p_minus"
+
 # ---------------------------------------------------------------------------
 # Static metadata
 # ---------------------------------------------------------------------------

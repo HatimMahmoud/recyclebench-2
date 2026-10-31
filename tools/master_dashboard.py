@@ -31,6 +31,8 @@ import compose_arcs_section as ca               # noqa: E402
 import inversion_section as iv                  # noqa: E402
 import gate_audit as ga                         # noqa: E402
 import compose_v2_section as cv2                # noqa: E402
+import controls_section as ctl                  # noqa: E402
+import method_section as mth                    # noqa: E402
 from recyclebench.stats import wilson_interval  # noqa: E402
 
 esc, pct, ci_txt, p_txt, num = ld.esc, ld.pct, ld.ci_txt, ld.p_txt, ld.num
@@ -429,6 +431,9 @@ def sec_summary(s):
                       f"κ {sc['bundle']['offline']['kappa']:.2f} vs {sc['bundle']['qwen']['kappa']:.2f}",
                       f"offline refusal rule vs qwen2.5:14b · {sc['n_bundles']} bundles, {sc['n_rows']} responses",
                       tip="Same human labels; the offline rule misses 0 of 29 compliant bundles, qwen misses 4"))
+    ct = ctl.summary_tile(ctl_agg())
+    if ct:
+        t.append(ct)
     stc = Counter(a.status for a in s.registry)
     bad = sum(v for k_, v in stc.items() if k_ not in ("valid",))
     t.append(tile("Artifacts audited", f"{len(s.registry)}", f"{stc['valid']} valid · {bad} flagged "
@@ -588,8 +593,8 @@ def sec_status(s):
     # (c) instruments and other arms
     att = s.attack
     inst = [
-        ["Judge calibration · recycle arm", status_chip("complete", "SORRY-Bench anchor (59 bundles)"),
-         status_chip("none", "HarmBench / AdvBench / StrongREJECT / lineage pairs: " + NOT_YET)],
+        ["Judge calibration · recycle arm", status_chip("complete", "SORRY-Bench anchor (60 bundles) · HarmBench (60 bundles)"),
+         status_chip("none", "AdvBench / StrongREJECT / lineage pairs: " + NOT_YET)],
         ["Judge calibration · attack arm", status_chip("partial", "60 responses, stratified"),
          "design-weighted correction computed here; a class-stratified audit of judge-negatives is " + NOT_YET],
         _gate_status_row(),
@@ -607,8 +612,9 @@ def sec_status(s):
          "external responses, judged here against the original goal"],
         ["Attack transfer · other models", status_chip("none"), "no Llama 2 / 3 / 3.2 attack runs"],
         ["70B generational chain (2-70B → 3-70B → 3.1-70B → 3.3-70B)", status_chip("none"), "out of scope on local hardware"],
-        ["Factorial composition ablation (21 conditions)", status_chip("none"), "pending supervisor decision"],
-    ]
+        ["Factorial composition ablation (21 conditions)", status_chip("complete", "2 pairs"),
+         "registered compose v2, anchor and llama2-7b → llama3.1-8b: no style pair beats its singles (section 10c)"],
+    ] + ctl.status_rows(ctl_agg(), status_chip)
     return section("s-status", "02", "What's finished",
                    panel("Canonical screening coverage", screen_tbl,
                          "Behaviours with all k = 3 canonical draws cached, per model and benchmark. <i>Conditional</i> = the newer "
@@ -884,6 +890,36 @@ def sec_pbr(s):
                          "P⁻-subset runs are excluded because their refusal set is not the model's). Darker = higher, scale saturates at 30%. "
                          "PBR is always estimable, so it is the backbone where P⁻ is thin: on SORRY-Bench every model sits at 10–23%, far "
                          "above AdvBench (1–9%)."))
+
+
+_CTL = None
+
+
+def ctl_agg():
+    """the 2026-10-31 controls (over-refusal, contamination, cross-family), loaded once per build."""
+    global _CTL
+    if _CTL is None:
+        _CTL = ctl.aggregate(sd.ROOT)
+    return _CTL
+
+
+def sec_controls(s):
+    return section("s-controls", "07b", "Controls — over-refusal and contamination", ctl.section_body(ctl_agg()), ctl.LEDE)
+
+
+def sec_method(s):
+    return section("s-method", "08b", "Method checks — denominator, naïve vs corrected, power, open audits",
+                   mth.section_body(mth.aggregate(sd.ROOT)), mth.LEDE)
+
+
+def _benign_judge_li() -> str:
+    o = ctl_agg().get("overrefusal")
+    if not o or "llama3-8b" not in o["complete"]:
+        return ""
+    r = o["data"]["models"]["llama3-8b"]
+    return (f"<li>On benign XSTest prompts the two judges part ways: for Llama 3 8B qwen2.5:14b counts {pct(r['safe_refusal_judged']['rate'])} "
+            f"refused, the offline rule {pct(r['safe_refusal_offline']['rate'])}. The judge was calibrated on harmful prompts only, so the "
+            "over-refusal rates in section 07b are raw until a benign-prompt sample is human-labelled.</li>")
 
 
 def _sheet_bundles(s) -> str:
@@ -1247,7 +1283,7 @@ def sec_judges(s):
                            "compliance, its RSR is the more conservative of the two.</li>"
                            "<li>On attack outputs neither judge is adequate: qwen under-detects compliance in transformed replies, the offline rule "
                            "over-detects it in garbled ones. A per-class human audit of judge-negatives is the missing piece.</li>"
-                           + _harmbench_transfer_li(s) +
+                           + _harmbench_transfer_li(s) + _benign_judge_li() +
                            "<li>Every corrected figure on this page uses the package's bundle-level Rogan–Gladen correction with the SORRY-Bench "
                            "calibration; it is never applied to the attack arm.</li></ul>"))
 
@@ -1342,7 +1378,8 @@ def sec_explore(s):
                          "Wrapping behaviours in a fixed template was the August plan to grow P⁻ when raw prompts were refused. Llama 2 7B "
                          "answered 5/300 under refusal suppression and 7/300 under AIM, so the lever did not move the older model; the judge was "
                          "never validated on wrapped output (the open “case A vs case B” question). The llama32jb anchor pilot found P⁻ = 3 and the "
-                         "recycle run was not carried out."))
+                         "recycle run was not carried out.")
+                   + ctl.xfamily_panel(ctl_agg()))
 
 
 def sec_registry(s):
@@ -1403,7 +1440,7 @@ def sec_appendix(s):
 
 NAV = [("Overview", [("s-rq", "00", "Research questions"), ("s-summary", "01", "Executive summary"), ("s-status", "02", "What's finished"), ("s-design", "03", "Study design")]),
        ("Results", [("s-screening", "04", "Screening"), ("s-pminus", "05", "Regression sets"), ("s-rsr", "06", "Recycling (RSR)"),
-                    ("s-pbr", "07", "Robustness (PBR)"), ("s-anchor", "08", "Calibrated anchor"), ("s-rpe", "09", "Output inversion"), ("s-inversion", "09b", "Inversion · how to read"),
+                    ("s-pbr", "07", "Robustness (PBR)"), ("s-controls", "07b", "Controls"), ("s-anchor", "08", "Calibrated anchor"), ("s-method", "08b", "Method checks"), ("s-rpe", "09", "Output inversion"), ("s-inversion", "09b", "Inversion · how to read"),
                     ("s-arcs", "10", "Style arcs"), ("s-compose", "10b", "2-factor composition"), ("s-compose2", "10c", "Style factorial"),
                     ("s-attack", "11", "Attack transfer")]),
        ("Instruments", [("s-judges", "12", "Judges"), ("s-gate", "13", "Intent gate")]),
@@ -1412,9 +1449,9 @@ NAV = [("Overview", [("s-rq", "00", "Research questions"), ("s-summary", "01", "
 
 
 RQ_MAP = {"s-pminus": ["RQ1"], "s-rsr": ["RQ1", "RQ2"], "s-anchor": ["RQ1"], "s-rpe": ["RQ1"], "s-inversion": ["RQ1"], "s-arcs": ["RQ3"],
-          "s-compose": ["RQ3"], "s-compose2": ["RQ3"], "s-pbr": ["RQ4"]}
+          "s-compose": ["RQ3"], "s-compose2": ["RQ3"], "s-pbr": ["RQ4"], "s-controls": ["RQ4"]}
 RQ_WHERE = {"RQ1": [("s-pminus", "Regression sets"), ("s-rsr", "Recycling"), ("s-anchor", "Calibrated anchor"), ("s-rpe", "Output inversion")],
-            "RQ2": [("s-rsr", "Recycling by category")], "RQ3": [("s-arcs", "Style arcs"), ("s-compose", "2-factor composition"), ("s-compose2", "Style factorial")], "RQ4": [("s-pbr", "Robustness (PBR)")]}
+            "RQ2": [("s-rsr", "Recycling by category")], "RQ3": [("s-arcs", "Style arcs"), ("s-compose", "2-factor composition"), ("s-compose2", "Style factorial")], "RQ4": [("s-pbr", "Robustness (PBR)"), ("s-controls", "Over-refusal reference")]}
 
 
 def _latest(pattern):
@@ -1498,7 +1535,8 @@ def rq_answers():
                 c = Counter(r["verdict"] for r in rs)
                 parts.append(f"{ld.esc(_BLAB.get(b, b))}: " + ", ".join(f"{v} {k}" for k, v in c.most_common()))
             ans["RQ4"] = ("<b>Depends on the benchmark.</b> PBR vs π* = 0.15 · " + " · ".join(parts)
-                          + ". On SORRY-Bench the newer 8B models are the more brittle; on HarmBench the order reverses within overlapping intervals.")
+                          + ". On SORRY-Bench the newer 8B models are the more brittle; on HarmBench the order reverses within overlapping intervals."
+                          + ctl.rq4_note(ctl_agg()))
     if m_path:
         src.append(str(m_path.relative_to(sd.ROOT)))
         ms = mech_sign(m_path)
@@ -1641,13 +1679,13 @@ def render(s) -> str:
     for g, items in NAV:
         nav += f'<div class="grp">{esc(g)}</div>' + "".join(f'<a href="#{i}"><span class="n">{n}</span>{esc(t)}</a>' for i, n, t in items)
     body = (sec_header(s, today) + sec_rq(s) + sec_summary(s) + sec_status(s) + sec_design(s) + sec_screening(s) + sec_pminus(s)
-            + sec_rsr(s) + sec_pbr(s) + sec_anchor(s) + sec_rpe(s) + sec_inversion(s) + sec_arcs(s) + sec_compose(s) + sec_compose2(s) + sec_attack(s) + sec_judges(s)
+            + sec_rsr(s) + sec_pbr(s) + sec_controls(s) + sec_anchor(s) + sec_method(s) + sec_rpe(s) + sec_inversion(s) + sec_arcs(s) + sec_compose(s) + sec_compose2(s) + sec_attack(s) + sec_judges(s)
             + sec_gate(s) + sec_explore(s) + sec_registry(s) + sec_appendix(s))
     foot = ("Generated by tools/master_dashboard.py from files only (study_data.py). No prompt or response text is embedded. "
             "RAW = judge output as produced; corrected figures name their calibration.")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
-            f'<title>RecycleBench Master Results</title><style>{ld.CSS}{EXTRA_CSS}{ca.CSS}{iv.CSS}{cv2.CSS}</style></head><body>'
+            f'<title>RecycleBench Master Results</title><style>{ld.CSS}{EXTRA_CSS}{ca.CSS}{iv.CSS}{cv2.CSS}{ctl.CSS}{mth.CSS}</style></head><body>'
             f'<div class="layout"><nav class="side" aria-label="Sections">'
             f'{ld.brand_html("Master results · all arms")}<div class="toc">{nav}</div>{ld.legend_html()}'
             f'<button type="button" class="themebtn" id="themebtn" data-t="system">Theme: system</button></nav>'

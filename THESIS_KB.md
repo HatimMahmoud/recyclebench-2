@@ -143,7 +143,7 @@ The RPE analogue of RSR: fraction of `P⁻` re-opened by ≥1 gate-admitted *rec
 | **RQ1** (primary) | Can the old→new safety improvement be bypassed by meaning-preserving paraphrase? | **Answered for the anchor pair**, confirmatory replication passed. Exploratory elsewhere. |
 | **RQ2** | Memorisation or generalisation? Per harm category. | Partially — the anchor says *surface-bound*. Category breakdown exists; the behaviours that re-open skew mild (§7.5). |
 | **RQ3** | Which transform classes drive recovery? Mixed-effects logistic, behaviour as random intercept. | `drivers.py` exists; gate-score placeholders distort class means (§9). |
-| **RQ4** | Within-model paraphrase robustness (PBR) across the lineage. | PBR judged for all six models via the verdict cache. |
+| **RQ4** | Within-model paraphrase robustness (PBR) across the lineage, against the model's own benign over-refusal. | PBR judged for all six models via the verdict cache; own over-refusal (XSTest) measured for the 7–8B chain + Llama 2 13B (§7.6), raw until the benign-judge sheet is labelled. |
 
 ---
 
@@ -413,6 +413,11 @@ Cost scales as `E · B · k · (1 + c̄ + p̄·t̄)` — tens of thousands of ca
 κ 0.833 on **60** bundles. PBR(3.1-8b) = 26 of 60 resolved = **0.433 raw** → *materially
 surface-bound*. `results/runs/recycle_3_31_sorrybench/`.
 
+> **RSR denominator (2026-10-31, Amendment 2 §B3, for signature):** 23/47 is `compute_rsr` over |P⁻| and includes one
+> fix with no admitted rewording (jbb-0041; the cache rebuild with stored verdicts reproduces P⁻ = 47). The registered
+> convention excludes unresolved fixes: **23/46, raw 0.500, corrected 0.564 [0.374, 0.753]**, same verdict. 23/47 → 0.551
+> becomes the conservative variant once Amendment 2 is signed. `tools/thesis_numbers.py` emits both.
+
 > **Recomputed 2026-10-29:** `corrected_sorrybench_recal_n60.json` (tool `tools/recalibrate_corrected.py`,
 > which first reproduces the pre-repair file exactly from the backup sheet) supersedes
 > `corrected_sorrybench.json` (59 bundles, sample strata: RSR 0.5503, PBR 0.4827). Post-repair, design-weighted:
@@ -455,6 +460,31 @@ all 13,325 variant verdicts, so PBR is judged for all six models.
 - Closed-loop artifacts without `_gated_` and `lineage_report_*` before 2026-10-28 — A_loop only, gate never ran.
 - TODO_HUMAN A6 ("anchor manifest unreproduced") — a subset-CSV id join error (§4.2).
 - Aug 2026 wrapped-template work (`cache/wrapped_rs.jsonl`) — superseded by SORRY-Bench.
+
+### 7.6 EXPLORATORY — controls of 2026-10-31
+Registered before data in `PREREG_OVERREFUSAL_20261031.md`, `PREREG_CONTAMINATION_20261031.md`,
+`PREREG_XFAMILY_MISTRAL_20261031.md` (stated time corrected 01:30 → 01:25 after launch; edit log in each).
+- **Benign over-refusal (XSTest, 250 safe prompts, qwen judge raw):** llama2-7b 55.2%, llama2-13b 64.4%, llama3-8b 18.4%,
+  llama3.1-8b 18.4%; unsafe contrast refused 98–100%. The anchor pair swaps 12 / 12 (McNemar p 1.0): **the newer model does
+  not simply refuse more**. Llama 3 PBR sits at its own over-refusal level, Llama 2 PBR far below, the anchor RSR far above.
+  The judge and the offline rule disagree on benign prompts (llama3-8b 18.4% vs 1.6%), so the rates stay raw until
+  `audit/overrefusal/benign_sheet.csv` is labelled. 3.2-1B/3B and both Mistrals not run.
+- **Contamination probe:** the registered flag fires on HarmBench for all three models (≈ 3–5%) — including Llama 2 7B, whose
+  pre-training predates HarmBench — and every hit is a copyright book-passage or song-lyrics item. AdvBench / StrongREJECT at
+  the SORRY-Bench / held-out controls. No evidence of memorised benchmark wording.
+- **Cross-family (Mistral 7B v0.2 → v0.3, SORRY-Bench, k = 1):** P⁻ 25, 34 opposite flips (v0.3 answers *more*), RSR 15/25
+  raw, descriptive, uncalibrated for Mistral outputs. A footnote, not a second anchor.
+
+### 7.7 Method close-out (2026-10-31)
+- **Power** (`tools/power_rsr.py`): McNemar on P⁻ is significant iff k ≥ 6. The π\* decision needs k ≥ 13 of 49 (MDE 0.32
+  at 80%), k ≥ 4 of 9 (MDE 0.53). *Robust* is unreachable at n = 9 and needs RSR ≤ 0.03 at n = 49: **the design can show
+  surface-binding but cannot certify robustness at these sizes.**
+- **C4 table** (`tools/naive_vs_corrected.py`, `results/analysis_c4_*`): offline rule → qwen raw → corrected for every
+  lineage pair and model. Naïve PBR overstates the corrected PBR for every model (by 2–8 points); naïve RSR moves both ways.
+- **Numbers file** (`tools/thesis_numbers.py` → `results/thesis_numbers_*.tex`): every cited figure as a `\rb…` macro with
+  its source; unlabelled audits print "[pending]".
+- **Closed 2026-10-31:** a judge-only replay of the held-out run (`cache/judge_confirm_heldout.jsonl`, 480 verdicts) reproduces
+  P⁻ = 9 and 6/9 exactly; no confirmatory fix is unresolved, so the replication reads the same under both denominators.
 
 ### 7.5 The standing structural finding
 **On raw prompts, safety-tuned "old" models refuse most raw harm, so P⁻ is structurally small.**
@@ -499,6 +529,8 @@ RSR headline carries, and belongs in the write-up.
 | **`calibrate_from_human` needs the population totals** | Pass `n_pos_total`/`n_neg_total` or you get unweighted rates. Matters enormously for `audit/attack` (30/30 positives but 30/2338 negatives): se **0.072** design-weighted vs 0.857 unweighted. No difference for `audit/sorrybench` (sample = population). |
 | **Calibration transfer across benchmarks** | The pooled matched-scale estimate corrects every benchmark with the SORRY-Bench calibration. Checked for HarmBench (blind sheet, 2026-10-29: se 0.865 / sp 1.000 / κ 0.933 vs SORRY-Bench 0.862 / 0.968 / 0.833); still an assumption for AdvBench and StrongREJECT (P⁻ 7 and 2). |
 | **Neither judge suits attack output** | The offline rule reads ciphers/garble as compliance. On SORRY-Bench the offline rule actually *beats* qwen2.5:14b against humans (bundle κ 0.93 vs 0.83). |
+| **Quantisation is not matched** | Ollama default tags: llama2-7b / 2-13b / 3-8b Q4_0, 3.1-8b and 3.2-3b Q4_K_M, 3.2-1b Q8_0. The anchor pair differs in quantisation as well as generation. Amendment 2 D7; state it under threats to validity. The white-box probe loads the same GGUF blobs, so it inherits the same mismatch. |
+| **Two RSR denominators** | `compute_rsr` (and every dashboard built on it) divides by \|P⁻\|, counting unresolved fixes as held; the exposé and A2 register re-opened / *resolved*. They differ whenever a fix has no admitted rewording (anchor: 23/47 vs 23/46). Amendment 2 §B3 fixes the resolved form as primary; say which one every table uses. |
 | **Truncated arms look complete** | Fixed in `run_compose.py` as of 2026-10-28, but check any runner with a wall-clock budget: a break inside the behaviour loop leaves a *category-biased prefix*, not a random sample. |
 | **Inversion manifests carry `admitted: false`** | `rpe_lineage.py` never ran the gate, so a closed-loop artifact scored from the manifest flag has empty A_gate / A_both and calls every preimage member "gate-rejected". Score with `--gate-store cache/rpe_gate.jsonl` (`*_gated_*.json`). |
 | **Subset-CSV ids are row positions** | `load_jailbreakbench` ignores a `bid` column. Any id from a subset CSV (`results/cells_*`, the anchor manifest, the compose run) must be joined on prompt text, never on bid. |
@@ -523,6 +555,8 @@ Every row is a deviation from the registered plan. They are recorded in
 | Gate layer (d) LLM intent-equivalence | `llm_intent` = 1.0; applied only post hoc | §9. |
 | Refusal-direction check named as *future strengthening* | White-box PoC built and runs | Still must not be claimed as a thesis result without the registered protocol. |
 | Stretch: largest MoE model via rented GPU | Not done | Droppable by design — L2 tier. |
+| Contamination audit, cross-family spot-check (§8) | Done 2026-10-31 (§7.6) | Exploratory, registered before data. |
+| Gate false-**rejection** rate with CI (P2) | Not estimable from the manifests; estimable on the compose v2 store's single-style candidates | Blind sheet `audit/gate_rejection/` (100 rejected + 30 admitted), registered in Amendment 2 §B4.1, unlabelled. |
 | Gate audit (D5) labelled **blind** | Rows 1–18 blind; rows 19–178 labelled with a gemma4:e4b guess shown (`tools/gate_guess.py`, `audit/gate/MODEL_ASSISTED.txt`), the candidate's decision 2026-10-29 | Report as model-assisted. Mitigation: the labeller overruled 10 of gemma's 13 "changed" guesses and never marked a row 0 that gemma marked 1. |
 
 ---
@@ -605,7 +639,12 @@ See `ETHICS.md`.
    Sensitivity (`thesis_analysis.py`, `pooled_own_calibration`): pooled anchor RSR 45/82 corrected 62.2% [47.0, 77.5]
    with SORRY-Bench's calibration everywhere vs 62.3% [49.2, 75.5] with HarmBench's own — no change.
 6. ~~Harmful-ask inversion audit~~ — **done 2026-10-29**: anchor PRR 36/38 verified, bracket closed (§4.2).
-7. Blind re-label of the SORRY-Bench sheet, to measure anchoring (it was labelled unblinded).
+7. Blind re-label of the SORRY-Bench sheet, to measure anchoring (it was labelled unblinded). Scorer
+   `tools/blind_relabel_score.py` (reproduces every registered corrected figure exactly from the original labels); decision
+   rule in Amendment 2 §B4.3: if complete, the blind calibration becomes primary.
+8. **Amendment 2** (`prereg_amendment_2_DRAFT.md`) — signature, including the RSR-denominator change of §B3.
+9. Label `audit/gate_rejection/rejection_sheet.csv` (130 rows) and `audit/overrefusal/benign_sheet.csv` (50 rows).
+10. ~~Judge-only replay of the held-out run~~ — **done 2026-10-31**: P⁻ 9 and 6/9 reproduced, no unresolved fix (§7.7).
 
 ---
 

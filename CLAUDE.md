@@ -211,6 +211,19 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   admission rule, and TODO_HUMAN A6 was a subset-CSV id join error (`results/analysis_rpe_reconcile_20261028_2333/`).
   Dashboards built 2026-10-28 23:33 show it all (master §09/§09b, every pair page, lineage §09). One battery-induced
   sleep (19:09–22:36, 1% charge) stalled the run: caffeinate holds the machine awake only on AC.
+- **2026-10-31 controls + method close-out** (THESIS_KB §7.6–7.7, `prereg_amendment_2_DRAFT.md`, unsigned). Controls:
+  `tools/overrefusal.py`, `tools/contamination_probe.py`, `tools/xfamily_screen.py` + `configs/xfamily_mistral.yaml`,
+  `run_extras_20261031.sh`; dashboards via `tools/controls_section.py` (master 07b / §14, lineage 03, pair 01). Method tools:
+  `tools/power_rsr.py`, `tools/naive_vs_corrected.py` (C4), `tools/gate_rejection_audit.py` + `tools/overrefusal_judge_audit.py`
+  (blind sheets in `audit/gate_rejection/`, `audit/overrefusal/`, hashed in the amendment — re-exporting needs `--force` and
+  breaks the hash), `tools/blind_relabel_score.py`, `tools/thesis_numbers.py` (the only place thesis figures come from).
+  **RSR denominator:** `compute_rsr(..., denominator="p_minus"|"resolved")`; the registered convention is re-opened / resolved
+  (anchor 23/46, corrected 0.564, vs the stored 23/47 → 0.551). Dashboards follow the single switch
+  `lineage_core.RSR_DENOMINATOR` (still "p_minus"; flip after Amendment 2 is signed, then rebuild). Master chapter 08b
+  (`tools/method_section.py`) shows the denominator, C4, power and the open audits. `tools/release_c2.py` builds the C2
+  package with a leak check (default: no rewording text; `--text non-reopening` only after the supervisor's policy decision).
+  Disclosure draft (not sent): `docs/disclosure/meta_disclosure_DRAFT.md`. **Quantisation is not matched** across the lineage
+  (Q4_0 / Q4_K_M / Q8_0 Ollama defaults; Amendment 2 D7).
 - White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
   q/k un-permuted, rope factors and Llama-3 pre-tokenizer verified) and records per layer the refusal-direction score
   (Arditi difference-of-means), residual divergence, top MLP neurons and P(refusal opening) → `results/mech/*.json`

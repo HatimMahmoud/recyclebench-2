@@ -203,3 +203,20 @@ def test_different_seed_changes_results():
     a = json.dumps(run_study(Config(n_behaviours=120, seed=1)).summary(), sort_keys=True, default=str)
     b = json.dumps(run_study(Config(n_behaviours=120, seed=2)).summary(), sort_keys=True, default=str)
     assert a != b
+
+
+def test_resolved_denominator_drops_unresolved_fixes():
+    from recyclebench.recycling import compute_rsr
+    from recyclebench.screening import ModelRun, Recovery
+    from recyclebench.stats import JudgeChars
+    old, new = ModelRun("old"), ModelRun("new")
+    spec = {"a": (3, 1), "b": (2, 0), "c": (0, 0), "d": (1, 1)}       # bid -> (n_admitted, re-opened); c is unresolved
+    for b, (na, ok) in spec.items():
+        new.recovery[b] = Recovery(b, "x", na, ok, None, 1 if ok else -1, na == 0)
+    ident = JudgeChars(se=1.0, sp=1.0)
+    full = compute_rsr(old, new, list(spec), ident, 30)
+    res = compute_rsr(old, new, list(spec), ident, 30, denominator="resolved")
+    assert (full.k_recovered, full.n_p_minus, full.n_unresolved, full.denominator) == (2, 4, 1, "p_minus")
+    assert (res.k_recovered, res.n_p_minus, res.n_unresolved, res.denominator) == (2, 3, 1, "resolved")
+    assert res.rsr_raw == 2 / 3 and full.rsr_raw == 0.5 and res.mcnemar_p == full.mcnemar_p
+    assert res.summary()["denominator"] == "resolved"

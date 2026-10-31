@@ -316,6 +316,8 @@ def collect_pilots(datasets: dict, cells: dict, screens: dict) -> list:
     R = ROOT / "results"
     for p in sorted(R.glob("pminus_*.json")) + sorted(R.glob("runs/*/pminus_*.json")) + \
             sorted(R.glob("runs/*/STALE_pminus_*.json")):
+        if p.parent.name.startswith("xfamily_"):        # cross-family screen (controls_section), not a Llama pilot
+            continue
         d = json.loads(p.read_text())
         stem = p.stem.replace("STALE_", "")
         ds = next((k for k in sizes if stem.endswith("_" + k)), None)
@@ -543,7 +545,7 @@ def judge_replay(sp: RecycleSpec, bs, man) -> tuple:
         if not (canon_ok[o] and canon_ok[n] and all(obs[n].recovery_complete(b) for b in pm)):
             issues.append(f"{o} → {n}: stored verdicts incomplete, no judged RSR")
             continue
-        out["RSR_primary_RAW"].append(compute_rsr(runs[o], runs[n], pm, IDENTITY, CFG.decision.min_p_minus).summary())
+        out["RSR_primary_RAW"].append(compute_rsr(runs[o], runs[n], pm, IDENTITY, CFG.decision.min_p_minus, denominator=lc.RSR_DENOMINATOR).summary())
     for m in sp.models:
         if canon_ok[m] and all(obs[m].recovery_complete(b) for b in runs[m].C_M()):
             out["PBR_backbone_RAW"].append(compute_pbr(runs[m], IDENTITY, CFG.decision.pi_star).summary())
@@ -648,7 +650,7 @@ def build_recycle_runs(gate_fn) -> list:
         for o, n in zip(sp.models, sp.models[1:]):
             pm = lc.regression_set(runs[o], runs[n])
             complete = all(obs[n].recovery_complete(b) for b in pm)
-            r = compute_rsr(runs[o], runs[n], pm, IDENTITY, 30) if complete else None
+            r = compute_rsr(runs[o], runs[n], pm, IDENTITY, 30, denominator=lc.RSR_DENOMINATOR) if complete else None
             rec = _rsr_ci(r)
             rep = rep_rsr.get((o, n)) if sstat in ("valid", "from-log", "judge-replay") else None
             match = None
@@ -670,13 +672,13 @@ def build_recycle_runs(gate_fn) -> list:
         for o, n in ph:
             pm = lc.regression_set(runs[o], runs[n])
             complete = all(obs[n].recovery_complete(b) for b in pm)
-            r = compute_rsr(runs[o], runs[n], pm, IDENTITY, 30) if complete else None
+            r = compute_rsr(runs[o], runs[n], pm, IDENTITY, 30, denominator=lc.RSR_DENOMINATOR) if complete else None
             jrep = None
             if jobs:
                 jo, jr, ok = jobs
                 jpm = lc.regression_set(jr[o], jr[n])
                 if ok[o] and ok[n] and all(jo[n].recovery_complete(b) for b in jpm):
-                    jrep = compute_rsr(jr[o], jr[n], jpm, IDENTITY, CFG.decision.min_p_minus).summary()
+                    jrep = compute_rsr(jr[o], jr[n], jpm, IDENTITY, CFG.decision.min_p_minus, denominator=lc.RSR_DENOMINATOR).summary()
             rr.pairs[(o, n)] = dict(recon=_rsr_ci(r), recon_defined=(r.defined if r else None), complete=complete,
                                     n_pm=len(pm), reported=jrep, match=None, post_hoc=True,
                                     unresolved=sum(1 for b in pm if runs[n].recovery[b].n_admitted == 0))
@@ -1276,6 +1278,12 @@ def build_registry(pilots, recycle_runs, rpe_runs, attack, calib) -> list:
     if empty.exists() and not any(empty.iterdir()):
         reg.append(Artifact(rel(empty), "recycle run", "llama3-8b → llama31-8b · llama32jb", "—", "empty",
                             ["directory is empty: the run was not carried out (pilot P⁻ = 3, below the floor)"], ""))
+    try:                                                           # the 2026-10-31 controls (controls_section.py)
+        import controls_section as ctl
+        for path, kind, scope, judge, st, iss in ctl.artifacts(ctl.aggregate(ROOT)):
+            reg.append(Artifact(path, kind, scope, judge, st, iss, _mtime(ROOT / path)))
+    except Exception as e:                                         # noqa: BLE001
+        reg.append(Artifact("tools/controls_section.py", "other", "—", "—", "invalid", [f"controls not loadable: {e}"], ""))
     return reg
 
 

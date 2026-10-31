@@ -127,7 +127,7 @@ def _pair_view(o, n, adjacent, obs, runs, bmap):
     pv.max_admitted = max((rn.recovery[b].n_admitted for b in pm), default=0)
     if complete:
         # RSR is undefined (never 0) on an empty P^-: leave pv.rsr None so every view shows "—"
-        pv.rsr = compute_rsr(ro, rn, pm, IDENTITY, 30) if pm else None
+        pv.rsr = compute_rsr(ro, rn, pm, IDENTITY, 30, denominator=lc.RSR_DENOMINATOR) if pm else None
         pv.recovered = {b for b in pm if rn.recovery[b].obs_bypassed}
         pv.attempts = [rn.recovery[b].attempts_to_first for b in pv.recovered]
         for b in pm:
@@ -934,6 +934,15 @@ def sec_lineage(an):
 </section>"""
 
 
+def _overrefusal_panel(models) -> str:
+    """benign over-refusal per lineage model (controls_section, XSTest); '' if the module or its results are absent."""
+    try:
+        import controls_section as ctl
+        return ctl.models_panel(ctl.aggregate(), list(models))
+    except Exception:                                              # noqa: BLE001
+        return ""
+
+
 def sec_models(an):
     pi_star = an.cfg.decision.pi_star
     crow, ctab, prow, ptab = [], [], [], []
@@ -986,6 +995,7 @@ def sec_models(an):
     {hbars(prow, "PBR per model", ref=pi_star, ref_label=f"π* {pi_star:.2f}")}
     {tableview(["Model", "Re-opened", "Resolved refusals", "Unresolved", "PBR", "95% CI", "Corrected", "Verdict"], ptab, num_cols=(1, 2, 3, 4, 6))}
   </div>
+  {_overrefusal_panel(an.lineage)}
   </div>
 </section>"""
 
@@ -1674,7 +1684,7 @@ h3{font-size:15px;margin:0 0 6px;font-weight:650}
 .chart .hit{fill:transparent}
 .chart .row:hover .hit,.chart .row:focus .hit{fill:var(--wash)}
 .chart .row:focus{outline:none}
-.chart .bar-comply{fill:var(--comply)}.chart .bar-neutral{fill:var(--neutral)}
+.chart .bar-comply{fill:var(--comply)}.chart .bar-neutral{fill:var(--neutral)}.chart .bar-refuse{fill:var(--refuse)}
 .chart .bar-pass{fill:var(--neutral)}.chart .bar-fail{fill:var(--axis)}
 .chart .node.r-ink{fill:var(--ink2)}
 .chart .r-comply{fill:var(--comply)}.chart .r-refuse{fill:var(--refuse)}.chart .r-fix{fill:var(--fix)}.chart .r-none{fill:var(--none)}
