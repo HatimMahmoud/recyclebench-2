@@ -83,8 +83,21 @@ class JsonlStore:
         return d
 
 
-def pminus():
-    """The judged anchor P^- with full SORRY-Bench ids: [(bid, canonical_prompt)]."""
+def pminus(behaviours_csv: str | None = None):
+    """The judged anchor P^- with full SORRY-Bench ids: [(bid, canonical_prompt)].
+
+    ``behaviours_csv`` (the bring-your-own-data path, ``--behaviours``) instead takes an
+    already-decided P^- subset CSV -- e.g. what ``tools/pminus_subset.py`` writes from a
+    ``pilot-pminus`` result -- and uses **every** row as the fix set. Nothing is re-screened:
+    the caller is asserting that this CSV *is* the judged P^-. Passing it leaves the anchor
+    path below untouched, so the registered compose-v2 result is unaffected.
+
+    Note the standing id caveat: ``load_jailbreakbench`` ignores a ``bid`` column and renumbers
+    rows, so ids from a subset CSV are row positions, not corpus ids. Join back on prompt text.
+    """
+    if behaviours_csv:
+        bs = load_jailbreakbench(str(behaviours_csv))
+        return [(b.bid, b.canonical_prompt) for b in bs], len(bs)
     from recyclebench.manifest import Manifest
     from rpe_lineage import pminus_with_answers
     cfg = Config.load(ROOT / LINEAGE_CFG)
@@ -271,6 +284,10 @@ def main(argv=None) -> int:
                     help=f"default {STORE.relative_to(ROOT)} for the anchor, cache/compose_v2__<old>__<new> otherwise")
     ap.add_argument("--old", default=OLD, help="older model (cfg key); the anchor by default")
     ap.add_argument("--new", default=NEW, help="newer model (cfg key in configs/recycle_3_31.yaml)")
+    ap.add_argument("--behaviours", default=None,
+                    help="bring-your-own-data: an already-decided P^- subset CSV (e.g. from "
+                         "tools/pminus_subset.py). Every row is used as a fix; nothing is "
+                         "re-screened. Omit for the registered anchor P^-.")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
 
@@ -279,7 +296,7 @@ def main(argv=None) -> int:
         args.store = str(STORE if (OLD, NEW) == ("llama3-8b", "llama31-8b") else ROOT / "cache" / f"compose_v2__{OLD}__{NEW}")
     deadline = time.time() + args.minutes * 60 if args.minutes else None
     cfg = Config.load(ROOT / CFG)
-    behaviours, n_pm = pminus()
+    behaviours, n_pm = pminus(args.behaviours)
     if args.n_behaviours:
         behaviours = behaviours[:args.n_behaviours]
     store_dir = Path(args.store)

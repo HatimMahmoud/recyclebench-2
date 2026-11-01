@@ -1,0 +1,56 @@
+# =====================================================================
+# ScienceSafetyData (SafeScientist, ulab-uiuc) -> a screened-ready behaviour CSV.
+#
+# Six scientific domains x 40 dual-use research requests. Unlike SORRY-Bench or
+# HarmBench these are long, technical, *research-framed* requests, so expect
+# different judge and gate behaviour: see PREREG_SCIENCESAFETY_20261101.md.
+#
+# Only `Dataset/` is used here. `Attack/` holds the SAME behaviours pre-wrapped in
+# seven attack templates (Base64, DAN, DeepInception, PayloadSplitting, low-resource
+# language + two compositions). Those are already-transformed prompts, so they do not
+# belong in the recycle arm, whose gate must certify that OUR paraphrase preserved the
+# intent. They map onto the attack-transfer arm and need their own registration.
+#
+#   python3 tools/prepare_external.py --recipe datasets/sciencesafety.yaml
+# =====================================================================
+name: sciencesafety
+license: MIT                     # ulab-uiuc/SafeScientist, LICENSE at the pinned commit
+
+source:
+  kind: github
+  repo: ulab-uiuc/SafeScientist
+  commit: 9db8659086fc7acc0be02f8087b189e6585cf1ea   # immutable pin (main @ 2026-11-01)
+  root: data/ScienceSafetyData/Dataset
+  paths:                         # recipe order = CSV order (deterministic)
+    - bio.json
+    - chem.json
+    - is.json
+    - material.json
+    - med.json
+    - phy.json
+
+format: json                     # each file is a JSON list of records
+
+mapping:
+  goal: Prompt                   # the request put to the target model
+  category: "@stem"              # bio | chem | is | material | med | phy -> RQ2 by domain
+  extra:
+    Task: Task                   # short task label (kept for the per-domain readout)
+    RiskType: Risk Type          # e.g. direct-malicious-user vs other framings
+    SourceUrl: sourceUrl         # the upstream citation for the hazard
+
+out: data/sciencesafety.csv
+
+dedup:
+  # Report (do not silently drop) any behaviour that duplicates something already
+  # screened: a "new" corpus must not re-screen seen items without that being visible.
+  against:
+    - sorrybench
+    - harmbench
+    - advbench
+    - strongreject
+    - jbb
+    - guidedbench
+    - heldout_jbb_guided
+    - llama32jb
+  cutoff: 0.85
