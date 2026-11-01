@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""tools/cache_consolidate.py -- append responses that live only in side caches into the shared cache.
+"""tools/cache_consolidate.py -- append records that live only in side caches into the shared one.
+
+Works for both kinds of append-only JSONL this project keeps: response caches ({k, t}) and judge
+verdict stores ({k, v}). The value field is detected per file and a mismatch is refused, so a
+verdict store can never be merged into a response cache. Sharded cluster jobs (one cache per Slurm
+task, `recyclebench experiment --shard`) are merged back with exactly this tool.
 
 Earlier runs wrote some models' responses to their own cache files (llama2-13b -> cache/llama2_13b.jsonl,
 llama3.2 1B/3B on HarmBench/AdvBench/StrongREJECT -> cache/ollama_pilot.jsonl). Jobs that combine those models
@@ -21,6 +26,24 @@ import shutil
 import sys
 from collections import Counter
 from pathlib import Path
+
+
+VALUE_FIELDS = ("t", "v")          # response caches store {k, t}; verdict stores store {k, v}
+
+
+def value_field(recs, path):
+    """Which value field this JSONL uses, so verdict stores merge the same way response caches do.
+
+    A response cache and a verdict store share the key shape but not the value field, and merging
+    one into the other would put unreadable records in both. Mixed or unknown fields are refused.
+    """
+    found = {f for r in recs for f in VALUE_FIELDS if f in r}
+    if not recs:
+        return None                                    # an empty file merges into anything
+    if len(found) != 1:
+        raise SystemExit(f"{path}: expected exactly one of {VALUE_FIELDS} per record, found "
+                         f"{sorted(found) or 'none'} -- is this a recyclebench cache?")
+    return found.pop()
 
 
 def read_records(path: Path):
@@ -45,17 +68,24 @@ def main(argv=None):
 
     target = Path(args.target)
     recs, bad = read_records(target)
-    have = {r["k"]: r["t"] for r in recs}
+    tfield = value_field(recs, target)
+    have = {r["k"]: r.get(tfield) for r in recs}
     print(f"target  {target}: {len(have):,} keys" + (f" ({bad} malformed lines ignored)" if bad else ""))
     add, conflicts, per_model = [], Counter(), Counter()
     seen = set()
     for src in args.sources:
         srecs, sbad = read_records(Path(src))
+        sfield = value_field(srecs, Path(src))
+        if tfield and sfield and sfield != tfield:
+            raise SystemExit(f"refusing to merge {src} (value field {sfield!r}) into {target} "
+                             f"(value field {tfield!r}): a verdict store and a response cache are "
+                             f"different kinds of file")
+        tfield = tfield or sfield
         n_add = 0
         for r in srecs:
             k = r["k"]
             if k in have:
-                if have[k] != r["t"]:
+                if have[k] != r.get(sfield):
                     conflicts[src] += 1
                 continue
             if k in seen:

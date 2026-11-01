@@ -134,7 +134,130 @@ bash reads a script incrementally and editing a running one can make it execute 
    computed component-score distribution beside an already-calibrated corpus before trusting an RSR
    difference. `PREREG_SCIENCESAFETY_20261101.md` registers exactly these threats for a worked case.
 
-## 5. Register before you run
+## 5. One command, locally or on the cluster
+
+Sections 3–4 are the manual route and still work. The supported route is **one experiment spec**,
+which composes the three things that stay separable — dataset, science, execution — and runs the
+same stages in the same order on a laptop and on a Slurm node:
+
+```bash
+python3 -m recyclebench experiment validate --spec experiments/<yours>.yaml   # inputs resolve
+python3 -m recyclebench experiment plan     --spec experiments/<yours>.yaml   # the exact commands
+python3 -m recyclebench experiment run      --spec experiments/<yours>.yaml   # execute, resumably
+```
+
+`validate` and `plan` make **no model calls, no downloads, no submissions and no writes** — not even
+the run directory. A test asserts it.
+
+`experiments/example_local.yaml` is a complete working example over benign local data
+(`datasets/example_local.yaml` + `datasets/example_local/requests.json`): no network, no harmful
+text, nothing to download. Copy it.
+
+```yaml
+name: mycorpus                              # names the run dir, cache and verdict store
+science_config: configs/recycle_3_31.yaml   # judge, gate, budgets, seed, endpoints -- unchanged
+old: llama3-8b
+new: llama31-8b
+recipe: datasets/mycorpus.yaml              # or: behaviours: data/mycorpus.csv
+execution:
+  target: local                             # local | cluster
+  run_root: results/runs
+  cache_dir: cache
+  # shard: task-01                          # a concurrent job's own cache (never share a JSONL)
+  # stop_at: "08:30"                        # start no new stage after this wall-clock time
+stages: [prepare, screen, subset, recycle, partition, audit]     # the default is all six
+min_p_minus_for_recycle: 5
+```
+
+Stage order is fixed and meaningful: `screen` → `subset` → `recycle`, because the recycling set is
+the **judged** P⁻ (trap 1 below); `partition` is a control and runs *after* `recycle`, so a run that
+loses its time budget still has the primary estimand.
+
+**Resume.** Rerun the same command. Every stage's own tool skips what its caches hold, and a stage
+is recorded done only once its artifacts exist — so a killed job never leaves a "completed" stage
+with a half-written artifact. Before resuming, the driver compares a **fingerprint** (dataset
+sha256, the effective science config, seed, k, budgets, transform classes, judge, gate thresholds,
+code revision) against the one recorded when each stage ran, and refuses if a scientific input
+moved:
+
+```
+RESUME BLOCKED:
+  - stage screen: behaviours_sha256 changed since it ran ('42ff86…' -> '5d29d9…')
+```
+
+Editing a tool between stages is fine (`code_revision` is a warning, not a blocker); changing the
+dataset, the seed or the judge is not, because cache keys derive from the seed and appending under a
+new one silently mixes two experiments.
+
+### Adding custom preprocessing
+
+Only when a field mapping genuinely cannot express the source — a goal split across two fields, a
+prefix to strip, a record to drop. Add to the recipe:
+
+```yaml
+preprocess: mymodule:fix        # module:function, importable from the repo root
+```
+
+It takes a record dict and returns a dict, or `None` to drop it. It runs before the mapping, so the
+recipe still names the fields and provenance still records what was written. A recipe without
+`preprocess:` loads no extra code at all.
+
+### Cluster
+
+The cluster path is the *same* driver, so the semantics are identical; only the wrapper differs.
+Full setup in [pegasus/README.md](../pegasus/README.md), hard-won detail in
+[docs/pegasus/LESSONS.md](pegasus/LESSONS.md).
+
+```bash
+bash pegasus/build_image.sh                       # once per Ollama version (sbatch, ~2 min)
+sbatch -p RTXA6000 --gpus=0 --mem=24G --time=03:00:00 pegasus/run.sbatch ollama pull qwen2.5:14b
+
+RB_PLAN=1 sbatch -p RTXA6000 --gpus=0 --mem=8G --time=00:10:00 \
+    pegasus/experiment.sbatch experiments/mycorpus.yaml          # plan inside the image, no calls
+sbatch -p A100-80GB --gpus=1 --mem=96G --time=08:00:00 \
+    pegasus/experiment.sbatch experiments/mycorpus.yaml          # run; --shard $SLURM_JOB_ID
+python3 tools/cache_consolidate.py --target cache/mycorpus.jsonl \
+    --sources cache/shards/mycorpus__*.jsonl --apply             # merge the shards afterwards
+```
+
+Resources, endpoints, storage and logs come from the sbatch line and `pegasus/env.sh` — never from a
+Python file. `sbatch --test-only <same options>` prints the estimated start before you queue it.
+
+**Before a long cluster run**, check the environment is the one the registered figures came from:
+
+```bash
+sbatch -p RTXA6000 --gpus=0 --mem=8G --time=00:10:00 pegasus/run.sbatch \
+    python3 tools/env_check.py --strict
+```
+
+`requirements.txt` floor-pins everything, so without `requirements-lock.txt` the image and the
+laptop get different numpy/scipy/statsmodels. The container now installs
+`-r requirements.txt -c requirements-lock.txt`.
+
+### Output layout
+
+```
+results/runs/<name>/
+  experiment.json          effective spec, fingerprint, runtime (host, Slurm job, Ollama URL)
+  stages/<stage>.json      one per completed stage: artifacts + the fingerprint it ran under
+  pminus_pilot.json        the judged screen            (stage screen)
+  <name>_p_minus_judged.csv  the judged P^- subset      (stage subset)
+  manifest_<name>.jsonl    the FROZEN rewordings        (stage recycle)
+  summary_real.json        RAW RSR / PBR                (stage recycle)
+  cells/                   the 2x2 incl. negative flips (stage partition)
+cache/<name>.jsonl         responses      (or cache/shards/<name>__<job>.jsonl when sharded)
+cache/judge_<name>.jsonl   judge verdicts
+audit/<name>/judge_sheet.csv   the blind sheet to label (stage audit)
+```
+
+`pilot-pminus` and `run-real` now take `--run-dir`, so nothing lands on a shared fixed path and no
+backup/restore dance is needed. Omitting it keeps the historical paths.
+
+**Every figure is RAW until the audit sheet is labelled.** A new corpus has no calibration of its
+own; applying another corpus's sheet is a transfer, reported as a labelled sensitivity. Read
+calibration through `tools/primary_calibration.py`, never by naming a sheet.
+
+## 6. Register before you run
 
 A new corpus is a new population, so it needs its own registration: the pinned source and CSV hash,
 the pair, the estimands, the decision rule, and the threats above. `PREREG_SCIENCESAFETY_20261101.md`

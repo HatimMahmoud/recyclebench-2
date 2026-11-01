@@ -137,6 +137,45 @@ on short requests, so a long/research-framed corpus may sit off their range). A 
 population: register it, and keep it isolated (own cache, own run dir, **not** in
 `tools/study_data.py`, on no dashboard) until P⁻ is known non-empty, then fold it in by amendment.
 
+## Running one experiment (local or cluster)
+One spec composes the three separable things -- dataset, science, execution -- and runs the same
+stages in the same order on a laptop and on a Slurm node (`src/recyclebench/experiment.py`):
+```bash
+python3 -m recyclebench experiment validate --spec experiments/<x>.yaml   # inputs resolve
+python3 -m recyclebench experiment plan     --spec experiments/<x>.yaml   # exact commands, NO writes
+python3 -m recyclebench experiment run      --spec experiments/<x>.yaml   # resumable
+sbatch -p A100-80GB --gpus=1 --mem=96G --time=08:00:00 \
+    pegasus/experiment.sbatch experiments/<x>.yaml                        # same driver, --shard $JOBID
+```
+Stages `prepare → screen → subset → recycle → partition → audit`. The order is load-bearing:
+`recycle` consumes the **judged** P⁻ that `subset` writes from the pilot JSON (never
+`pminus_report --dump`'s offline cell), and `partition` is a control placed *after* the primary
+estimand so a run that loses its budget still has RSR. A stage is recorded done only once its
+artifacts exist, and a resume is **refused** when the fingerprint (dataset sha256, config sha256,
+seed, k, budgets, transform classes, judges, gate thresholds) moved -- cache keys derive from the
+seed, so appending under a new one would mix two experiments. `code_revision` moving is a warning,
+not a blocker. `--shard` gives a concurrent job its own cache (`cache/shards/<name>__<job>.jsonl`);
+merge with `tools/cache_consolidate.py`, which now handles verdict stores (`{k,v}`) as well as
+response caches (`{k,t}`) and refuses to merge one kind into the other.
+`pilot-pminus` / `run-real` take `--run-dir`, so no run writes a shared fixed path (the old
+backup/restore workaround is gone). `experiments/example_local.yaml` is a complete benign example
+needing no download. `tools/env_check.py` compares the environment against `requirements-lock.txt`
+-- run it before a long cluster job, because `requirements.txt` floor-pins everything and the image
+and the Mac otherwise get different numpy/scipy/statsmodels.
+
+## Cluster (DFKI Pegasus)
+`pegasus/` + `docker/Dockerfile` + `docs/pegasus/` came from the verified `pegasus-cluster` branch
+(commit `3893f73`, which *is* on the remote): pinned `ollama/ollama:0.40.12` built with
+`podman build → enroot import`, `env.sh` holding every path and Ollama setting, `run.sbatch` running
+any repo command in the image with a private per-job Ollama port
+(`RECYCLEBENCH_OLLAMA_URL`, `backends/providers.resolve_base_url`), provenance per job. Read
+`docs/pegasus/LESSONS.md` before using it -- it records what went wrong (login-node work, `srun` for
+long jobs, Ollama's 5-min load timeout vs a 67 GB model, blob pruning across jobs, over-long
+`--time`) and the measured throughput. Nothing runs on the login node. `pegasus/canonical_screen.sh`
+replaces `llama4_canonical.sh` and takes `RB_CONFIG`. **Unverified on hardware in this session:** no
+job was submitted, so every cluster claim here rests on the earlier session's runs plus syntax and
+render checks.
+
 ## Configs
 `real_llama_lineage_all.yaml` holds the 6-model lineage (`llama2-7b → llama2-13b → llama3-8b → llama31-8b →
 llama32-1b → llama32-3b`) and the seed the lineage cache was built with. `recycle_3_31.yaml` holds the

@@ -1,0 +1,32 @@
+# A BYOD recipe over benign local data: no download, no network, no harmful content.
+# It exists so the whole workflow can be validated, planned and tested end to end on any machine:
+#
+#   python3 tools/prepare_external.py --recipe datasets/example_local.yaml --dry-run
+#   python3 -m recyclebench experiment plan --spec experiments/example_local.yaml
+#
+# These are ordinary questions, so a screen over them finds no regression set -- that is the point.
+# It exercises the plumbing (mapping, provenance, determinism, overlap, stage ordering, resume)
+# without spending GPU time or putting harmful text on disk.
+name: example_local
+license: CC0-1.0 (written for this repository)
+
+source:
+  kind: local
+  root: datasets/example_local
+  paths:
+    - requests.json
+
+format: json
+
+mapping:
+  goal: Prompt
+  category: Topic
+  extra:
+    Task: Task
+
+out: data/example_local.csv
+
+# no dedup: against is empty, so the overlap report is trivially clean
+dedup:
+  against: []
+  cutoff: 0.85

@@ -1,0 +1,29 @@
+# A complete, configuration-only experiment over benign local data. No download, no network.
+#
+#   python3 -m recyclebench experiment validate --spec experiments/example_local.yaml
+#   python3 -m recyclebench experiment plan     --spec experiments/example_local.yaml
+#   python3 -m recyclebench experiment run      --spec experiments/example_local.yaml   # needs Ollama
+#
+# Adding a dataset needs this file plus a recipe -- no Python, no registry entry.
+name: example_local
+
+# the SCIENCE: judge, gate, budgets, seed, transform classes, model endpoints. Unchanged.
+science_config: configs/recycle_3_31.yaml
+old: llama3-8b
+new: llama31-8b
+
+# the DATA: a recipe produces the canonical CSV (use `behaviours:` instead to point at one directly)
+recipe: datasets/example_local.yaml
+
+# the EXECUTION: nothing here may affect a number
+execution:
+  target: local
+  run_root: results/runs
+  cache_dir: cache
+  # shard: task-01          # give a concurrent job its own cache shard
+  # stop_at: "08:30"        # start no new stage after this wall-clock time
+
+# benign requests produce no regression set, so stop after the screen: the later stages would have
+# nothing to work on. A real corpus lists every stage (the default is all six).
+stages: [prepare, screen, subset]
+min_p_minus_for_recycle: 5

@@ -1,0 +1,29 @@
+# Exact versions of the numeric stack that produced the registered results.
+#
+# Why this file exists. requirements.txt floor-pins everything (numpy>=1.24, statsmodels>=0.14, …)
+# with no upper bound, so `pip install -r requirements.txt` on a different day gives a different
+# numeric stack. The container therefore never had the same numpy/scipy/statsmodels as the machine
+# the registered figures came from, which is why cross-environment reproducibility was an open
+# question rather than a checked property, and why
+# `tests/test_recycling.py::test_study_is_byte_reproducible_under_same_seed` failing only inside the
+# image could not be attributed (docs/pegasus/LESSONS.md §6.5 blamed BLAS threading; dependency
+# drift was never ruled out, and was at least as likely).
+#
+# Use it as a pip CONSTRAINTS file, so it bounds versions without itself being an install list:
+#
+#     pip install -r requirements.txt -c requirements-lock.txt
+#
+# Check a running environment against it with:
+#
+#     python3 tools/env_check.py            # report drift
+#     python3 tools/env_check.py --strict    # exit 1 on drift (use in a job before a long run)
+#
+# Recorded 2026-11-01 from the machine that produced every figure in results/ to date (macOS,
+# CPython 3.12). Bumping a version here is a decision about the instrument: re-run the suite,
+# confirm the registered figures still reproduce, and say so in the amendment.
+numpy==2.2.6
+scipy==1.18.0
+pandas==3.0.3
+statsmodels==0.14.6
+PyYAML==6.0.2
+matplotlib==3.11.0

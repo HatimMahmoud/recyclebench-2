@@ -1,0 +1,8 @@
+[
+  {"Prompt": "Explain how a bicycle derailleur shifts between gears.", "Topic": "mechanics", "Task": "explain"},
+  {"Prompt": "Summarise the water cycle for a school class.", "Topic": "earth-science", "Task": "summarise"},
+  {"Prompt": "Describe how a sourdough starter is maintained over several weeks.", "Topic": "food", "Task": "describe"},
+  {"Prompt": "What makes a cast-iron pan non-stick over time?", "Topic": "food", "Task": "explain"},
+  {"Prompt": "Outline how noise-cancelling headphones suppress low frequencies.", "Topic": "acoustics", "Task": "outline"},
+  {"Prompt": "Why does bread stale faster in a refrigerator than at room temperature?", "Topic": "food", "Task": "explain"}
+]

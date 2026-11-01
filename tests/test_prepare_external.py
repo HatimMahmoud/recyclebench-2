@@ -210,3 +210,115 @@ def test_compose_v2_default_still_resolves_the_registered_anchor_p_minus():
     items, n_pm = cv.pminus()                      # no argument == the anchor, as before
     assert n_pm == 49, f"anchor |P^-| moved: {n_pm}"
     assert len(items) == 49 and all(b.startswith("jbb-") for b, _ in items)
+
+
+# ---------------------------------------------------------------------------
+# cluster-readiness additions: streaming errors, the preprocess hook, --data-root
+# ---------------------------------------------------------------------------
+def test_a_malformed_record_names_its_file_and_line(tmp_path):
+    """A bare JSONDecodeError on a 200k-line corpus tells you nothing useful."""
+    src = tmp_path / "s"
+    src.mkdir()
+    (src / "f.jsonl").write_text(
+        json.dumps({"q": BENIGN[0]}) + "\n" + "{not json}\n")
+    import yaml
+    r = tmp_path / "r.yaml"
+    r.write_text(yaml.safe_dump({
+        "name": "t", "source": {"kind": "local", "root": str(src), "paths": ["f.jsonl"]},
+        "format": "jsonl", "mapping": {"goal": "q"}, "out": str(tmp_path / "o.csv")}))
+    with pytest.raises(SystemExit, match=r"f\.jsonl:2: invalid JSON line"):
+        pe.build(r, fetch=False)
+
+
+def test_a_headerless_csv_and_a_non_list_json_fail_clearly(tmp_path):
+    src = tmp_path / "s"
+    src.mkdir()
+    (src / "empty.csv").write_text("")
+    (src / "scalar.json").write_text('"just a string"')
+    import yaml
+    for f, msg in (("empty.csv", "no header row"), ("scalar.json", "expected a JSON list")):
+        r = tmp_path / f"r_{f}.yaml"
+        r.write_text(yaml.safe_dump({
+            "name": "t", "source": {"kind": "local", "root": str(src), "paths": [f]},
+            "format": "csv" if f.endswith(".csv") else "json",
+            "mapping": {"goal": "q"}, "out": str(tmp_path / "o.csv")}))
+        with pytest.raises(SystemExit, match=msg):
+            pe.build(r, fetch=False)
+
+
+def test_jsonl_and_csv_stream_without_materialising_the_file(tmp_path):
+    """iter_records must be a generator, or a large corpus loads whole into memory."""
+    import inspect
+    assert inspect.isgeneratorfunction(pe.iter_records)
+    src = tmp_path / "s"
+    src.mkdir()
+    (src / "f.jsonl").write_text("\n".join(json.dumps({"q": g}) for g in BENIGN))
+    it = pe.iter_records(src / "f.jsonl", "jsonl")
+    assert next(it)["q"] == BENIGN[0]            # first record available before the file is read
+    assert len(list(it)) == 2
+
+
+def test_the_preprocess_hook_can_rewrite_and_drop_records(tmp_path):
+    mod = tmp_path / "myprep.py"
+    mod.write_text(
+        "def fix(rec):\n"
+        "    if rec.get('skip'):\n"
+        "        return None\n"
+        "    rec['q'] = rec['q'].replace('PREFIX: ', '')\n"
+        "    return rec\n")
+    import sys as _sys
+    _sys.path.insert(0, str(tmp_path))
+    src = tmp_path / "s"
+    src.mkdir()
+    (src / "f.jsonl").write_text("\n".join([
+        json.dumps({"q": "PREFIX: " + BENIGN[0]}),
+        json.dumps({"q": BENIGN[1], "skip": True}),
+        json.dumps({"q": BENIGN[2]})]))
+    import yaml
+    r = tmp_path / "r.yaml"
+    r.write_text(yaml.safe_dump({
+        "name": "t", "source": {"kind": "local", "root": str(src), "paths": ["f.jsonl"]},
+        "format": "jsonl", "mapping": {"goal": "q"}, "preprocess": "myprep:fix",
+        "out": str(tmp_path / "o.csv")}))
+    prov = pe.build(r, fetch=False)
+    goals = [x["Goal"] for x in _rows(tmp_path / "o.csv")]
+    assert goals == [BENIGN[0], BENIGN[2]]                     # prefix stripped, skip dropped
+    assert prov["per_file"]["f.jsonl"]["dropped_by_preprocess"] == 1
+
+
+@pytest.mark.parametrize("spec,msg", [
+    ("myprep", "must be 'module:function'"),
+    ("nosuchmodule:fix", "cannot import"),
+    ("myprep:absent", "is not callable"),
+])
+def test_a_bad_preprocess_spec_fails_clearly(spec, msg):
+    with pytest.raises(SystemExit, match=msg):
+        pe.load_preprocess(spec)
+
+
+def test_a_recipe_without_preprocess_loads_no_code():
+    assert pe.load_preprocess(None) is None
+    assert pe.load_preprocess("") is None
+
+
+def test_data_root_relocates_the_output_and_the_overlap_reference(tmp_path):
+    """On a cluster the benchmark CSVs live on shared scratch, not in the checkout."""
+    alt = tmp_path / "scratch_data"
+    alt.mkdir()
+    with (alt / "screened.csv").open("w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=["Goal", "Category"])
+        w.writeheader()
+        w.writerow({"Goal": BENIGN[1], "Category": "x"})
+    src = tmp_path / "s"
+    src.mkdir()
+    (src / "f.jsonl").write_text("\n".join(json.dumps({"q": g}) for g in BENIGN))
+    import yaml
+    r = tmp_path / "r.yaml"
+    r.write_text(yaml.safe_dump({
+        "name": "t", "source": {"kind": "local", "root": str(src), "paths": ["f.jsonl"]},
+        "format": "jsonl", "mapping": {"goal": "q"},
+        "dedup": {"against": ["screened"], "cutoff": 0.85},
+        "out": "data/t.csv"}))
+    prov = pe.build(r, fetch=False, data_root=alt)
+    assert (alt / "t.csv").exists(), "output did not follow --data-root"
+    assert prov["overlap"]["n_exact"] == 1, "overlap reference did not follow --data-root"

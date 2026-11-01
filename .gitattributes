@@ -1,0 +1,4 @@
+# Scripts run on Linux (Pegasus, Docker): keep LF even in a Windows checkout with core.autocrlf.
+*.sh        text eol=lf
+*.sbatch    text eol=lf
+Dockerfile  text eol=lf

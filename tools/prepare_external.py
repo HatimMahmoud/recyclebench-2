@@ -89,29 +89,82 @@ def sha256_text(s: str) -> str:
     return hashlib.sha256(s.encode()).hexdigest()
 
 
-def load_records(path: Path, fmt: str) -> list[dict]:
-    """Read one source file into a list of dicts, preserving file order."""
+def iter_records(path: Path, fmt: str):
+    """Yield one source file's records as dicts, in file order.
+
+    JSONL and CSV stream line by line, so a large corpus never loads whole into memory (the caller
+    only ever holds the mapped Goal/Category rows). JSON cannot stream: a list has to be parsed to
+    be indexed. A malformed line names itself, with its line number, rather than aborting with a
+    bare JSONDecodeError.
+    """
     if fmt == "json":
-        d = json.loads(path.read_text())
+        try:
+            d = json.loads(path.read_text())
+        except json.JSONDecodeError as e:
+            raise SystemExit(f"{path}: invalid JSON at line {e.lineno}, column {e.colno}: {e.msg}")
         if isinstance(d, dict):                       # a mapping of id -> record
             d = [dict(v, _key=k) if isinstance(v, dict) else {"_key": k, "value": v}
                  for k, v in d.items()]
         if not isinstance(d, list):
             raise SystemExit(f"{path}: expected a JSON list or object, got {type(d).__name__}")
-        return [r for r in d if isinstance(r, dict)]
+        for r in d:
+            if isinstance(r, dict):
+                yield r
+        return
     if fmt == "jsonl":
-        out = []
-        for line in path.read_text().splitlines():
-            line = line.strip()
-            if line:
-                r = json.loads(line)
+        with path.open(encoding="utf-8") as fh:
+            for i, line in enumerate(fh, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError as e:
+                    raise SystemExit(f"{path}:{i}: invalid JSON line: {e.msg}")
                 if isinstance(r, dict):
-                    out.append(r)
-        return out
+                    yield r
+        return
     if fmt == "csv":
-        with path.open(newline="") as fh:
-            return list(csv.DictReader(fh))
+        with path.open(newline="", encoding="utf-8") as fh:
+            rdr = csv.DictReader(fh)
+            if rdr.fieldnames is None:
+                raise SystemExit(f"{path}: no header row, so no field names to map")
+            yield from rdr
+        return
     raise SystemExit(f"unknown format: {fmt!r} (json | jsonl | csv)")
+
+
+def load_records(path: Path, fmt: str) -> list[dict]:
+    """iter_records materialised. Kept because callers and tests use it."""
+    return list(iter_records(path, fmt))
+
+
+def load_preprocess(spec):
+    """Resolve `preprocess:` to a callable applied to each record before the field mapping.
+
+    For the case a field mapping genuinely cannot express -- a goal split across two fields, a
+    prefix to strip, a record to drop -- and nothing more: it takes a dict and returns a dict, or
+    None to drop the record. Written as "module:function"; a plain module path is not accepted,
+    because guessing an entry point is how a recipe starts meaning two things.
+
+    It runs before mapping and before dedup, so provenance still records what was written, and the
+    recipe still names the fields. A recipe without `preprocess:` loads no code at all.
+    """
+    if not spec:
+        return None
+    if ":" not in spec:
+        raise SystemExit(f"preprocess must be 'module:function', got {spec!r}")
+    mod_name, func = spec.split(":", 1)
+    import importlib
+    sys.path.insert(0, str(ROOT))
+    try:
+        mod = importlib.import_module(mod_name)
+    except ImportError as e:
+        raise SystemExit(f"preprocess {spec!r}: cannot import {mod_name!r} ({e})")
+    fn = getattr(mod, func, None)
+    if not callable(fn):
+        raise SystemExit(f"preprocess {spec!r}: {mod_name}.{func} is not callable")
+    return fn
 
 
 def category_of(spec: str, rec: dict, path: Path) -> str:
@@ -220,7 +273,18 @@ def overlap_report(goals: list[str], against: list[str], cutoff: float,
 # main
 # ---------------------------------------------------------------------------
 def build(recipe_path: Path, *, fetch: bool = True, drop_overlap: bool = False,
-          out: Path | None = None, dry_run: bool = False) -> dict:
+          out: Path | None = None, dry_run: bool = False,
+          data_root: Path | None = None) -> dict:
+    """Recipe -> canonical CSV + provenance sidecar.
+
+    `data_root` relocates the *reference* benchmark directory the overlap report reads and, when the
+    recipe's `out:` is relative, the directory the CSV is written to. On a cluster the benchmark CSVs
+    live on shared scratch rather than in the checkout (`/netscratch/$USER/recyclebench/data`), so
+    the same recipe has to work against either without being edited.
+    """
+    data_dir = Path(data_root) if data_root else (ROOT / "data")
+    if not data_dir.is_absolute():
+        data_dir = ROOT / data_dir
     recipe_text = recipe_path.read_text()
     recipe = yaml.safe_load(recipe_text)
     name = recipe["name"]
@@ -230,9 +294,16 @@ def build(recipe_path: Path, *, fetch: bool = True, drop_overlap: bool = False,
     cat_spec = mapping.get("category", "")
     extra = dict(mapping.get("extra") or {})
     dedup = dict(recipe.get("dedup") or {})
-    dest = Path(out) if out else (ROOT / recipe["out"])
+    if out:
+        dest = Path(out)
+    else:
+        declared = Path(recipe["out"])
+        # a recipe that says `out: data/x.csv` follows --data-root; an absolute out: is respected
+        dest = declared if declared.is_absolute() else (
+            data_dir / declared.name if declared.parent.name == "data" else ROOT / declared)
     if not dest.is_absolute():
         dest = ROOT / dest
+    pre = load_preprocess(recipe.get("preprocess"))
 
     files, src_prov = resolve_sources(recipe, name, fetch)
     file_hashes = {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p):
@@ -242,10 +313,18 @@ def build(recipe_path: Path, *, fetch: bool = True, drop_overlap: bool = False,
     rows, n_read, n_empty = [], 0, 0
     per_file = {}
     for p in files:
-        recs = load_records(p, fmt)
-        kept = 0
-        for rec in recs:
+        kept, n_file, n_dropped_pre = 0, 0, 0
+        for rec in iter_records(p, fmt):
             n_read += 1
+            n_file += 1
+            if pre is not None:
+                rec = pre(rec)
+                if rec is None:                      # the hook may drop a record
+                    n_dropped_pre += 1
+                    continue
+                if not isinstance(rec, dict):
+                    raise SystemExit(f"preprocess returned {type(rec).__name__}, expected a dict "
+                                     f"or None (record {n_file} of {p.name})")
             goal = str(rec.get(goal_field, "") or "").strip()
             if not goal:
                 n_empty += 1
@@ -255,7 +334,9 @@ def build(recipe_path: Path, *, fetch: bool = True, drop_overlap: bool = False,
                 row[col] = str(rec.get(field, "") or "").strip()
             rows.append(row)
             kept += 1
-        per_file[p.name] = {"records": len(recs), "kept": kept}
+        per_file[p.name] = {"records": n_file, "kept": kept}
+        if n_dropped_pre:
+            per_file[p.name]["dropped_by_preprocess"] = n_dropped_pre
 
     if not rows:
         raise SystemExit(f"no usable rows: is mapping.goal ({goal_field!r}) the right field?")
@@ -275,7 +356,7 @@ def build(recipe_path: Path, *, fetch: bool = True, drop_overlap: bool = False,
     ov = None
     if dedup.get("against"):
         ov = overlap_report([r["Goal"] for r in rows], list(dedup["against"]),
-                            float(dedup.get("cutoff", 0.85)), ROOT / "data")
+                            float(dedup.get("cutoff", 0.85)), data_dir)
         if drop_overlap:
             bad = {int(k) for k in ov["exact"]} | {int(k) for k in ov["near"]}
             rows = [r for i, r in enumerate(rows) if i not in bad]
@@ -329,6 +410,9 @@ def main(argv=None) -> int:
     ap.add_argument("--drop-overlap", action="store_true",
                     help="remove behaviours duplicating an already-screened benchmark "
                          "(default: report only)")
+    ap.add_argument("--data-root", default=None,
+                    help="benchmark/output directory to use instead of ./data (on a cluster the "
+                         "CSVs live on shared scratch)")
     ap.add_argument("--dry-run", action="store_true", help="report only; write nothing")
     args = ap.parse_args(argv)
 
@@ -338,7 +422,7 @@ def main(argv=None) -> int:
     if not rp.exists():
         raise SystemExit(f"recipe not found: {rp}")
 
-    prov = build(rp, fetch=not args.no_fetch, drop_overlap=args.drop_overlap,
+    prov = build(rp, fetch=not args.no_fetch, drop_overlap=args.drop_overlap, data_root=args.data_root,
                  out=args.out, dry_run=args.dry_run)
 
     c = prov["counts"]

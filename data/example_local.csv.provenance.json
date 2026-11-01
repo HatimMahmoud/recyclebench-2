@@ -1,0 +1,47 @@
+{
+  "tool": "tools/prepare_external.py",
+  "name": "example_local",
+  "recipe": "datasets/example_local.yaml",
+  "recipe_sha256": "9e6538d5493563b6df4e3b08c45d4ff5068a9fd7b0843e96840f542849bee96b",
+  "license": "CC0-1.0 (written for this repository)",
+  "source": {
+    "kind": "local",
+    "root": "datasets/example_local",
+    "paths": [
+      "requests.json"
+    ]
+  },
+  "file_sha256": {
+    "datasets/example_local/requests.json": "e7fb80b0afc06390b1b9ab23d36d73ad9d86c5db94d5660ced700cb6cc00a25c"
+  },
+  "format": "json",
+  "mapping": {
+    "goal": "Prompt",
+    "category": "Topic",
+    "extra": {
+      "Task": "Task"
+    }
+  },
+  "columns": [
+    "Goal",
+    "Category",
+    "Task"
+  ],
+  "counts": {
+    "records_read": 6,
+    "dropped_empty_goal": 0,
+    "dropped_duplicate_within_corpus": 0,
+    "dropped_overlap": 0,
+    "written": 6
+  },
+  "per_file": {
+    "requests.json": {
+      "records": 6,
+      "kept": 6
+    }
+  },
+  "overlap": null,
+  "overlap_dropped": false,
+  "out": "data/example_local.csv",
+  "out_sha256": "42ff86a1cb0e1b5a93996a71ed378ba855271f2e69761f10b319902fe419fd45"
+}

@@ -365,6 +365,65 @@ def _load_behaviours(path):
     return b
 
 
+def cmd_experiment(args) -> int:
+    """One configuration-driven experiment: validate / plan / run.
+
+    `validate` and `plan` make no model calls, no downloads and no writes; `run` executes the
+    pending stages resumably. The science comes from --spec's `science_config`; this command only
+    sequences the existing steps and keeps their artifacts in one run directory.
+    """
+    from .experiment import ExperimentSpec, build_plan, run as run_experiment, validate
+    spec = ExperimentSpec.load(args.spec)
+    if args.run_dir:
+        spec.execution.run_root = args.run_dir
+    if args.shard:
+        spec.execution.shard = args.shard
+    if args.target:
+        spec.execution.target = args.target
+
+    problems = validate(spec)
+    if args.action == "validate":
+        _hr(f"VALIDATE  {spec.name}")
+        for p in problems:
+            print(f"  - {p}")
+        print("  spec is runnable" if not problems else f"\n{len(problems)} problem(s)")
+        return 1 if problems else 0
+
+    plan = build_plan(spec)
+    if args.action == "plan":
+        _hr(f"PLAN  {spec.name}   (no model calls, no writes)")
+        print(plan.render())
+        if problems:
+            print("\nvalidate reports:")
+            for p in problems:
+                print(f"  - {p}")
+        assert not plan.writes, "a plan must not write anything"
+        return 0
+
+    if problems and not args.force:
+        _hr(f"VALIDATE  {spec.name}")
+        for p in problems:
+            print(f"  - {p}")
+        print("\nNot running. Fix these, or pass --force to run anyway.")
+        return 1
+    _hr(f"RUN  {spec.name}   ({spec.execution.target})")
+    return run_experiment(spec, only=args.stage or None, force=args.force)
+
+
+def _run_artifact(args, name: str, cfg) -> Path:
+    """Where a command's fixed-name artifact goes.
+
+    Historically `pilot-pminus` and `run-real` always wrote `<results_dir>/pminus_pilot.json` and
+    `<results_dir>/summary_real.json`, so two runs overwrote each other and callers had to copy the
+    file away afterwards (or back it up and restore it, as the first bring-your-own-data queue did).
+    `--run-dir` sends every artifact of one run to its own directory instead. Omitting it keeps the
+    old paths exactly, so existing commands and scripts are unaffected.
+    """
+    base = Path(getattr(args, "run_dir", None) or cfg.results_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    return base / name
+
+
 def cmd_pilot_pminus(args) -> int:
     """Month-1 pilot against two REAL endpoints: size |P^-| before spending on paraphrases."""
     from .realrun import pilot_p_minus
@@ -375,8 +434,7 @@ def cmd_pilot_pminus(args) -> int:
     out = pilot_p_minus(cfg, behaviours, models[0], models[1], judge, manifest=None,
                         cache_path=args.cache or cfg.cache_path)
     print(json.dumps({k: v for k, v in out.items() if k != "p_minus_bids"}, indent=2))
-    Path(cfg.results_dir).mkdir(parents=True, exist_ok=True)
-    dest = Path(cfg.results_dir) / "pminus_pilot.json"
+    dest = _run_artifact(args, "pminus_pilot.json", cfg)
     dest.write_text(json.dumps(out, indent=2))
     print(f"\nwritten: {dest}")
     if out["p_minus"] == 0:
@@ -430,8 +488,7 @@ def cmd_run_real(args) -> int:
                          cache_path=args.cache or cfg.cache_path)
     _hr("REAL RUN -- RAW (UNCORRECTED) ESTIMATES")
     print(json.dumps(res.summary(), indent=2, default=str))
-    Path(cfg.results_dir).mkdir(parents=True, exist_ok=True)
-    (Path(cfg.results_dir) / "summary_real.json").write_text(
+    _run_artifact(args, "summary_real.json", cfg).write_text(
         json.dumps(res.summary(), indent=2, default=str))
     print("\nNEXT: these are RAW. Run `judge-export` -> annotate -> `judge-ingest` to obtain\n"
           "bundle-level (se, sp), then report the corrected headline.")
@@ -541,12 +598,17 @@ def main(argv=None) -> int:
     prp.add_argument("--new", required=True)
     prp.add_argument("--behaviours", required=True, help="CSV with a 'Goal' column")
     prp.add_argument("--cache", default=None)
+    prp.add_argument("--run-dir", default=None,
+                     help="write this run's artifacts here instead of <results_dir>/ "
+                          "(the fixed name would otherwise be overwritten by the next run)")
 
     prr = sub.add_parser("run-real", help="full study against REAL endpoints")
     prr.add_argument("--config", default="configs/real.yaml")
     prr.add_argument("--behaviours", required=True)
     prr.add_argument("--manifest", default=None, help="reuse/write the frozen manifest")
     prr.add_argument("--cache", default=None)
+    prr.add_argument("--run-dir", default=None,
+                     help="write this run's artifacts here instead of <results_dir>/")
 
     pje = sub.add_parser("judge-export",
                          help="export bundle-complete sheet for judge calibration")
@@ -559,6 +621,19 @@ def main(argv=None) -> int:
                          help="ingest human labels -> bundle-level se/sp with CIs")
     pji.add_argument("sheet", help="the completed judge annotation CSV")
     pji.add_argument("--config", default=None)
+
+    pex = sub.add_parser("experiment",
+                         help="configuration-driven experiment: validate | plan | run")
+    pex.add_argument("action", choices=("validate", "plan", "run"))
+    pex.add_argument("--spec", required=True, help="the experiment YAML (see docs/BYOD.md)")
+    pex.add_argument("--run-dir", default=None, help="override execution.run_root")
+    pex.add_argument("--shard", default=None,
+                     help="task id: give this job its own cache shard so it cannot collide")
+    pex.add_argument("--target", default=None, choices=("local", "cluster"))
+    pex.add_argument("--stage", action="append", default=None,
+                     help="run only this stage (repeatable)")
+    pex.add_argument("--force", action="store_true",
+                     help="run despite validation problems or a changed fingerprint")
 
     sub.add_parser("version", help="print version")
 
@@ -587,6 +662,8 @@ def main(argv=None) -> int:
         return cmd_prereg(args)
     if args.cmd == "prereg-verify":
         return cmd_prereg_verify(args)
+    if args.cmd == "experiment":
+        return cmd_experiment(args)
     if args.cmd == "pilot-pminus":
         return cmd_pilot_pminus(args)
     if args.cmd == "run-real":
