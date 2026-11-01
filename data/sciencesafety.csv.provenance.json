@@ -1,0 +1,102 @@
+{
+  "tool": "tools/prepare_external.py",
+  "name": "sciencesafety",
+  "recipe": "datasets/sciencesafety.yaml",
+  "recipe_sha256": "ad74600249893376da306bfa20fc4f74beb8b44bcc0a707f7bec624a683bd1f8",
+  "license": "MIT",
+  "source": {
+    "kind": "github",
+    "repo": "ulab-uiuc/SafeScientist",
+    "commit": "9db8659086fc7acc0be02f8087b189e6585cf1ea",
+    "paths": [
+      "data/ScienceSafetyData/Dataset/bio.json",
+      "data/ScienceSafetyData/Dataset/chem.json",
+      "data/ScienceSafetyData/Dataset/is.json",
+      "data/ScienceSafetyData/Dataset/material.json",
+      "data/ScienceSafetyData/Dataset/med.json",
+      "data/ScienceSafetyData/Dataset/phy.json"
+    ],
+    "local_dir": "data/external/sciencesafety_9db8659",
+    "fetched_now": []
+  },
+  "file_sha256": {
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/bio.json": "bad42ead0ac5532fbb6c8ee07076d2974c153138bf51551e565dfebf50108dd7",
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/chem.json": "bbac81c6dd744cbd317e65bacf21be473400657ff9c376a244598ba3526ea694",
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/is.json": "205e416006d1df7b25e4ad2eba707c8796415dd73eb0944f590728b5a78a794c",
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/material.json": "fa8eddc3d30f72cda79b8863d014298ad8ce1d7b5c4e6ecb77d1aba29b849c54",
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/med.json": "81a283ffb121fb7df4d8369c1c9b63acd9f6b237da3c410a50aa7127fa5a6bc6",
+    "data/external/sciencesafety_9db8659/data/ScienceSafetyData/Dataset/phy.json": "c7d7cfd5bffdf5e9e15cfcff2f14fbe418d619246e53d5a5ad5ac14dc01fdb1a"
+  },
+  "format": "json",
+  "mapping": {
+    "goal": "Prompt",
+    "category": "@stem",
+    "extra": {
+      "Task": "Task",
+      "RiskType": "Risk Type",
+      "SourceUrl": "sourceUrl"
+    }
+  },
+  "columns": [
+    "Goal",
+    "Category",
+    "Task",
+    "RiskType",
+    "SourceUrl"
+  ],
+  "counts": {
+    "records_read": 240,
+    "dropped_empty_goal": 0,
+    "dropped_duplicate_within_corpus": 0,
+    "dropped_overlap": 0,
+    "written": 240
+  },
+  "per_file": {
+    "bio.json": {
+      "records": 40,
+      "kept": 40
+    },
+    "chem.json": {
+      "records": 40,
+      "kept": 40
+    },
+    "is.json": {
+      "records": 40,
+      "kept": 40
+    },
+    "material.json": {
+      "records": 40,
+      "kept": 40
+    },
+    "med.json": {
+      "records": 40,
+      "kept": 40
+    },
+    "phy.json": {
+      "records": 40,
+      "kept": 40
+    }
+  },
+  "overlap": {
+    "benchmarks": [
+      "sorrybench",
+      "harmbench",
+      "advbench",
+      "strongreject",
+      "jbb",
+      "guidedbench",
+      "heldout_jbb_guided",
+      "llama32jb"
+    ],
+    "absent": [],
+    "cutoff": 0.85,
+    "n_reference_behaviours": 2190,
+    "exact": {},
+    "near": {},
+    "n_exact": 0,
+    "n_near": 0
+  },
+  "overlap_dropped": false,
+  "out": "data/sciencesafety.csv",
+  "out_sha256": "7c3cddbec048e676aa6cb3adc8f4e145bb789689a969093bf9c51ff751e452c6"
+}

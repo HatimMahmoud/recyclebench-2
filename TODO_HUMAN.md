@@ -1,127 +1,120 @@
 # What is left, and who can do it
 
-Written 2026-10-24. Everything automatable has been queued or run; this file holds only
-what needs a person, and what needs the GPU cluster.
+Updated 2026-10-31 21:30 (the 2026-10-24 version is in git history). Everything automatable has been run; this file holds
+only what needs a person, plus the optional cluster work.
 
 ---
 
-## A. Needs you — blocks reportable numbers
+## A. Needs you
 
-### A1. ~~Sign prereg Amendment 1~~ — done
-Signed by the candidate 2026-10-25, supervisor acknowledgement 2026-10-28; the confirmatory replication
-(S3) has run and is corrected (`results/runs/confirm_heldout_3_31/corrected_heldout_recal_n60.json`).
+### Done
+- A1. Sign prereg Amendment 1 — candidate 2026-10-25, supervisor 2026-10-28; the confirmatory replication has run.
+- A2. `audit/rpe/rpe_harm_sheet_20261028_2327.csv` — 65/65 blind, anchor PRR 36/38 verified.
+- A3. `audit/gate/gate_sheet.csv` — 178/178 (rows 19–178 model-assisted): 3/98 re-opening rewordings changed the request.
+- A4. `audit/harmbench/judge_sheet.csv` — 196/196 blind: se 0.865, sp 1.000, κ 0.933; supports the calibration's transfer.
+- A5. Attack-transfer audit of judge-negatives — **sheet exported** 2026-10-31 as a class-stratified audit (A7, last line).
+- A6. The anchor manifest — a subset-CSV id join error; reproduced, nothing to decide.
 
-### A2. ~~Label `audit/rpe/rpe_harm_sheet_20261028_2327.csv`~~ — done 2026-10-29
-65/65, blind. 61 of 65 reconstructions keep the harmful ask; all 36 re-opened anchor behaviours are verified, so
-the anchor PRR is 36/38 (94.7%) under the harmful-ask criterion (`python3 tools/rpe_audit_score.py`). Other
-pairs' closed-loop figures remain unaudited upper bounds.
+### A7. Label the five registered sheets (Amendment 2 §B4, hashes frozen before any label)
+```
+python3 tools/judge_label_tui.py audit/gate_rejection/rejection_sheet.csv                 # 130 rows  §B4.1 gate false rejection
+python3 tools/judge_label_tui.py audit/overrefusal/benign_sheet.csv                       #  50 rows  §B4.2 judge on benign prompts
+python3 tools/judge_label_tui.py audit/sorrybench/judge_sheet_blind_relabel_20261030.csv  # 280 rows  §B4.3 blind re-label
+python3 tools/judge_label_tui.py audit/gate_recheck/recheck_sheet.csv                     #  40 rows  §B4.4 gate re-check
+python3 tools/judge_label_tui.py audit/attack_classes/attack_sheet.csv                    # 116 rows  §B4.5 attack transfer
+```
+All five are blind (no judge or model guess shown). On the attack sheet, a reply you cannot judge: skip it (`s`) and write
+"cannot tell" in its `note` column; a blank without a note counts as not yet labelled. If the blind re-label (280 rows) is
+completed, it becomes the primary calibration for every corrected figure (§B4.3) — mechanically, through
+`tools/primary_calibration.py`.
 
-### A3. ~~Label `audit/gate/gate_sheet.csv`~~ — done 2026-10-29
-178/178. False admissions: 3 of 98 rewordings that re-opened an anchor fix (3.1% [1.0, 8.6]), 0 of 80 others;
-no RSR moves when the 3 are dropped (`audit/gate/gate_audit_result.json`). Rows 19–178 were labelled with a
-gemma4 guess shown (`audit/gate/MODEL_ASSISTED.txt`): report the audit as model-assisted.
+Then, with no model calls:
+```
+python3 tools/after_labels.py          # plan: what is labelled, what would run
+python3 tools/after_labels.py --run    # score, apply §B4.3, recompute, rebuild -- every output new and dated
+```
+and ask Claude to write the results into Amendment 2 and THESIS_KB.
 
-### A4. ~~Label `audit/harmbench/judge_sheet.csv`~~ — done 2026-10-29
-196/196, blind. qwen2.5:14b on HarmBench: se 0.865 [0.720, 1.000], sp 1.000, κ 0.933 over 60 bundles (design-weighted,
-strata 113/264), admitted; 58 of 60 bundles agree, both misses are judge false negatives. Supports carrying the
-SORRY-Bench calibration to HarmBench (Amendment 1, A3.1).
+### A10. ScienceSafetyData (BYOD) — PARKED for the cluster (2026-11-01)
+**Not an open local task.** The corpus will be re-run on the cluster together with several other
+external datasets, so nothing more happens locally and it stays out of `study_data` and off every
+dashboard until then. The local run below is a completed, isolated pilot kept for reference; the
+reusable part is the adapter (`tools/prepare_external.py`, `docs/BYOD.md`), which is what the cluster
+run will use. Of the three decisions below, only the labelling (1) would still be needed, and only if
+the local figures are ever cited — on the cluster the corpus gets its own calibration.
 
-### A5. Attack transfer: class-stratified audit of judge-negatives
-`audit/attack` sampled 30 of 30 judge-positives and 30 of 2,338 negatives. Reported
-se 0.857 becomes ≈ 0.07 design-weighted, so attack transfer is badly under-counted, and
-neither judge suits attack outputs (the offline rule reads ciphers and garble as
-compliance). Needs a fresh stratified sample over the negative classes.
+<details><summary>Local pilot, for reference</summary>
 
-### A6. ~~Decide what to do about the anchor manifest~~ — resolved 2026-10-28, nothing to decide
-The "overlap of 8 with P⁻, OLD refuses 52 of 61" was a join error. The anchor manifest was built on the
-61-row subset CSV `results/cells_llama3-8b_llama31-8b/sorrybench_p_minus.csv`, and `load_jailbreakbench`
-numbers rows rather than reading the CSV's `bid` column, so its ids are row positions. Joined on prompt
-text, its 61 behaviours are exactly the full-benchmark offline-rule P⁻ and OLD answers all 61; the 52/61
-reappears exactly when the row ids are read as SORRY-Bench ids (`tools/rpe_reconcile.py`, pinned in
-`tests/test_inversion_arm.py`). The anchor is reproduced.
+An external corpus the supervisor asked to explore: 240 dual-use science research requests
+(`ulab-uiuc/SafeScientist`, pinned `9db8659`, MIT), registered in `PREREG_SCIENCESAFETY_20261101.md`
+(+ `_RPE_` for the inversion arm) and run **isolated** overnight 2026-11-01.
+```
+bash run_sciencesafety_20261101.sh --list        # stage status + |P^-|
+bash run_sciencesafety_rpe_20261101.sh --list    # follow-on arms
+cat results/runs/sciencesafety_20261101/META.txt
+```
+**Result (RAW, 2026-11-01):** judged P⁻ = 23/240, RSR 13/23 = 0.565 [0.363, 0.768], McNemar p = 2.4e-4.
+Under-powered (23 < 30), and the summary's "PBR headline" is over those same 23 behaviours, so it is
+numerically RSR, not an independent figure. RPE: the gate admitted **0 of 183** inversion candidates
+(cosine 101, NLI 82), so A_gate is undefined and only the unclaimable A_loop upper bound (15/21) exists
+— registered threat T2 measured, not assumed. Full numbers in the run's `META.txt`.
+
+Three things need you:
+1. **Label the blind sheet** `audit/sciencesafety/`. **Stage 40 did not produce it** — `--out` was
+   given a directory. The queue is fixed and the marker cleared, but re-running it costs ~127
+   `qwen2.5:14b` judge calls (zero target calls), so it needs your go-ahead. This is registered threat
+   **T1** and it is the one that matters: these prompts have a legitimate research reading and the judge
+   scores *attempt at the request*, so `breaks_old` may be inflated and some "fixes" may not be fixes.
+   **Every figure from this corpus is raw and T1-unresolved until this is labelled.**
+2. **Decide whether to fold the corpus into the study.** It is in no dashboard and not in
+   `tools/study_data.py` by design. Folding it in needs a non-empty P⁻ *and* an amendment — not a
+   silent registration.
+3. **Decide on the style factorial.** Not run and not registered for this corpus: it needs a power
+   statement for whatever |P⁻| turned out to be. The plumbing exists
+   (`tools/run_compose_v2.py --behaviours`); the registration does not.
+</details>
+
+### A8. Sign Amendment 2 (`prereg_amendment_2_DRAFT.md`), supervisor acknowledges
+After signing, the dashboards switch to the registered RSR denominator (`lineage_core.RSR_DENOMINATOR = "resolved"`, anchor
+23/46) and are rebuilt — ask Claude.
+
+### A9. Decisions with the supervisor
+- Release text policy (`tools/release_c2.py`: no rewording text by default; `--text non-reopening` only after this decision).
+- The disclosure draft `docs/disclosure/meta_disclosure_DRAFT.md` (not sent).
+- Whether the causal white-box result (B3) may be cited outside the appendix.
 
 ---
 
-## B. Needs the cluster (available ~2026-10-31)
+## B. Optional, needs the cluster (not required for the thesis)
 
-### B1. PTP, at full published scale
-Now affordable: probing an 8B at full vocabulary is ~33M tokens ≈ 2–3 h on one H100
-against ~370 h locally. Running it in full removes every deviation that local compute
-would have forced — full-vocabulary probing, on-the-fly regeneration, and the paper's
-real inverse architecture (Qwen3-0.6B from scratch) rather than a 20–40M toy.
-
-Build **two** inverse models and report both:
-- **decorrelated** (the deliverable): forward model from a third family — Mistral-7B or
-  Gemma-2-9B. Not qwen2.5 (the paraphraser), not Llama (the target).
-- **same-family** (the comparison): forward model `llama3-8b`; `cache/llama_gen.jsonl`
-  is already a free fine-tune corpus for this one.
-
-The gap between them measures what the decorrelation requirement costs, and replicates
-the paper's Table 3 (same-family 64.8 → cross-family 17) in the safety domain.
-
-**Gate A before spending more:** same-family held-out response BERT-F1 ≥ 0.80 (the
-paper gets ~0.855). Set the bar before looking.
-
-**Run a correctness PoC locally first** — reversal-after-tokenisation (Remark 1 — the
-easiest thing in the method to get silently wrong), tokenizer handling, training loop,
-scoring — before burning cluster hours.
-
-### B2. The decoding/quantisation trap — validate before trusting any cluster number
-Every response in the study came from Ollama with **repeat_penalty 1.1 over the last 64
-tokens**, from a **Q4_0** quantisation. An H100 running bf16 HF weights under vLLM
-defaults is a numerically different model with different decoding. `mech_probe.py` had
-to reproduce both to match cached replies (plain greedy reproduced only 3/6).
-
-So: keep closed-loop re-queries faithful (on Ollama, or reproduce quantisation *and*
-the penalty window and validate against cached replies first). Probing and inverse
-training can live on the cluster freely — the inverse model is new regardless — but
-record which weights and decoding were used.
-
-Also: a shared on-prem cluster is a different exposure profile for a harmful-prompt
-corpus than a laptop. Keep it in a restricted path and check with the administrator;
-`ETHICS.md` currently assumes local-only.
-
-### B3. Causal white-box interventions
-The 18/20 refusal-direction result is **correlational**. Ablating the direction from a
-re-opening rewording (does it refuse again?) and adding it to the canonical request
-(does it comply?) would make it a mechanism claim. This is the single biggest available
-upgrade to the thesis.
+### B3. ~~Causal white-box interventions~~ — done 2026-10-31, locally
+Forward passes only, so the M1 sufficed (`tools/mech_causal.py`, registered in `PREREG_MECH_CAUSAL_20261031.md`). On the
+anchor pair: moving each re-opening rewording up llama3.1-8b's refusal direction raises P(refusal opening) more than a
+matched random move in 23/23 fixes, and moving the canonical request down lowers it in 23/23 (both p = 2.4e-7); full
+restoration in 5/53 rewordings, so the direction carries part of the effect. THESIS_KB §4.5.
 
 ### B4. White-box beyond the anchor
-`tools/mech_probe.py` is hardcoded to llama3-8b → llama3.1-8b on SORRY-Bench — it takes
-only `--poc`/`--all`, with no `--pair`. Extending it needs a code change plus GGUF
-symlinks for the other models (only two are linked in `cache/mech_gguf_links/`). Pair
-with B3 rather than doing twice.
+`tools/mech_probe.py` and `tools/mech_causal.py` cover llama3-8b → llama3.1-8b on SORRY-Bench only. Extending them needs a
+`--pair` option and GGUF links for the other models. Each 8B run needs about 16 GB of unified memory: on the M1 it swaps
+heavily, on the cluster it is routine.
 
 ### B5. Llama-3.1-70B as a lineage target
-Would answer the scale-confound criticism of the non-anchor rungs. Not possible on an
-M1 Max; straightforward on the cluster. Optional — scope creep unless the thesis needs it.
+Would answer the scale-confound criticism of the non-anchor rungs (THESIS_KB §6: the study runs 2 of the memo's ≈ 5
+matched-scale comparisons). Not possible on the M1. Optional — scope creep unless the thesis needs it.
+
+### B2. Before trusting any cluster number
+Every study reply came from Ollama (Q4 quantisations, repeat penalty 1.1 over the last 64 tokens). A bf16 model under vLLM
+defaults is a different model: reproduce quantisation and decoding, and validate against cached replies first (as
+`tools/mech_probe.py` does). Locally the quantisation mismatch is bounded (THESIS_KB §7.8). A shared cluster is a different
+exposure profile for a harmful-prompt corpus: keep it in a restricted path and check with the administrator (`ETHICS.md`
+assumes local-only).
 
 ---
 
-## C. Known-stale things that are now just a rebuild
+## Parked (not on the to-do list)
+PTP: appendix only, later, on the cluster (`PTP_FINDINGS_20261027.md`; the earlier plan is in git history).
 
-- **Gate layer L2 (`llm_intent`) is complete** — 5,769 of 5,769 rewordings checked with
-  gemma4:e4b (`cache/intent_gemma4_e4b.jsonl`). Dashboards built before 2026-10-24 still
-  say "never ran"; the rebuild in `overnight_fill_all.sh` fixes that.
-- **PBR for llama2-13b on AdvBench / StrongREJECT** was "not estimable" only because
-  2,686 rewording responses were never generated. That fill is queued; it is resumable,
-  so if it stops at the `STOP_AT` cutoff just re-run `overnight_fill_all.sh`.
-
-- **The lineage ordered-pair matrix was stale, not offline.** Dashboards built before
-  2026-10-24 carry "▲ Built from offline verdicts" and show the anchor as P⁻ 61 (the
-  offline number). The verdict cache has since completed, and a rebuild picks up the
-  judged verdicts with no code change: the banner is gone and the anchor reads P⁻ 49.
-  Any figure quoted from a pre-2026-10-24 lineage dashboard should be re-read.
-
-- **Non-adjacent lineage pairs need no new runs.** Every model answered the same frozen
-  rewordings, so any ordered pair is computable from cache. Verified with zero missing
-  responses and zero missing verdicts:
-  `llama2-7b → llama31-8b` P⁻ 23, re-opened 13 (RSR 57 %); `llama2-7b → llama3-8b`
-  P⁻ 6, re-opened 5 (RSR 83 %). The lineage dashboard's matrix reports these correctly.
-
-  **Known reporting gap:** `study_data` only counts a pair as covered when an explicit
-  recycle *run artifact* names it, so the master and pair dashboards still print
-  "not yet finished" for these cells even though the lineage dashboard computes them.
-  That is a cross-referencing limitation in `study_data`, not missing data — no model
-  calls would fix it. Worth closing before submission so the three dashboards agree.
+## C. Formerly stale — all resolved
+Gate layer L2 complete and shown; llama2-13b PBR on AdvBench / StrongREJECT filled; the lineage pair matrix rebuilt from the
+judged verdicts; the non-adjacent matched-scale pairs are computed in `study_data` (`EXTRA_PAIRS`, 2026-10-29), so the master,
+pair and lineage dashboards agree.

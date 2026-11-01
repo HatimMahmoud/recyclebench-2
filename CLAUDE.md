@@ -124,6 +124,19 @@ benchmark screens; every recycle run containing both models contributes its rewo
 subset runs by prompt text — the loader ignores any `bid` column and HarmBench has 5 duplicate prompts). Embeds
 prompt/response text (collapsed) unless `--redact`; `--pairs a:b`, `--out-root`. Tests: `tests/test_pair_dashboard.py`.
 
+## Bring your own data
+One recipe file per corpus, no new converter and no change to any arm: `tools/prepare_external.py
+--recipe datasets/<name>.yaml` → `data/<name>.csv` + `<csv>.provenance.json` (recipe hash, pinned
+commit, licence, per-file sha256, row counts, overlap report). Deterministic, github sources must be
+pinned to a full 40-char sha, prompt text is never printed. `datasets/sciencesafety.yaml` is the
+worked example; **`docs/BYOD.md` is the guide, including the five traps** (use the *judged* P⁻ via
+`tools/pminus_subset.py`, not `pminus_report --dump`'s offline-rule cell; subset ids are row
+positions so join on prompt text; cache keys depend on the bid-derived seed, so only a *prefix*
+subset reuses the cache; a new corpus has no calibration of its own; and judge + gate were calibrated
+on short requests, so a long/research-framed corpus may sit off their range). A new corpus is a new
+population: register it, and keep it isolated (own cache, own run dir, **not** in
+`tools/study_data.py`, on no dashboard) until P⁻ is known non-empty, then fold it in by amendment.
+
 ## Configs
 `real_llama_lineage_all.yaml` holds the 6-model lineage (`llama2-7b → llama2-13b → llama3-8b → llama31-8b →
 llama32-1b → llama32-3b`) and the seed the lineage cache was built with. `recycle_3_31.yaml` holds the
@@ -195,7 +208,7 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   `tools/compose_v2_section.py` (master 10c, pair pages 02c) picks runs by pair; tabs incl. a radial top-10 view.
 - **2026-10-29 anchor recalibration + 7–8B chain.** `tools/recalibrate_corrected.py` wrote
   `results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json` (reproduces the pre-repair file from the backup
-  sheet first): RSR corrected 0.5509 [0.3638, 0.7379], PBR(3.1-8b) corrected 0.4833 [0.3181, 0.6486]; `study_data`, the
+  sheet first): RSR corrected 0.5509 [0.3638, 0.7379], PBR(3.1-8b) **over the anchor run's 61-request fix subset** corrected 0.4833 [0.3181, 0.6486] (not the model-level PBR, which is the lineage run's 63/376, corrected 0.163); `study_data`, the
   lineage dashboard default `--anchor` and `build_all_dashboards.py` read it. `study_data` now also computes the post-hoc
   matched-scale pairs (`EXTRA_PAIRS`) inside every run holding both models, judged via `pair_verdicts` / `verdicts`
   (SORRY-Bench 5/6 and 13/23), flagged `post_hoc` and excluded from `pooled_offline` and `recovery_by_style`.
@@ -224,10 +237,78 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   package with a leak check (default: no rewording text; `--text non-reopening` only after the supervisor's policy decision).
   Disclosure draft (not sent): `docs/disclosure/meta_disclosure_DRAFT.md`. **Quantisation is not matched** across the lineage
   (Q4_0 / Q4_K_M / Q8_0 Ollama defaults; Amendment 2 D7).
+- **2026-10-31 external-review fixes.** Master: `recycle_cells` excludes `confirmatory` runs (they are shown apart, never
+  pooled); the summary leads with the held-out replication and labels the anchor exploratory; no pooled lineage RSR anywhere
+  (master tile, lineage headline). RQ3 re-specified (Amendment 2 §B5.4): `drivers.fit_drivers_gee` (logit GEE, source-behaviour
+  clusters, bias-reduced sandwich, omnibus + Holm vs paraphrase) with `fit_drivers_vb` as a no-p-value sensitivity; the old
+  `fit_drivers` stays for the mock path only. Population names (Amendment 2 §B3): anchor run / lineage run / held-out run.
+  `tools/config_stamp.py` (full-config + weights stamp, cache-key collision check, `verify`), `tools/gate_recheck.py` (blind
+  re-check sheet `audit/gate_recheck/`). Model jobs of the afternoon run from a queue: `bash run_review_20261031.sh --list`
+  (staleness `tools/cache_staleness.py`, quantisation `tools/quant_check.py` + `configs/quant_check.yaml`, loosened gate
+  `tools/gate_loosen.py`, over-refusal for the last four models), each registered in its own `PREREG_*_20261031.md`.
+  All four ran (THESIS_KB §7.6, §7.8; exploratory): cached verdicts reproduce 240/240 with current weights; quantisation keeps
+  the π* verdict (lineage-run RSR corrected 0.527 at Q4_0 vs 0.578 at Q4_K_M) though P⁻ membership moves (Jaccard 0.67);
+  loosening the gate by 0.05 / 0.10 lifts compose v2 any-style RSR 31/49 → 33/49; XSTest over-refusal covers all 8 models
+  (`results/runs/overrefusal_xstest_20261031_all8/`). RQ3 now reads `results/analysis_20261031_1937`.
+- **2026-10-31 evening: methodology housekeeping.** `tools/primary_calibration.py` is the single switch for Amendment 2
+  §B4.3: it keeps the original SORRY-Bench calibration primary until all 60 bundles of the blind re-label are labelled, then
+  the blind one; `apply` writes `corrected_*_blind_n60.json` beside each `*_recal_n60.json` (reproduces the registered file
+  first, never overwrites). `tools/after_labels.py` (plan; `--run` executes) scores every completed sheet, applies §B4.3 and
+  rebuilds everything downstream into new dated outputs. New audit `tools/attack_audit.py` (class-stratified attack transfer,
+  `audit/attack_classes/`, §B4.5; a deliberate "cannot tell" is a blank label with a note). Causal white-box test
+  `tools/mech_causal.py` (`PREREG_MECH_CAUSAL_20261031.md`) → `results/mech/causal_anchor_sorrybench_*.json`, panel E of the
+  pair page's white-box cards and the RQ cards. Audit scorers write dated `*_result_<stamp>.json`; every result writer refuses
+  to overwrite. `tools/build_lineage_dashboard.py` (the iframe wrapper, handoff §14.3) was removed.
+- **2026-11-01 ScienceSafetyData (BYOD, EXPERIMENTAL — PARKED for the cluster).** Not an open task: the
+  corpus will be re-run on the cluster with several other external datasets, so nothing more happens
+  locally. **Cleanup before submission** — delete these, and nothing else breaks (each file carries an
+  `EXPERIMENTAL --` header; `grep -rl "EXPERIMENTAL -- ScienceSafetyData"` finds them):
+  `PREREG_SCIENCESAFETY_20261101.md`, `PREREG_SCIENCESAFETY_RPE_20261101.md`,
+  `configs/sciencesafety_3_31.yaml`, `run_sciencesafety_20261101.sh`,
+  `run_sciencesafety_rpe_20261101.sh`, `tools/sciencesafety_dashboard.py`,
+  `tests/test_sciencesafety_dashboard.py`, `data/sciencesafety.csv.provenance.json`, and the gitignored
+  `results/runs/sciencesafety_20261101/`, `cache/*sciencesafety*`, `data/sciencesafety.csv`,
+  `data/external/`. **Keep** `tools/prepare_external.py`, `tools/pminus_subset.py`,
+  `tools/pminus_review.py`, `docs/BYOD.md`, `tests/test_prepare_external.py` and
+  `datasets/sciencesafety.yaml` — the adapter is the deliverable and the recipe is its worked example
+  (a test asserts it stays valid, and `docs/BYOD.md` references it). The pilot itself, for reference:
+  first external corpus through the new
+  adapter: `ulab-uiuc/SafeScientist` `data/ScienceSafetyData/Dataset/` pinned at `9db8659`, MIT, 240
+  behaviours = 6 science domains × 40, long research-framed dual-use requests (median 47 words vs
+  SORRY-Bench's 18). **0 exact / 0 near duplicates against all 2,190 already-screened behaviours.**
+  Registered in `PREREG_SCIENCESAFETY_20261101.md` (exploratory); config `configs/sciencesafety_3_31.yaml`
+  is byte-identical to the anchor on `judges`/`gate`/`transform_classes`/`budget`/`decision`/`seed`,
+  so a difference is the corpus, not the instrument. Queue `run_sciencesafety_20261101.sh`
+  (`--list` for stage status; hard stop 08:30; resumable), isolated cache
+  `cache/sciencesafety_20261101.jsonl`, run dir `results/runs/sciencesafety_20261101/`. **Not in
+  `study_data` and on no dashboard** until P⁻ is known non-empty. The `Attack/` split (same
+  behaviours pre-wrapped in 7 templates) is deliberately excluded: already-transformed prompts cannot
+  enter the recycle arm, whose gate must certify *our* paraphrase; it belongs to attack-transfer and
+  needs its own registration. Registered threat T1: these prompts have a legitimate research reading
+  and the judge scores *attempt*, so `breaks_old` may be inflated — the blind sheet in
+  `audit/sciencesafety/` (stage 40) is the check, and every figure is raw until it is labelled.
+  The style factorial on this corpus is **not** registered and was not run; the inversion arm **is**
+  (`PREREG_SCIENCESAFETY_RPE_20261101.md`, `run_sciencesafety_rpe_20261101.sh`).
+  **RESULT (RAW):** judged P⁻ 23/240, RSR 13/23 = 0.565 [0.363, 0.768], McNemar p = 2.4e-4; under-powered
+  (23 < 30), and the summary's "PBR headline" is over those same 23 behaviours, so it is numerically RSR,
+  not an independent figure — there is no model-level PBR here. Recycle gate admitted 127/184 (69%), like
+  the anchor; **the RPE gate admitted 0 of 183 inversion candidates** (101 cosine, 82 NLI, none reached
+  BERTScore), so A_gate is undefined and only the unclaimable A_loop upper bound 15/21 exists — threat
+  **T2 measured**, not assumed. Stage 40 wrote no sheet (`--out` took a directory; fixed, marker cleared,
+  needs ~127 judge calls to redo), so T1 is unresolved. Numbers in the run's `META.txt`; the
+  per-behaviour draws for the T1 read come from `tools/pminus_review.py` (writes a file, never stdout).
+  **Standalone page** `tools/sciencesafety_dashboard.py` (same DFKI design; CSS/JS/brand/charts imported
+  from `lineage_dashboard`, so it cannot drift) → `<run>/dashboard_sciencesafety_<stamp>.html`, `--redact`
+  for a text-free copy. Deliberately **not** in `study_data`, so nothing pools into the master headline,
+  and `build_all_dashboards.py` skips the dir (no `_to_` in its name). Tests
+  `tests/test_sciencesafety_dashboard.py` assert the page states its own isolation/T1 limits and shows
+  no corrected rate for an uncalibrated corpus.
 - White-box arm (PoC, 2026-10-22): `tools/mech_probe.py` loads the exact Ollama GGUF blobs into a PyTorch Llama (fp16, MPS;
   q/k un-permuted, rope factors and Llama-3 pre-tokenizer verified) and records per layer the refusal-direction score
   (Arditi difference-of-means), residual divergence, top MLP neurons and P(refusal opening) → `results/mech/*.json`
-  (numbers only); `tools/mech_section.py` renders it inside fix cards of the 3-8b→3.1-8b pair dashboard. Faithfulness: Ollama
+  (numbers only); `tools/mech_section.py` renders it inside fix cards of the 3-8b→3.1-8b pair dashboard (panel E: the causal
+  test, `tools/mech_causal.py`, 2026-10-31: the refusal-direction move beats a random move in 23/23 fixes both ways, full
+  restoration 5/53; it needs ~16 GB of unified memory, so run it with nothing else loaded). Faithfulness: Ollama
   applied its default repeat penalty (1.1, last 64 tokens) to every study request; replays must use it (`ollama=True`).
   Full run = overnight stack S5. Dashboards use the DFKI design (tokens in `lineage_dashboard.CSS`, logo
   `tools/assets/dfki_logo_small.svg`, `brand_html()`), with a scrollspy TOC and sliding indicator in `lineage_dashboard.JS`.
@@ -276,6 +357,8 @@ lineage rung usually means the wrong `--config` (seed mismatch).
   Join such runs on prompt text. A bid join is what produced TODO_HUMAN A6's "unreproduced anchor manifest".
 - **Inversion manifests carry `admitted: false`** (the builder never runs the gate). Score closed-loop runs with
   `--gate-store`; an artifact without `_gated_` has empty A_gate/A_both by construction, not because the gate rejected.
+- **Never name `audit/sorrybench/judge_sheet.csv` or a `*_recal_n60.json` directly** in code that reports a corrected figure:
+  read them through `tools/primary_calibration.py` (`pc.sheet()`, `pc.resolve(path)`), or the §B4.3 switch misses that figure.
 - Refusal classification must go through `recyclebench.judge.looks_like_refusal`, the single source of truth.
   It includes the U+2019→' normalisation.
 - The paraphraser/judge/inverter must be **non-Llama** (qwen2.5), decorrelated from the targets. Never use
