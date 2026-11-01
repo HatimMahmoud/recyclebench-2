@@ -31,3 +31,5 @@ data/external/
 cache/sciencesafety_*.jsonl
 cache/judge_sciencesafety_*.jsonl
 cache/rpe_gate_sciencesafety_*.jsonl
+# derived macro file for the standalone thesis preview (tools/thesis_numbers.py)
+docs/thesis/thesis_numbers_latest.tex
