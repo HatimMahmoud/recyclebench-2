@@ -99,6 +99,51 @@ def anchor_unresolved():
     return [b for b in pm if runs["llama31-8b"].recovery[b].n_admitted == 0]
 
 
+CANON_VERDICTS = dict(   # benchmark -> (verdict store, behaviour CSV) for judged canonical screening
+    sorrybench=("cache/judge_lineage_sorrybench.jsonl", "data/sorrybench.csv"),
+    harmbench=("cache/judge_qwen_harmbench.jsonl", "data/harmbench.csv"),
+)
+MODEL_TAG = {"llama2-7b": "TwoSeven", "llama2-13b": "TwoThirteen", "llama3-8b": "ThreeEight",
+             "llama31-8b": "ThreeOneEight", "llama32-1b": "ThreeTwoOne", "llama32-3b": "ThreeTwoThree"}
+BENCH_TAG = {"sorrybench": "SB", "harmbench": "HB"}
+
+
+def judged_canonical(bench: str, models):
+    """Judged canonical compliance per model: any-of-k over the cached draws with the STORED verdicts.
+
+    The offline refusal rule and the LLM judge disagree here by design (`study_data.Screen.comply` is the
+    offline rule), so a compliance rate quoted in the text must say which it is. These are the judged ones.
+    Returns {model: (k, n, n_unknown)}; a draw with no verdict leaves the behaviour out of k and n.
+    """
+    import lineage_core as lc
+    from recyclebench.config import Config
+    from recyclebench.datasets import load_jailbreakbench
+    from recyclebench.realrun import _key
+    from recyclebench.screening import _draw_seed
+    store, csv_rel = CANON_VERDICTS[bench]
+    cfg = Config.load(ROOT / "configs/real_llama_lineage_all.yaml")
+    beh = load_jailbreakbench(ROOT / csv_rel)
+    cache = lc.load_response_cache(ROOT / "cache/llama_gen.jsonl")
+    ver = lc.StoredVerdicts(lc.VerdictStore(ROOT / store), lc.judge_tag_from_cfg(cfg))
+    k_draws, out = cfg.budget.k_canonical_samples, {}
+    for m in models:
+        comply = n = unknown = 0
+        for b in beh:
+            vs = []
+            for d in range(k_draws):
+                t = cache.get(_key(m, b.canonical_prompt, _draw_seed(b.bid, -1, d)))
+                vs.append(None if t is None else ver.get(b.canonical_prompt, t))
+            known = [v for v in vs if v is not None]
+            a = lc._any(known) if known else None
+            if a is None:
+                unknown += 1
+            else:
+                n += 1
+                comply += a
+        out[m] = (comply, n, unknown)
+    return out
+
+
 class Numbers:
     def __init__(self):
         self.v, self.src = {}, {}
@@ -322,6 +367,68 @@ def collect() -> Numbers:
         N.put("MechCausalIncrease", num(m["A_vs_A0"]["median_increase_A"], 2), s)
         N.put("MechCausalIncreaseRandom", num(m["A_vs_A0"]["median_increase_A0"], 4), s)
         N.put("MechCausalDecrease", num(m["B_vs_B0"]["median_decrease_B"], 2), s)
+    # ---- figures the discussion chapter used to carry by hand -------------------------------
+    # (a) judged canonical compliance, and the offline/judge divergence it must be distinguished from
+    offline = {}
+    for bench, tag in BENCH_TAG.items():
+        models = [m for m in MODEL_TAG if (bench == "sorrybench" or m in
+                  ("llama2-7b", "llama2-13b", "llama3-8b", "llama31-8b"))]
+        jd = judged_canonical(bench, models)
+        src = f"{CANON_VERDICTS[bench][0]} + cache/llama_gen.jsonl (any-of-k, stored verdicts)"
+        for m, (k, n, unk) in jd.items():
+            if unk:
+                raise SystemExit(f"{m}/{bench}: {unk} behaviours have no verdict -- refusing to quote a rate")
+            N.put(f"Comply{MODEL_TAG[m]}{tag}", pct(k / n), src)
+            N.put(f"Comply{MODEL_TAG[m]}{tag}Kn", f"{k}/{n}", src)
+        offline[bench] = jd
+    import study_data as sd
+    study = sd.build_study(None)
+    s = "tools/study_data.py (offline refusal rule)"
+    for m, tag in MODEL_TAG.items():                        # the divergence in CLAUDE.md's gotcha list
+        sc = study.screens.get((m, "sorrybench"))
+        if sc:
+            off = sum(1 for v in sc.comply.values() if v == 1)
+            N.put(f"OfflineComply{tag}SB", str(off), s)
+    # (b) the generational-balance row's 2x2 counts (offline rule, as that row's footnote says)
+    for (o, n_, bench), tag in {("llama2-7b", "llama3-8b", "sorrybench"): "TwoSevenThreeEightSB",
+                                ("llama2-7b", "llama3-8b", "harmbench"): "TwoSevenThreeEightHB"}.items():
+        c = study.cells.get((o, n_, bench))
+        if c:
+            N.put(f"Swap{tag}Answered", str(len(c.neg_flip) if hasattr(c.neg_flip, "__len__") else c.neg_flip), s)
+            N.put(f"Swap{tag}Refused", str(len(c.p_minus) if hasattr(c.p_minus, "__len__") else c.p_minus), s)
+    # (c) attack transfer by class, judged against the ORIGINAL request, on each model's refused set
+    for key, mt in (("8b_original", "AttackEightB"), ("70b_original", "AttackSeventyB")):
+        a = study.attack.get(key)
+        if not a:
+            continue
+        s = f"results/runs/attack_transfer/ ({key}, judged against {a['judge_against']})"
+        N.put(f"{mt}Baseline", str(a["n_refused_baseline"]), s)
+        for cls, ct in (("refusal_suppression", "RefusalSupp"), ("AIM", "AIM"),
+                        ("evil_confidant", "EvilConfidant"), ("style_injection_short", "StyleShort"),
+                        ("combination_3", "CombiThree")):
+            d_ = a["classes"].get(cls)
+            if not d_:
+                continue
+            N.put(f"{mt}{ct}", pct(d_["transfer_on_refused"]), s)
+            N.put(f"{mt}{ct}CI", ci(*[100 * x for x in d_["transfer_ci"]], 1), s)
+    # (d) the post-hoc matched-scale pairs of the 7-8B chain (study_data.EXTRA_PAIRS). RAW: the
+    # lineage run carries no calibration of its own, and these are flagged post_hoc and are excluded
+    # from every pooled figure. Reported beside the anchor only to show the chain, never pooled with it.
+    lin = next((r for r in study.recycle
+                if r.spec.run_dir.endswith("lineage_sorrybench_20261020")), None)
+    if lin:
+        s = f"{lin.spec.run_dir} (post hoc, raw)"
+        for key, tag in ((("llama2-7b", "llama3-8b"), "ChainTwoSevenThreeEight"),
+                         (("llama2-7b", "llama31-8b"), "ChainTwoSevenThreeOneEight")):
+            pr = (lin.pairs or {}).get(key)
+            rep = (pr or {}).get("reported")
+            if not rep:
+                continue
+            if not (pr or {}).get("post_hoc"):
+                raise SystemExit(f"{key} is no longer flagged post_hoc -- check study_data.EXTRA_PAIRS")
+            N.put(f"{tag}Kn", f"{rep['k_recovered']}/{rep['n_p_minus']}", s)
+            N.put(f"{tag}RSRraw", num(rep["RSR_raw"]), s)
+            N.put(f"{tag}Unresolved", str(rep.get("n_unresolved", 0)), s)
     return N
 
 

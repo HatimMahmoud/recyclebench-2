@@ -1,0 +1,110 @@
+% docs/thesis/results_framing.tex -- how the results chapter is organised, and why.
+% \input{} at the head of the results chapter, before the per-arm sections.
+% Needs: booktabs, tabularx, array, amssymb, natbib.
+%
+% REQUIRES \input{results/thesis_numbers_<stamp>.tex} in the preamble (tools/thesis_numbers.py).
+% Macros are PROPORTIONS (0.551), not percentages. A macro reading "[pending]" is an unlabelled
+% audit sheet and must not reach a submitted draft.
+%
+% This is handoff §14.7: lead with the matched-scale 7-8B chain plus the anchor as the clean story,
+% and present the full six-model lineage as breadth with the scale confound stated. It exists as a
+% separate input because the ordering decision is itself a claim about what the evidence supports,
+% and reviewers read it before any number.
+%
+% Rules this section encodes (Amendment 2 §B3, and the 2026-10-31 external-review fixes):
+%   * the held-out confirmatory replication leads; the anchor is labelled exploratory;
+%   * NO pooled lineage RSR is stated anywhere -- pooling across rungs of different kinds would
+%     average a matched-scale comparison with scale-confounded ones;
+%   * the two post-hoc matched-scale pairs are flagged post hoc and never pooled with the anchor;
+%   * population names are: anchor run / lineage run / held-out run.
+
+\section{How to read these results}
+\label{sec:results-framing}
+
+Six models give thirty ordered pairs, and the temptation is to report all of them. Most would not
+answer the question. This study asks whether a \emph{generational} safety fix is bound to wording, so
+a comparison is informative only when the two models differ by a release and not by capacity. Of the
+five adjacent rungs of the lineage, exactly one meets that condition.
+
+\begin{table}[t]
+\centering
+\footnotesize
+\caption{The lineage as measured, classified by what each comparison can support. P\textsuperscript{--} is
+  the judged regression set (older model complies, newer refuses) on SORRY-Bench; $k/n$ is re-opened
+  over the regression set. Only the matched-scale rungs answer the research question; the rest are
+  reported as breadth.}
+\label{tab:framing-pairs}
+\begin{tabular}{@{}llccl@{}}
+\toprule
+Comparison & Kind & $|$P\textsuperscript{--}$|$ & $k/n$ & Status \\
+\midrule
+\multicolumn{5}{@{}l}{\emph{Adjacent rungs of the lineage run}}\\
+Llama 2-7B $\rightarrow$ 2-13B    & within generation  & \rbLinAPminus{} & \rbLinAKn{} & size step, not a release \\
+Llama 2-13B $\rightarrow$ 3-8B    & scale confounded   & \rbLinBPminus{} & \rbLinBKn{} & newer model is smaller \\
+\textbf{Llama 3-8B $\rightarrow$ 3.1-8B} & \textbf{matched scale} & \rbLinCPminus{} & \rbLinCKn{} & \textbf{the anchor} \\
+Llama 3.1-8B $\rightarrow$ 3.2-1B & scale confounded   & \rbLinDPminus{} & \rbLinDKn{} & 8B $\rightarrow$ 1B \\
+Llama 3.2-1B $\rightarrow$ 3.2-3B & within generation  & \rbLinEPminus{} & \rbLinEKn{} & size step, not a release \\
+\addlinespace
+\multicolumn{5}{@{}l}{\emph{Post-hoc matched-scale pairs inside the same run} (not pre-registered)}\\
+Llama 2-7B $\rightarrow$ 3-8B     & matched scale & --- & \rbChainTwoSevenThreeEightKn{}      & post hoc, raw \\
+Llama 2-7B $\rightarrow$ 3.1-8B   & matched scale & --- & \rbChainTwoSevenThreeOneEightKn{}   & post hoc, raw \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{What leads.} The chapter leads with the \textbf{held-out run}: the pre-registered
+confirmatory replication of the anchor pair on a behaviour set drawn from a different source
+(Amendment~1 §A2). It re-opens \rbConfKn{} fixes, corrected RSR \rbConfRSRcorr{}
+\rbConfRSRcorrCI{}, McNemar $p = \rbConfMcNemar{}$, verdict \emph{\rbConfVerdict} against the
+registered reference $\pi^\ast = 0.15$. It is the only result in this thesis that is confirmatory
+rather than exploratory, and it is small --- nine resolved fixes --- so it is reported with that
+denominator visible rather than as a headline percentage alone.
+
+The \textbf{anchor run} follows, labelled exploratory: \rbAnchorK{} of \rbAnchorPminus{} fixes
+re-opened, corrected \rbAnchorRSRcorr{} \rbAnchorRSRcorrCI{}, on the one pair whose judge is
+calibrated against human labels (\rbJudgeBundles{} bundles: se \rbJudgeSe{}, sp \rbJudgeSp{},
+$\kappa = \rbJudgeKappa{}$). It carries the detail --- per-category breakdowns, the gate audit, the
+white-box intervention --- because it is the only population where that detail is calibrated. It
+does not carry the inferential claim, because its analysis choices were made after seeing it.
+
+\paragraph{The 7--8B chain.} Read together, the three matched-scale comparisons form a chain at
+constant capacity: Llama 2-7B $\rightarrow$ 3-8B $\rightarrow$ 3.1-8B. Recovery is high at the early
+step (\rbChainTwoSevenThreeEightKn{}) and lower at the later one
+(\rbChainTwoSevenThreeOneEightKn{}, and \rbLinCKn{} for the adjacent anchor rung). The reading that
+invites itself --- that successive releases patch wording less and intent more --- is \emph{not}
+supported at these denominators: the first step rests on
+\rbChainTwoSevenThreeEightKn{} fixes, the two later pairs were identified post hoc, and no
+calibration exists for either. The chain is reported because it is the right \emph{shape} of
+evidence for the question, and its weakness is a sample-size statement, not a null result.
+
+\paragraph{What is deliberately not reported.} No RSR is pooled across the lineage rungs. Averaging a
+matched-scale comparison with rungs that place a smaller model in the ``newer'' role would produce a
+number with no referent: it would answer neither ``does a release patch wording'' nor ``does capacity
+determine robustness''. The per-rung figures in Table~\ref{tab:framing-pairs} are therefore the
+finest grain at which the lineage is discussed, and the breadth it buys is coverage of the release
+history, not statistical power. Pooling \emph{across benchmarks within} the anchor pair is a
+different operation and is reported where it applies (\rbPooledKn{}, corrected \rbPooledCorr{}
+\rbPooledCorrCI{}).
+
+\paragraph{Three confounds stated once.} They apply to every figure that follows.
+\begin{itemize}
+  \item \textbf{Capacity.} Four of five adjacent rungs change size as well as generation. Only the
+    matched-scale comparisons separate the two.
+  \item \textbf{Quantisation.} The served weights are not quantised uniformly across the lineage
+    (Ollama defaults: Q4\_0, Q4\_K\_M and Q8\_0; Amendment~2 D7). The anchor pair itself spans
+    Q4\_0 $\rightarrow$ Q4\_K\_M. Re-screening the older model at matched Q4\_K\_M leaves the
+    $\pi^\ast$ verdict unchanged (corrected \rbQuantACorr{} against \rbQuantBCorr{}) but moves
+    regression-set membership (Jaccard \rbQuantJaccard{}): the generational reading holds at the level
+    of the verdict, not of the individual behaviour.
+  \item \textbf{Judge error.} Every rate is the verdict of one calibrated LLM judge. Corrected figures
+    apply the bundle-level Rogan--Gladen inversion with that calibration; raw figures are labelled
+    raw. The one arm no judge in this study can correct is attack transfer, whose design-weighted
+    sensitivity is 0.07.
+\end{itemize}
+
+\paragraph{Status labels used throughout.} \emph{Confirmatory} --- pre-registered before the data
+existed, on the held-out run. \emph{Exploratory} --- everything else, including the anchor, whose
+deviations are recorded in Amendment~1 and whose later additions are recorded in Amendment~2.
+\emph{Post hoc} --- a comparison computed inside an existing run after the fact; excluded from every
+pooled figure. Where a figure is \emph{raw} rather than corrected, the population has no human-labelled
+calibration of its own and none is transferred to it without saying so.

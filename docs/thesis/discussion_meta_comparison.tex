@@ -20,11 +20,20 @@
 %   (5) the confirmatory replication is added;
 %   (6) the anchor pair's quantisation mismatch (Q4_0 -> Q4_K_M) is stated.
 %
-% STILL NOT MACRO-BACKED (check against results/analysis_* before submission; they come from the
-% analysis run, not thesis_numbers.py): the canonical compliance rates and newly-answered/newly-refused
-% counts in the "generational balance" row, the per-benchmark PBR figures in the "safety across the
-% lineage" row, the attack-transfer class rates, the IP row's 13 of 14, the judge-divergence counts,
-% the data-recency compliance ranges, and Table~\ref{tab:sorry-ext}'s "this study" column.
+% STILL NOT MACRO-BACKED -- the only hand-copied figures left in this file. Check each against
+% results/analysis_* before submission, or extend tools/thesis_numbers.py to cover it:
+%   * the HarmBench / AdvBench / StrongREJECT PBR figures in the "safety across the lineage" row
+%     (the SORRY-Bench ones ARE macros); needs the per-benchmark PBR runs wired into the generator;
+%   * the IP row's "13 of 14" HarmBench copyright behaviours;
+%   * the data-recency compliance range (0.4--2.1%) across six models on AdvBench.
+% Everything else now resolves through a macro, including the judged compliance rates, the
+% offline-vs-judge divergence counts, the 2x2 swap counts and every attack-transfer class rate.
+%
+% CAUTION, the trap this file already fell into once: study_data.Screen.comply is the OFFLINE refusal
+% rule, while the compliance rates quoted here are the LLM JUDGE's. They differ by design and not in a
+% constant direction (SORRY-Bench: rule 110 vs judge 92 for Llama-3-8B, but rule 50 vs judge 54 for
+% Llama-2-7B). thesis_numbers.judged_canonical() computes the judged ones; never quote Screen.comply
+% as a compliance rate.
 
 \subsection{Relation to the developer's published safety results}
 \label{sec:disc-meta}
@@ -59,9 +68,11 @@ Theme & Developer's finding (source) & This study & Rel. \\
 Generational balance (Llama~2 $\rightarrow$ 3)
  & Llama~3 gives ``a much better balance between helpfulness and harmlessness than its predecessor'', with lower
    false refusal on internal benchmarks \citep[\S1, Fig.~21]{dubey2024llama3}.
- & Canonical compliance roughly doubles: SORRY-Bench 12.3\,\% $\rightarrow$ 20.9\,\%, HarmBench 10.3\,\%
-   $\rightarrow$ 23.8\,\% (Llama-2-7B $\rightarrow$ Llama-3-8B). Newly answered behaviours far outnumber newly refused
-   ones (SORRY-Bench 64 vs.\ 4; HarmBench 66 vs.\ 5)\textsuperscript{a}.
+ & Canonical compliance roughly doubles: SORRY-Bench \rbComplyTwoSevenSB{} $\rightarrow$ \rbComplyThreeEightSB{},
+   HarmBench \rbComplyTwoSevenHB{} $\rightarrow$ \rbComplyThreeEightHB{} (Llama-2-7B $\rightarrow$ Llama-3-8B).
+   Newly answered behaviours far outnumber newly refused ones (SORRY-Bench
+   \rbSwapTwoSevenThreeEightSBAnswered{} vs.\ \rbSwapTwoSevenThreeEightSBRefused{}; HarmBench
+   \rbSwapTwoSevenThreeEightHBAnswered{} vs.\ \rbSwapTwoSevenThreeEightHBRefused{})\textsuperscript{a}.
  & $\approx$ \\
 \addlinespace
 Safety fine-tuning of Llama~3.1
@@ -108,8 +119,9 @@ Known jailbreak templates
    particularly when used together'', mostly in multi-turn red teaming; findings fed back into safety data
    \citep[\S5.4.6]{dubey2024llama3}.
  & Single-turn templates \citep{wei2023jailbroken} on Llama-3.1-8B, judged against the original request
-   ($n = 291$ canonically refused): refusal suppression 2.1\,\%, AIM, evil confidant and developer mode 0\,\%;
-   the strongest class (short style injection) re-opens 4.1\,\% [2.4, 7.1]\textsuperscript{f}. Multi-turn attacks
+   ($n = \rbAttackEightBBaseline{}$ canonically refused): refusal suppression \rbAttackEightBRefusalSupp{},
+   AIM and evil confidant \rbAttackEightBAIM{}; the strongest class (short style injection) re-opens
+   \rbAttackEightBStyleShort{} \rbAttackEightBStyleShortCI{}\textsuperscript{f}. Multi-turn attacks
    not tested. Nor does \emph{combining} styles help: in a 21-condition factorial over
    \rbComposeAFixes{} fixes, no style pair re-opens more than its own singles (Holm minimum
    $p = \rbComposeAMinHolm{}$).
@@ -119,8 +131,9 @@ Scale and capability-gated attacks
  & 8B models need a larger share of safety data than 70B \citep[Fig.~18]{dubey2024llama3}; larger models are more
    susceptible to code-interpreter abuse (405B 10.4\,\% vs.\ 70B 3.8\,\%) and prompt injection (70B 0.26,
    405B 0.22, 8B 0.19) \citep[\S5.4.5]{dubey2024llama3}.
- & An encoded combination attack re-opens 25.1\,\% [20.4, 30.5] of Llama-3.1-70B's refusals and 0\,\% of
-   Llama-3.1-8B's: only the larger model decodes the cipher, consistent with mismatched generalisation
+ & An encoded combination attack re-opens \rbAttackSeventyBCombiThree{} \rbAttackSeventyBCombiThreeCI{} of
+   Llama-3.1-70B's refusals and \rbAttackEightBCombiThree{} of Llama-3.1-8B's: only the larger model decodes
+   the cipher, consistent with mismatched generalisation
    \citep{wei2023jailbroken}\textsuperscript{f}.
  & $\approx$ \\
 \addlinespace
@@ -134,8 +147,11 @@ Intellectual property
 Refusal wording and judges
  & Overused apologies (``I'm sorry'', ``I apologize'') rebalanced in SFT data; refusal tone guideline
    \citep[\S4.2.3, \S5.4.3]{dubey2024llama3}.
- & A refusal-prefix rule and the LLM judge diverge only for Llama~3 models (compliance 110 vs.\ 92 for 3-8B, 63 vs.\ 51
-   for 3.1-8B; 50 vs.\ 54 for 2-7B, SORRY-Bench). A changed refusal style may defeat string-matching judges.
+ & A refusal-prefix rule and the LLM judge diverge mainly for Llama~3 models: on SORRY-Bench the rule counts
+   \rbOfflineComplyThreeEightSB{} compliances for Llama-3-8B against the judge's \rbComplyThreeEightSBKn{}, and
+   \rbOfflineComplyThreeOneEightSB{} against \rbComplyThreeOneEightSBKn{} for Llama-3.1-8B, while for Llama-2-7B
+   it counts \emph{fewer} (\rbOfflineComplyTwoSevenSB{} against \rbComplyTwoSevenSBKn{}). A changed refusal style
+   may defeat string-matching judges, and the direction of the error is not constant across generations.
  & ? \\
 \addlinespace
 Mechanism of the re-opening
@@ -215,9 +231,9 @@ Measurement
 \toprule
 Model & \citet{xie2025sorrybench}\textsuperscript{a} & This study\textsuperscript{b} \\
 \midrule
-Llama-2-7B-Chat      & 13.9\,\% & 12.3\,\% \\
-Llama-2-13B-Chat     & 14.6\,\% & \phantom{0}9.3\,\% \\
-Llama-3-8B-Instruct  & 22\,\%   & 20.9\,\% \\
+Llama-2-7B-Chat      & 13.9\,\% & \rbComplyTwoSevenSB{} \\
+Llama-2-13B-Chat     & 14.6\,\% & \rbComplyTwoThirteenSB{} \\
+Llama-3-8B-Instruct  & 22\,\%   & \rbComplyThreeEightSB{} \\
 \bottomrule
 \end{tabular}
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize\raggedright

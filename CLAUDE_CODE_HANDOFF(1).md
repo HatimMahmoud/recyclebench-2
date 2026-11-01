@@ -359,9 +359,13 @@ decoupled. `PREREG_COMPOSE_V2_20261029.md`, `tools/run_compose_v2.py`, results
 `results/runs/compose_v2_20261029_2222/`. **No style pair re-opens more than its singles** (Holm min
 p = 0.23); replicated on llama2-7b → llama3.1-8b with the same null. THESIS_KB §4.4b.
 
-### 14.7 (Design) Matched-scale framing
-When writing results, lead with the matched-scale 7–8B chain (2-7b→3-8b→31-8b) + anchor as the clean story;
-present the full six-model lineage as breadth with the scale confound stated (§4).
+### 14.7 ~~(Design) Matched-scale framing~~ — WRITTEN 2026-11-01
+`docs/thesis/results_framing.tex`, \input at the head of the results chapter (preview:
+`preview_results_framing.tex`). Leads with the held-out confirmatory replication, labels the anchor
+exploratory, classifies all five adjacent rungs plus the two post-hoc matched-scale pairs in one table,
+presents the 7–8B chain (2-7B → 3-8B → 3.1-8B) as the right shape of evidence while saying its weakness
+is sample size and not a null, states **no pooled lineage RSR** and why, and states the three confounds
+(capacity, quantisation, judge error) once. Every figure is a \rb macro; compiles clean.
 
 ---
 
