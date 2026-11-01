@@ -526,13 +526,13 @@ def main(argv=None) -> int:
 
     ppg = sub.add_parser("prereg", help="write the frozen pre-registration document")
     ppg.add_argument("--config", default=None)
-    ppg.add_argument("--out", default="PREREGISTRATION.md")
+    ppg.add_argument("--out", default="prereg.md")
     ppg.add_argument("--behaviours", default=None, help="pin the behaviour CSV by digest")
     ppg.add_argument("--overwrite", action="store_true")
 
     ppv = sub.add_parser("prereg-verify", help="detect post-hoc drift from the registration")
     ppv.add_argument("--config", default=None)
-    ppv.add_argument("--file", default="PREREGISTRATION.md")
+    ppv.add_argument("--file", default="prereg.md")
     ppv.add_argument("--behaviours", default=None)
 
     prp = sub.add_parser("pilot-pminus", help="REAL two-model pilot: size |P^-| cheaply")
