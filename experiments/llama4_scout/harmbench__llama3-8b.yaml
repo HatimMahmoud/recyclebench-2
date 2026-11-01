@@ -1,0 +1,26 @@
+# Llama 4 Scout recycle arm: llama3-8b -> llama4-scout on harmbench. EXPLORATORY.
+#
+# Eligibility comes from the stored judged canonical screen (results/runs/20261031_1816_llama4_scout_canonical,
+# re-derived independently from the raw cache + verdict store): |P^-| = 7, which clears the driver's
+# min_p_minus_for_recycle (5) but not decision.min_p_minus (30), so RSR here is descriptive, raw (no
+# human calibration of this run), post hoc and scale-confounded. Never pool it with registered pairs.
+# Pairs with |P^-| < 5 get no spec: their recycle arm is NOT APPLICABLE, documented in the Scout report.
+#
+#   RB_PLAN=1  sbatch -p RTXA6000 --gpus=0 --mem=8G --time=00:10:00 pegasus/experiment.sbatch <this file>
+#   pegasus/scout_recycle.sh runs all three specs in one job (one Scout load per spec, no shard).
+name: llama4_scout__harmbench__llama3-8b
+science_config: configs/llama4_scout/llama3-8b__llama4-scout.yaml
+old: llama3-8b
+new: llama4-scout
+behaviours: data/harmbench.csv
+
+execution:
+  target: cluster
+  run_root: results/runs/llama4_scout
+  cache_dir: cache/llama4_scout     # seeded once from cache/llama_gen.jsonl (scout_recycle.sh)
+
+# prepare: no recipe (the CSV is the one the cached lineage used). screen re-judges the cached canonical
+# draws through pilot-pminus, so its P^- is a cross-environment check of the stored one.
+stages: [screen, subset, recycle, partition, audit]
+audit_bundles: 60
+min_p_minus_for_recycle: 5

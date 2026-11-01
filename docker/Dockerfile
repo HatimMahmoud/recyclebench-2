@@ -24,9 +24,13 @@ RUN python3 -m venv /opt/venv \
 
 # The intent gate (run-real, tools/rpe_gate.py) needs torch + transformers; screening and
 # judging do not. Build with --build-arg WITH_GATE=1 only when a job builds a manifest.
+# The same lock constrains this layer: without -c, sentence-transformers/torch may move numpy,
+# scipy or pandas and the gate image stops being the locked instrument. `datasets` is the
+# attack-transfer arm's loader for the Wei et al. corpus (tools/run_attack_transfer.py).
 ARG WITH_GATE=0
 RUN if [ "$WITH_GATE" = "1" ]; then \
-      pip install "sentence-transformers>=2.2" "transformers>=4.40" "bert-score>=0.3.13" \
+      pip install -c /tmp/requirements-lock.txt \
+          "sentence-transformers>=2.2" "transformers>=4.40" "bert-score>=0.3.13" "datasets>=2.18" \
       && pip freeze > /opt/requirements.lock; \
     fi
 

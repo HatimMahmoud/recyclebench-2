@@ -37,7 +37,11 @@ ACTION=run
 ARGS=(experiment "$ACTION" --spec "$SPEC" --target cluster)
 # A plan must stay read-only, so it gets no shard (a shard only names an output path, but keeping
 # the plan free of job-specific state means two plans of one spec are identical).
-[ "$ACTION" = run ] && ARGS+=(--shard "${SLURM_JOB_ID:-local}")
+# RB_SHARD overrides the shard name; RB_SHARD= (set but empty) runs unsharded. A job-id shard is
+# right for concurrent jobs on one spec, but a resubmission after a timeout gets a new job id and
+# would start an empty shard, so a single sequential job per spec should run unsharded to resume.
+SHARD=${RB_SHARD-${SLURM_JOB_ID:-local}}
+[ "$ACTION" = run ] && [ -n "$SHARD" ] && ARGS+=(--shard "$SHARD")
 [ -n "${RB_STAGE:-}" ] && ARGS+=(--stage "$RB_STAGE")
 [ -n "${RB_FORCE:-}" ] && ARGS+=(--force)
 
