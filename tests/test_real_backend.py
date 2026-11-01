@@ -210,3 +210,12 @@ def test_real_pilot_reports_empty_p_minus_as_undefined():
     assert out["breaks_old"] == 0
     assert out["p_minus"] == 0
     assert "undefined" in out["status"]
+
+
+def test_ollama_url_override_only_rewrites_the_local_ollama_url(monkeypatch):
+    from recyclebench.backends.providers import resolve_base_url
+    monkeypatch.delenv("RECYCLEBENCH_OLLAMA_URL", raising=False)
+    assert resolve_base_url("http://localhost:11434/v1") == "http://localhost:11434/v1"
+    monkeypatch.setenv("RECYCLEBENCH_OLLAMA_URL", "http://127.0.0.1:15123/")
+    assert resolve_base_url("http://localhost:11434/v1") == "http://127.0.0.1:15123/v1"
+    assert resolve_base_url("http://localhost:8000/v1") == "http://localhost:8000/v1"

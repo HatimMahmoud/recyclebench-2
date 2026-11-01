@@ -49,6 +49,15 @@ bash run_all_models.sh                                  # self-detaches (nohup+c
 ```
 Ask before running anything that hits Ollama. Real runs take hours and write to the shared cache.
 
+**DFKI Pegasus cluster** (`pegasus/README.md`): `docker/Dockerfile` → enroot image via
+`pegasus/build_image.sh`; `sbatch ... pegasus/run.sbatch <cmd>` runs a command with a private Ollama on a
+per-job port (`RECYCLEBENCH_OLLAMA_URL`, read by `backends/providers.resolve_base_url`). **Nothing runs on the
+login node**, not even a short Python check: only `sbatch`/`squeue`/`sacct`/`scp`/reading logs. `configs/llama4_pegasus.yaml`
+= the lineage config + `llama4-scout` (67 GB, one 80 GB+ GPU) + `llama4-maverick` (245 GB, 2× B200/H200); post hoc and
+scale-confounded, so exploratory. `pegasus/llama4_canonical.sh` (`RB_MODEL`, `RB_STEPS`, `RB_CACHE`) → `tools/llama4_report.py`,
+`tools/llama4_dashboard.py`. HarmBench CSVs must keep all 400 rows (`prepare_behaviours.py --keep-duplicates`) or
+every id after row 362 shifts and misses the cache. Cluster KB and lessons: `docs/pegasus/`.
+
 ## Architecture
 
 **Two parallel paths share the stats core.** The *mock* path (`study.py`, `models.py` mock lineage,

@@ -12,7 +12,7 @@ Two modes:
 
   # 2. fetch a named benchmark from its official repo, then convert
   python tools/prepare_behaviours.py --benchmark advbench     --out data/advbench.csv
-  python tools/prepare_behaviours.py --benchmark harmbench    --out data/harmbench.csv
+  python tools/prepare_behaviours.py --benchmark harmbench    --out data/harmbench.csv --keep-duplicates
   python tools/prepare_behaviours.py --benchmark strongreject --out data/strongreject.csv
   python tools/prepare_behaviours.py --benchmark jbb          --out data/jbb.csv   # needs `datasets`
 
@@ -61,11 +61,14 @@ def _pick(fieldnames, candidates):
     return None
 
 
-def convert(rows, fieldnames):
+def convert(rows, fieldnames, keep_duplicates=False):
     """Map any known benchmark schema to a list of {Goal, Category} dicts.
 
     Deduplicates on Goal (keeping first occurrence), so a dataset that repeats each canonical
     behaviour across many jailbreak variants collapses to one row per behaviour.
+    ``keep_duplicates`` keeps every row instead: behaviour ids are row positions, so the cached
+    HarmBench runs (built from all 400 rows, 7 of which repeat a Behavior text with a different
+    context string) only line up with a CSV that keeps them.
     """
     goal_col = _pick(fieldnames, _GOAL_CANDIDATES)
     if goal_col is None:
@@ -76,7 +79,7 @@ def convert(rows, fieldnames):
     out, seen = [], set()
     for r in rows:
         goal = (r.get(goal_col) or "").strip()
-        if not goal or goal in seen:
+        if not goal or (goal in seen and not keep_duplicates):
             continue
         seen.add(goal)
         cat = ((r.get(cat_col) or "").strip() if cat_col else "") or "unknown"
@@ -95,11 +98,11 @@ def from_local(path, goal_col=None, cat_col=None):
     return convert(rows, fields)
 
 
-def from_url(url):
+def from_url(url, keep_duplicates=False):
     with urllib.request.urlopen(url, timeout=60) as resp:   # nosec - official benchmark repo
         text = resp.read().decode("utf-8", errors="replace")
     rows, fields = _read_csv_text(text)
-    return convert(rows, fields)
+    return convert(rows, fields, keep_duplicates=keep_duplicates)
 
 
 def from_jbb():
@@ -149,6 +152,9 @@ def main(argv=None):
     src.add_argument("--hf-dataset", help="any HuggingFace dataset name (auto-detect + dedup)")
     ap.add_argument("--out", required=True, help="output CSV (Goal, Category)")
     ap.add_argument("--goal-col", default=None, help="override goal-column autodetect")
+    ap.add_argument("--keep-duplicates", action="store_true",
+                    help="keep rows that repeat a Goal (row ids must match an earlier run; "
+                         "use for --benchmark harmbench)")
     args = ap.parse_args(argv)
 
     if args.from_csv:
@@ -161,7 +167,7 @@ def main(argv=None):
         recs, gcol, ccol = from_jbb()
         origin = "JailbreakBench/JBB-Behaviors"
     else:
-        recs, gcol, ccol = from_url(_SOURCES[args.benchmark])
+        recs, gcol, ccol = from_url(_SOURCES[args.benchmark], keep_duplicates=args.keep_duplicates)
         origin = _SOURCES[args.benchmark]
 
     n = write(args.out, recs)
