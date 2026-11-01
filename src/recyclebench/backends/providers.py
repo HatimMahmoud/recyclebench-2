@@ -40,6 +40,22 @@ class ProviderConfig:
     extra_body: Optional[dict] = None
 
 
+_LOCAL_OLLAMA = "http://localhost:11434"
+
+
+def resolve_base_url(base_url: str) -> str:
+    """Point the configs' local Ollama URL at RECYCLEBENCH_OLLAMA_URL when that is set.
+
+    On a shared cluster node another job may already hold port 11434, so each Slurm job serves
+    Ollama on its own port and exports this variable (pegasus/in_container.sh). Only the URL
+    changes: the cache key uses the config key, never the URL, so cached responses still hit.
+    """
+    override = os.environ.get("RECYCLEBENCH_OLLAMA_URL")
+    if override and base_url.startswith(_LOCAL_OLLAMA):
+        return override.rstrip("/") + base_url[len(_LOCAL_OLLAMA):]
+    return base_url
+
+
 class ProviderModel:
     """A real chat model behind an HTTP API, exposing the same ``respond`` contract."""
 
@@ -58,7 +74,7 @@ class ProviderModel:
             self._client = Anthropic(api_key=key, timeout=self.pc.timeout)
         else:
             from openai import OpenAI
-            self._client = OpenAI(api_key=key, base_url=self.pc.base_url,
+            self._client = OpenAI(api_key=key, base_url=resolve_base_url(self.pc.base_url),
                                   timeout=self.pc.timeout)
         return self._client
 

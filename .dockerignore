@@ -1,0 +1,4 @@
+# The image needs only the dependency list; the repo is mounted at run time.
+# Never send cache/, results/, audit/ or data/ (harmful text) into a build context.
+*
+!requirements.txt

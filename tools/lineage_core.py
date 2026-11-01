@@ -42,6 +42,9 @@ MODEL_META = {
     "llama31-8b": dict(label="Llama 3.1 8B",  short="3.1-8B", gen="Llama 3.1", gen_i=3.1, size=8,  released="2024-07"),
     "llama32-1b": dict(label="Llama 3.2 1B",  short="3.2-1B", gen="Llama 3.2", gen_i=3.2, size=1,  released="2024-09"),
     "llama32-3b": dict(label="Llama 3.2 3B",  short="3.2-3B", gen="Llama 3.2", gen_i=3.2, size=3,  released="2024-09"),
+    # MoE: size is the total parameter count (all experts are resident), 17B active per token
+    "llama4-scout":    dict(label="Llama 4 Scout",    short="4-Scout", gen="Llama 4", gen_i=4.0, size=109, released="2025-04"),
+    "llama4-maverick": dict(label="Llama 4 Maverick", short="4-Mav",   gen="Llama 4", gen_i=4.0, size=400, released="2025-04"),
 }
 
 
