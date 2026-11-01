@@ -23,6 +23,7 @@ DS=liuyanchen1015/Llama-3.2-1B-Instruct_jailbreak_responses_with_judgment
 export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1 HF_DATASETS_OFFLINE=1 HF_HUB_OFFLINE=1
 mkdir -p "$OUT" "$(dirname "$CACHE")"; touch "$CACHE"
 python3 tools/env_check.py --strict
+source pegasus/gpu_guard.sh                     # refuse a silent CPU fallback
 
 # every class except the no-transform baseline, as the corpus defines them (recorded beside the result)
 CLASSES=$(python3 - "$DS" << 'EOF'

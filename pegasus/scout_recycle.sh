@@ -24,6 +24,7 @@ SPECS=${RB_SPECS:-"experiments/llama4_scout/harmbench__llama3-8b.yaml
                    experiments/llama4_scout/advbench__llama3-8b.yaml"}
 export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false
 python3 tools/env_check.py --strict
+source pegasus/gpu_guard.sh                     # refuse a silent CPU fallback
 
 for S in $SPECS; do
   NAME=$(python3 -c "import yaml,sys; print(yaml.safe_load(open(sys.argv[1]))['name'])" "$S")

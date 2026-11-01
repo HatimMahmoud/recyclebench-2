@@ -33,6 +33,7 @@ mkdir -p "$C" "$OUT"
 EMPTY=$C/empty_manifest.jsonl; : > "$EMPTY"
 PAIRS=$(for O in $OLDS; do printf "%s:%s," "$O" "$NEW"; done); PAIRS=${PAIRS%,}
 python3 tools/env_check.py --strict
+source pegasus/gpu_guard.sh                     # refuse a silent CPU fallback
 
 echo "===== [$(date +%T)] 1. inversion manifests"
 for B in $BENCH; do
