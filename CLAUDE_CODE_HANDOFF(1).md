@@ -26,7 +26,7 @@ macOS (M1 Max, 32 GB). Needs a Claude Pro/Max/Team/Enterprise or Console account
 5. **First prompt (suggested):**
    > Read `CLAUDE_CODE_HANDOFF.md`. Then read `tools/make_dashboard.py` and locate `build_view`,
    > `partition`, `filterBench`, and how section modules are injected. Start with the ★ open task in
-   > §14.1 (native `--lineage` mode). Show me the diff before writing; don't hit Ollama without asking.
+   > §14.1 — now done as `tools/lineage_dashboard.py`. Show me the diff before writing; don't hit Ollama without asking.
 
 ---
 
@@ -282,8 +282,9 @@ PBR (own-refusal, raw) rises across generations: 2-7b 0.126 · 2-13b 0.101 · 3-
   audit. **Current.** (`RecycleBench_Documentation.pdf` = earlier usage manual, superseded.)
 - `Composition_Ablation_Memo.pdf`/`.tex` — the factorial composition counter-proposal.
 - `WALKTHROUGH.md`/`.html` — developer docs.
-- `build_lineage_dashboard.py` (iframe lineage wrapper — **superseded by §14.1**, reference only) +
-  `dashboard_lineage_sorrybench_*.html` (hand-built summary, not make_dashboard output).
+- ~~`build_lineage_dashboard.py`~~ (iframe lineage wrapper) — **deleted** 2026-11-01, commit e987048;
+  superseded by `tools/lineage_dashboard.py` (§14.1). `dashboard_lineage_sorrybench_*.html` was a
+  hand-built summary, not make_dashboard output.
 - Dashboard system edits (section modules, `build_all_dashboards.py`, `dashboard_standalone.html`).
 
 ---
@@ -319,32 +320,44 @@ PBR (own-refusal, raw) rises across generations: 2-7b 0.126 · 2-13b 0.101 · 3-
 
 ## 14. Open tasks
 
-### 14.1 ★ Native `--lineage` mode in `make_dashboard.py` (immediate)
-One SORRY-Bench page, five pairs as **native tabs** in house style — no iframes. Reuse `build_view` +
-`filterBench`: (1) add `--lineage` (read ordered `lineage:` from `--config`) or `--pairs a:b,…`; (2) per
-pair `partition(cache,[sorrybench.csv],old,new,k)` → cells, compute recovered/rsr (same loop as per-bench
-sub-views, via `after_state`), `build_view(...,name=f"{old}→{new}",active=(i==0))`; (3) tab bar reusing
-`.btabs/.btab` with `data-t="{old}→{new}"` (existing `filterBench` works unchanged); (4) shared
-`--manifest results/runs/lineage_sorrybench_20261020/manifest.jsonl`. **Accept:** one file, 5 native tabs,
-per-tab P⁻ = **18, 3, 49, 12, 13**. Watch element-id collisions (follow the multi-view pattern).
+### 14.1 ~~Native `--lineage` mode in `make_dashboard.py`~~ — DONE differently
+Built as a **separate tool**, `tools/lineage_dashboard.py` (+ data layer `tools/lineage_core.py`), not as
+a mode of `make_dashboard.py`: one native page for the whole `lineage:` run, rebuilt from the cache and
+the frozen manifest through the package's own `compute_rsr` / `compute_pbr`, with per-item views from the
+`tools/judge_lineage.py` verdict cache and a reconciliation table when it is incomplete. **Accept
+criterion met:** per-rung P⁻ = 18, 3, 49, 12, 13. `make_dashboard.py`'s layout is superseded by the DFKI
+design shared by the lineage, pair and master pages, so the mode was never added to it.
 
-### 14.2 Teach `build_all_dashboards.py` about lineage folders
-`manifest.jsonl` (no suffix) → fan out over the config's consecutive `lineage:` pairs.
+### 14.2 ~~Teach `build_all_dashboards.py` about lineage folders~~ — DONE 2026-11-01
+Resolved by **delegation, not fan-out**: a run listed in `LINEAGE_RUNS` is handed to
+`tools/lineage_dashboard.py`, which renders the whole lineage as one native page. Fanning out through
+`make_dashboard` per rung is the approach §14.1 replaced, so it was not rebuilt. A bare
+`manifest.jsonl` is not itself the signal (`confirm_heldout_3_31`, `xfamily_mistral_*` have one and are
+ordinary two-model runs), so lineage runs are listed explicitly, and every other manifest-less run is
+now skipped **with the tool that does render it named** (`ELSEWHERE`) instead of in silence.
 
-### 14.3 Retire the iframe wrapper
-Delete `build_lineage_dashboard.py` once §14.1 lands.
+### 14.3 ~~Retire the iframe wrapper~~ — DONE
+`build_lineage_dashboard.py` deleted (commit e987048).
 
-### 14.4 Reconcile judge design (proposal ensemble vs implemented qwen2.5:14b)
-Decide and document: adopt the StrongREJECT+HarmBench+Llama-Guard ensemble, or justify the single
-decorrelated judge. Keep report and exposé consistent.
+### 14.4 ~~Reconcile judge design~~ — DECIDED 2026-11-01: single decorrelated judge
+Written up in `THESIS_KB.md` §2, "The judge `J` — the other load-bearing control", on four grounds:
+Llama Guard is Llama-family and would break judge ≠ target decorrelation; the single judge clears the
+registered κ ≥ 0.6 bar (bundle κ 0.833, se 0.862, sp 0.968, admitted); transfer to HarmBench is
+measured rather than assumed (κ 0.933; pooled anchor corrects to 62.2% vs 62.3% either way); and judge
+choice is not the fragile part — the offline rule beats the LLM judge against humans on SORRY-Bench
+(κ 0.93 vs 0.83) and is reported as a standing sensitivity. The deviation is registered in `prereg.md`
+D3 and its figures are current in Amendment 2 §B1 D3. Attack-transfer is the one arm no single judge
+can correct (design-weighted se 0.072) and is not treated as if it could be.
 
 ### 14.5 (Deferred) Formal lineage judge calibration
 `judge-export → hand-label → judge-ingest` on pooled lineage bundles, if a lineage-specific se/sp is wanted
 over the shared-judge correction (4/5 rungs exploratory → shared-judge is proportionate).
 
-### 14.6 (Deferred, pending Vollmer) Factorial composition ablation
-21-condition fixed factorial (6 singles + 15 pairs), no fitness selection, RPE decoupled — per
-`Composition_Ablation_Memo`. This is the RQ3 driver extension.
+### 14.6 ~~Factorial composition ablation~~ — RUN 2026-10-29/30, null result
+Exactly as the memo specified: 21 conditions (6 singles + 15 pairs), fixed, no fitness selection, RPE
+decoupled. `PREREG_COMPOSE_V2_20261029.md`, `tools/run_compose_v2.py`, results
+`results/runs/compose_v2_20261029_2222/`. **No style pair re-opens more than its singles** (Holm min
+p = 0.23); replicated on llama2-7b → llama3.1-8b with the same null. THESIS_KB §4.4b.
 
 ### 14.7 (Design) Matched-scale framing
 When writing results, lead with the matched-scale 7–8B chain (2-7b→3-8b→31-8b) + anchor as the clean story;

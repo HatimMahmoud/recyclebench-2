@@ -47,6 +47,33 @@ PAIR_OVERRIDE = {
     "recycle_3_31_sorrybench": ("llama3-8b", "llama31-8b"),   # the calibrated ANCHOR
     # "20260805_183352_RECYCLE_pminus_only": ("llama3-8b", "llama31-8b"),
 }
+# Runs whose manifest is a whole `lineage:` (plain manifest.jsonl, no manifest_<bench>.jsonl).
+# These are DELEGATED to tools/lineage_dashboard.py, which renders the whole lineage as one native
+# page; fanning them out through make_dashboard is the per-rung iframe approach that page replaced
+# (handoff §14.1-§14.3). A plain manifest.jsonl is NOT itself the signal — confirm_heldout_3_31 and
+# xfamily_mistral_* also have one and are ordinary two-model runs — so lineage runs are listed.
+LINEAGE_RUNS = {
+    "lineage_sorrybench_20261020": {
+        "config": "configs/real_llama_lineage_all.yaml",
+        "cache": "cache/llama_gen.jsonl",
+        "behaviours": "data/sorrybench.csv",
+        "verdicts": "cache/judge_lineage_sorrybench.jsonl",
+    },
+}
+# Runs with no manifest_<bench>.jsonl that are NOT lineage runs: the current family for these is
+# pair_dashboard.py / master_dashboard.py (make_dashboard's layout is superseded), so say so once
+# instead of skipping in silence.
+ELSEWHERE = {
+    "confirm_heldout_3_31": "rendered by tools/pair_dashboard.py (and master §recycle); "
+                            "behaviours data/heldout_jbb_guided.csv",
+    "xfamily_mistral_20261031_0126": "rendered by tools/controls_section.py, on the master "
+                                     "and lineage pages",
+    "20260805_183352_RECYCLE_pminus_only": "a pminus-only run: no recycling manifest to render",
+    # EXPERIMENTAL -- ScienceSafetyData pilot, parked for the cluster; drop this entry when the
+    # pilot is deleted before submission (cleanup list in CLAUDE.md).
+    "sciencesafety_20261101": "tools/sciencesafety_dashboard.py (standalone, deliberately isolated: "
+                              "this corpus is not in study_data and pools into nothing)",
+}
 # runs whose RPE manifest lives OUTSIDE the run folder — point at it explicitly here
 RPE_OVERRIDE = {
     "recycle_3_31_sorrybench":
@@ -76,6 +103,27 @@ def benchmarks_in(run_dir: Path):
     return out
 
 
+def build_lineage(rd: Path, spec: dict, stamp: str, dry_run: bool) -> int:
+    """Hand a whole-lineage run to tools/lineage_dashboard.py. Returns 1 if a page was written."""
+    out = rd / f"dashboard_lineage_{stamp}.html"
+    cmd = [sys.executable, "tools/lineage_dashboard.py",
+           "--config", spec["config"], "--cache", spec["cache"],
+           "--behaviours", spec["behaviours"], "--run-dir", str(rd), "--out", str(out)]
+    if spec.get("verdicts"):
+        cmd += ["--verdicts", spec["verdicts"]]
+    print(f"{'PLAN ' if dry_run else 'BUILD'} {rd.name}: whole lineage -> lineage_dashboard.py")
+    if dry_run:
+        print("      " + " ".join(cmd))
+        return 0
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode == 0:
+        print(f"      -> {out}")
+        return 1
+    print(f"      FAILED (rc={r.returncode}):")
+    print("      " + (r.stderr or r.stdout).strip().replace("\n", "\n      ")[-1200:])
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/recycle_3_31.yaml")
@@ -96,12 +144,25 @@ def main():
     for rd in run_dirs:
         name = rd.name
         benches = benchmarks_in(rd)
+        if not benches and name in LINEAGE_RUNS:
+            built += build_lineage(rd, LINEAGE_RUNS[name], stamp, args.dry_run)
+            planned += int(args.dry_run)
+            continue
         if not benches:
-            continue  # not a recycle run (attack_transfer/, rpe-only, pminus-only, etc.)
+            if name in ELSEWHERE:
+                print(f"SKIP  {name}: {ELSEWHERE[name]}")
+                skipped += 1
+            elif (rd / "manifest.jsonl").exists():
+                print(f"SKIP  {name}: has a bare manifest.jsonl — add it to LINEAGE_RUNS "
+                      f"(whole lineage) or ELSEWHERE (rendered by another tool)")
+                skipped += 1
+            continue  # not a recycle run (attack_transfer/, rpe-only, etc.)
 
         pair = parse_pair(name)
         if not pair:
-            print(f"SKIP  {name}: can't infer model pair — add it to PAIR_OVERRIDE")
+            # ELSEWHERE first: a run rendered by another tool should not invite a PAIR_OVERRIDE
+            print(f"SKIP  {name}: " + (ELSEWHERE[name] if name in ELSEWHERE
+                                       else "can't infer model pair — add it to PAIR_OVERRIDE"))
             skipped += 1
             continue
         old, new = pair
