@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as _dt
 import json
 import random
 import sys
@@ -126,7 +127,10 @@ def cmd_score(args):
     res = score(d)
     if res is None:
         raise SystemExit(f"no sheet/key/strata in {d}")
-    (d / "rejection_audit_result.json").write_text(json.dumps(res, indent=1))
+    dest = d / f"rejection_audit_result_{_dt.datetime.now():%Y%m%d_%H%M}.json"     # dated: a re-score never replaces one
+    if dest.exists():
+        raise SystemExit(f"{dest} exists -- refusing to overwrite")
+    dest.write_text(json.dumps(res, indent=1))
     print(json.dumps({k: v for k, v in res.items() if k != "population"}, indent=1))
 
 

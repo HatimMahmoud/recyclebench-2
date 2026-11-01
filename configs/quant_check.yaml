@@ -1,0 +1,33 @@
+# =====================================================================
+# Quantisation sensitivity for the anchor pair (prereg Amendment 2 D7; PREREG_QUANT_20261031.md).
+# The registered lineage served llama3:8b at Q4_0 and llama3.1:8b at Q4_K_M (Ollama default tags). This config adds the
+# OLDER model at the newer model's quantisation under its own cache key, so nothing collides with the registered cache.
+# Same seed, decoding and judge as configs/real_llama_lineage_all.yaml.
+# =====================================================================
+seed: 20260101
+
+lineage:
+  - llama3-8b-q4km     # Llama-3-8B-Instruct, Q4_K_M (matched to llama3.1:8b)
+
+real:
+  llama3-8b-q4km:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3:8b-instruct-q4_K_M
+    temperature: 0.0
+    max_tokens: 512
+
+judges:
+  rubric:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: qwen2.5:14b
+    temperature: 0.0
+    max_tokens: 4
+
+budget:
+  k_canonical_samples: 1
+  paraphrases_per_behaviour: 8
+  samples_per_variant: 1
+
+store_raw: false

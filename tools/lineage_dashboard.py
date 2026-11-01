@@ -785,13 +785,13 @@ def sec_headline(an):
         r = _run_rsr(an, *anc)
         if r:
             corr = _corr(an, r["RSR_raw"])
-            anc_tile = tile(f"Anchor RSR · {short(anc[0])} → {short(anc[1])}", pct(r["RSR_raw"]),
+            anc_tile = tile(f"RSR · {short(anc[0])} → {short(anc[1])} · lineage run", pct(r["RSR_raw"]),
                             f"Wilson 95% {ci_txt(*run_wilson(r))} · n={r['n_p_minus']}"
                             + (f"<br>judge-corrected ≈ {pct(corr)}" if corr is not None else ""), emph=True,
                             tip=f"{r['k_recovered']} of {r['n_p_minus']} fixes re-opened. McNemar exact p = {p_txt(r['mcnemar_p'])}.")
         else:
             pv = an.pairs[anc]
-            anc_tile = tile(f"Anchor RSR · {short(anc[0])} → {short(anc[1])}",
+            anc_tile = tile(f"RSR · {short(anc[0])} → {short(anc[1])} · lineage run",
                             pct(pv.rsr.rsr_raw) if pv.rsr else "—", f"n={pv.n} (reconstruction)", emph=True)
     pbr = an.run.get("pbr") or {}
     pbr_vals = [(m, pbr[m]["PBR_raw"]) for m in an.lineage if m in pbr]
@@ -807,24 +807,25 @@ def sec_headline(an):
     g = an.gate
     gate_tile = tile("Rewordings admitted by the gate", f"{g['admitted']:,} / {g['n']:,}",
                      f"{pct(g['admitted'] / g['n'] if g['n'] else None)} of generated · 8 per behaviour")
-    pooled_corr = _corr(an, pr) if src == "run" else None
-    tiles = (tile("Pooled RSR · 5 release pairs", pct(pr),
-                  f"{num(pooled_k)} of {num(pooled_n)} fixes · Wilson {ci_txt(plo, phi)}"
-                  + (f"<br>judge-corrected ≈ {pct(pooled_corr)}" if pooled_corr is not None else ""),
-                  tip="Pairs are pooled as pair::behaviour units; the same behaviour can appear in several pairs, "
-                      "so the interval treats them as independent — read it as descriptive.")
+    per_pair = " · ".join(f"{short(o)}→{short(n)} {r['k_recovered']}/{r['n_p_minus']}" for (o, n), r in zip(adj, rows) if r) \
+        if src == "run" else " · ".join(f"{short(o)}→{short(n)} {an.pairs[(o, n)].k}/{an.pairs[(o, n)].n}" for o, n in adj)
+    tiles = (tile(f"RSR per release pair · {len(adj)} pairs", f"{len(adj)} pairs", per_pair + "<br>exploratory · not pooled",
+                  tip="Read per pair: one behaviour can be a fix in several pairs, so a pooled rate would double-count it "
+                      "(THESIS_KB §8.5).")
              + anc_tile + pbr_tile + gate_tile)
     # takeaways
     t = []
     if pr is not None:
-        t.append(f"Across the {len(adj)} consecutive releases, <b>{pct(pr, 0)}</b> of the observed fixes "
-                 f"({pooled_k} of {pooled_n}) were re-opened by at least one meaning-preserving rewording.")
+        t.append(f"In each of the {len(adj)} consecutive releases some fixes were re-opened by a meaning-preserving "
+                 f"rewording ({per_pair}). The pairs are read one at a time, never pooled: one behaviour can be a fix in "
+                 f"several pairs.")
     if anc:
         r = _run_rsr(an, *anc)
         if r:
             t.append(f"Only <b>{pair_label(*anc)}</b> clears the pre-registered floor of |P⁻| ≥ {floor} "
                      f"(n = {r['n_p_minus']}). Its RSR is <b>{pct(r['RSR_raw'])}</b> (Wilson 95% {ci_txt(*run_wilson(r))}), "
-                     f"McNemar p = {p_txt(r['mcnemar_p'])} — this pair carries the confirmatory claim.")
+                     f"McNemar p = {p_txt(r['mcnemar_p'])}. The figure here is exploratory; this pair's registered "
+                     f"confirmatory replication ran on a held-out set (master dashboard).")
     n_expl = sum(1 for o, n in adj if (o, n) not in est)
     if n_expl:
         t.append(f"The other {n_expl} pairs are exploratory: they fall below the floor and are either within one "
@@ -1099,7 +1100,7 @@ def pair_panel(an, pv, idx, active, redact):
     cls_chart = (hbars(cls_rows, f"Recovery by style for {pair_label(o, n)}") if pv.complete and pm
                  else "<p class='note'>Needs judged rewordings.</p>")
     hidden = "" if active else " hidden"
-    design = ("pre-registered consecutive pair" if pv.adjacent else
+    design = ("consecutive pair (exploratory)" if pv.adjacent else
               "post-hoc pair — not consecutive, computed from the same frozen stimuli")
     return f"""
 <div class="tabpanel" role="tabpanel" id="panel-{pair_id(o, n)}" aria-labelledby="tab-{pair_id(o, n)}"{hidden}>
@@ -1170,7 +1171,7 @@ def sec_matrix(an):
             if small:
                 cls.append("mx-small")
             tip = (f"{pair_label(o, n)}\nP⁻ = {pv.n}" + (f" · re-opened {pv.k} · RSR {pct(rsr)}" if rsr is not None else "")
-                   + f"\n{pv.status['why']}" + ("\npre-registered consecutive pair" if pv.adjacent else "\npost-hoc"))
+                   + f"\n{pv.status['why']}" + ("\nconsecutive pair (exploratory)" if pv.adjacent else "\npost-hoc"))
             cells.append(f'<div class="{" ".join(cls)}" style="{style}" tabindex="0" data-tip="{esc(tip)}">'
                          f'<b>{pct(rsr, 0) if rsr is not None else "—"}</b><span>P⁻ {pv.n}</span></div>')
     trows = []
@@ -1185,11 +1186,11 @@ def sec_matrix(an):
   <div class="panel">
     <p class="note">Because every model answered the same frozen requests and rewordings, any older → newer pair can be compared
     at no extra cost. Cell colour is RSR (darker = more fixes re-opened); the small number is |P⁻|. Outlined cells are the
-    pre-registered consecutive pairs; ◆ marks matched-scale cross-generation pairs. Only the consecutive pairs are confirmatory — every
-    other cell is post-hoc and must be read as exploratory. Cells with P⁻ &lt; 5 are left uncoloured.</p>
+    consecutive pairs of the run; ◆ marks matched-scale cross-generation pairs. Every cell is exploratory; the
+    non-consecutive cells are additionally post hoc. Cells with P⁻ &lt; 5 are left uncoloured.</p>
     {flag}
     <div class="scroll"><div class="mx" style="grid-template-columns:120px repeat({len(L)}, minmax(84px,1fr))">{head}{''.join(cells)}</div></div>
-    <div class="legend"><span><i class="lg-ramp"></i>RSR 0% → 100%</span><span><i class="lg-adj"></i>consecutive (pre-registered)</span><span>◆ matched scale</span></div>
+    <div class="legend"><span><i class="lg-ramp"></i>RSR 0% → 100%</span><span><i class="lg-adj"></i>consecutive</span><span>◆ matched scale</span></div>
     {tableview(["Pair", "Consecutive", "Design", "P⁻", "Re-opened", "RSR"], trows, num_cols=(3, 4, 5))}
   </div>
 </section>"""
@@ -2229,7 +2230,8 @@ def main(argv=None):
     ap.add_argument("--run-dir", default="results/runs/lineage_sorrybench_20261020")
     ap.add_argument("--manifest", default=None, help="default: <run-dir>/manifest.jsonl")
     ap.add_argument("--summary", default=None, help="default: <run-dir>/summary_real.json")
-    ap.add_argument("--anchor", default="results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json")
+    ap.add_argument("--anchor", default=None,
+                    help="default: the anchor's corrected figures under the primary calibration (tools/primary_calibration.py)")
     ap.add_argument("--verdicts", default="cache/judge_lineage_sorrybench.jsonl")
     ap.add_argument("--offline", action="store_true", help="use the offline refusal rule even if verdicts exist")
     ap.add_argument("--redact", action="store_true", help="omit every prompt and response text")
@@ -2237,6 +2239,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     run_dir = Path(args.run_dir)
+    if args.anchor is None:
+        import primary_calibration as pc
+        args.anchor = str(pc.resolve(pc.CORRECTED["anchor"]))
     args.manifest = args.manifest or str(run_dir / "manifest.jsonl")
     args.summary = args.summary or str(run_dir / "summary_real.json")
     cfg = Config.load(args.config)

@@ -86,6 +86,8 @@ def main(argv=None) -> int:
         lines.append(f"n = {r['n']:>3}: McNemar needs k ≥ {r['mcnemar_k_min']} (MDE {r['mde_mcnemar']}); "
                      f"surface-bound needs k ≥ {r['surface_bound_k_min']} (MDE {r['mde_surface_bound']}); {rob}")
     out = Path(args.out) if args.out else ROOT / "results" / f"analysis_power_{_dt.datetime.now():%Y%m%d_%H%M}"
+    if (out / "power.json").exists():
+        raise SystemExit(f"{out / 'power.json'} exists -- refusing to overwrite")
     out.mkdir(parents=True, exist_ok=True)
     (out / "power.json").write_text(json.dumps(res, indent=1))
     (out / "power.txt").write_text("\n".join(lines) + "\n")

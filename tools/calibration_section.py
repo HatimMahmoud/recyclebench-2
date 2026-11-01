@@ -155,7 +155,7 @@ def _body(a: dict) -> str:
         f'<div class="cal-raw">raw <b>{_pct(a["rsr_raw"])}</b> · {rsr_count} · McNemar p={mcn} · t̄={tmean}</div></div>')
 
     pbr_card = (
-        f'<div class="cal-card"><p class="cal-lab">Paraphrase Bypass Rate — {a["pbr_model"] or "new model"} (corrected){_tip(_T_PBR)}</p>'
+        f'<div class="cal-card"><p class="cal-lab">Paraphrase Bypass Rate on the anchor's fix subset — {a["pbr_model"] or "new model"} (corrected; not the model-level backbone){_tip(_T_PBR)}</p>'
         f'<div class="cal-big">{_pct(a["pbr_corr"])}</div>'
         f'<div class="cal-ci">95% CI {_ci_txt(a["pbr_ci"])}</div>'
         f'<div class="cal-raw">raw <b>{_pct(a["pbr_raw"])}</b></div>'

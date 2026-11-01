@@ -30,6 +30,9 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+import primary_calibration as pc                # noqa: E402
+
 MAKE = "tools/make_dashboard.py"
 
 # directory-name token -> cache/config model key
@@ -123,9 +126,9 @@ def main():
             cmd += ["--merge"] + [f"{mf}:{csv}" for _, mf, csv in merges]
 
         # best-effort extras found inside the run folder
-        corr = sorted(glob.glob(str(rd / "corrected_*.json")))
-        if corr:      # newest name sorts last: *_recal_n60.json supersedes the pre-repair file
-            cmd += ["--corrected", corr[-1]]
+        corr = sorted(c for c in glob.glob(str(rd / "corrected_*.json")) if "_blind_" not in c)
+        if corr:      # newest name sorts last: *_recal_n60.json supersedes the pre-repair file; the primary
+            cmd += ["--corrected", str(pc.resolve(corr[-1]))]      # calibration's twin once §B4.3 applies
         rpe = sorted(glob.glob(str(rd / "**/rpe_manifest_*.jsonl"), recursive=True))
         rpe_path = rpe[0] if rpe else None
         if name in RPE_OVERRIDE and Path(RPE_OVERRIDE[name]).exists():

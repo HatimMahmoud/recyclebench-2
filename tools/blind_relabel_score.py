@@ -121,6 +121,8 @@ def main(argv=None) -> int:
                 PBR=dict(kn=f"{k_p}/{n_p}", registered=p.get("PBR_corrected", p.get("corrected")),
                          blind=round(cp[0], 4), blind_ci=[round(cp[1], 4), round(cp[2], 4)], blind_verdict=verdict(cp[1], cp[2])))
     out = Path(args.out) if args.out else ROOT / "results" / f"analysis_blind_relabel_{_dt.datetime.now():%Y%m%d_%H%M}"
+    if (out / "blind_relabel.json").exists():
+        raise SystemExit(f"{out / 'blind_relabel.json'} exists -- refusing to overwrite")
     out.mkdir(parents=True, exist_ok=True)
     (out / "blind_relabel.json").write_text(json.dumps(res, indent=1))
     print(json.dumps(res, indent=1))

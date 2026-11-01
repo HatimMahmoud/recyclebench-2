@@ -23,9 +23,14 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import lineage_dashboard as ld                  # noqa: E402
+import primary_calibration as pc                # noqa: E402
 
 esc, pct, num, ci_txt = ld.esc, ld.pct, ld.num, ld.ci_txt
 ORDER = ["llama2-7b", "llama2-13b", "llama3-8b", "llama31-8b", "llama32-1b", "llama32-3b", "mistral7b-v02", "mistral7b-v03"]
+# the release pairs the study reads (lineage rungs, the post-hoc matched-scale pairs, the cross-family pair); the summary
+# holds every ordered combination, most of which (e.g. a 3B Llama against a Mistral) compare nothing
+PAIRS = [("llama2-7b", "llama2-13b"), ("llama2-13b", "llama3-8b"), ("llama3-8b", "llama31-8b"), ("llama31-8b", "llama32-1b"),
+         ("llama32-1b", "llama32-3b"), ("llama2-7b", "llama3-8b"), ("llama2-7b", "llama31-8b"), ("mistral7b-v02", "mistral7b-v03")]
 NAMES = {"mistral7b-v02": "Mistral 7B v0.2", "mistral7b-v03": "Mistral 7B v0.3"}
 BENCH = {"advbench": "AdvBench", "harmbench": "HarmBench", "strongreject": "StrongREJECT", "sorrybench": "SORRY-Bench",
          "heldout_jbb_guided": "Held-out set"}
@@ -92,7 +97,7 @@ def aggregate(root: Path = ROOT) -> dict:
     ls = _read(root / LINEAGE_SUMMARY)
     for r in (ls or {}).get("PBR_backbone_RAW", []):
         agg["pbr"][r["model"]] = r
-    agg["anchor"] = _read(root / ANCHOR_CAL)
+    agg["anchor"] = _read(pc.resolve(root / ANCHOR_CAL, root))          # primary calibration (Amendment 2 §B4.3)
     return agg
 
 
@@ -167,7 +172,7 @@ def _types_table(d, models):
 def _or_panel(agg):
     o = agg["overrefusal"]
     d, done = o["data"], o["complete"]
-    pairs = [p for p in d.get("pairs", []) if p["older"] in done and p["newer"] in done]
+    pairs = [p for p in (_pair_line(d, a, b) for a, b in PAIRS) if p and p["older"] in done and p["newer"] in done]
     ptab = [[esc(f"{label(p['older'])} → {label(p['newer'])}"), pct(p["older_rate"]), pct(p["newer_rate"]),
              num(p["newly_refused"]), num(p["newly_answered"]), ld.p_txt(mc_p(p))] for p in pairs]
     tab = [[esc(label(m)), f"{d['models'][m]['safe_refusal_judged']['k']}/250", pct(d['models'][m]['safe_refusal_judged']['rate']),
@@ -179,6 +184,12 @@ def _or_panel(agg):
         flag = (f'<p class="flag">Anchor pair: Llama 3 8B and 3.1 8B refuse the same share of benign prompts ({pct(anc["older_rate"])} → '
                 f'{pct(anc["newer_rate"])}; {anc["newly_refused"]} newly refused against {anc["newly_answered"]} newly answered, '
                 f'McNemar p {ld.p_txt(mc_p(anc))}). Its 49 fixes are therefore not a general rise in refusing.</p>')
+    up = [p for p in pairs if mc_p(p) < 0.05 and p['newly_refused'] > p['newly_answered']]
+    if up:
+        flag += (f'<p class="flag">The newer model does refuse more benign prompts in '
+                 + '; '.join(f'{esc(label(p["older"]))} → {esc(label(p["newer"]))} ({pct(p["older_rate"])} → {pct(p["newer_rate"])}, '
+                             f'+{p["newly_refused"]} / −{p["newly_answered"]}, McNemar p {ld.p_txt(mc_p(p))})' for p in up)
+                 + '. Part of those pairs\' fixes may be indiscriminate refusal rather than learned harm detection.</p>')
     part = [label(m) for m in ORDER if m not in done]
     return (f'<div class="panel"><h3>Benign over-refusal and the unsafe contrast set</h3>'
             f'<p class="note">XSTest (Röttger et al., 2024): 250 benign prompts that only look unsafe, and 200 unsafe contrast '
@@ -193,10 +204,18 @@ def _or_panel(agg):
             f'{_types_table(d, done)}</div>')
 
 
+def _rq4_reading(rel: dict) -> str:
+    """one sentence: where each model's PBR sits against its own over-refusal (95% intervals overlap = 'at')"""
+    part = [f"{w} it for {', '.join(label(m) for m in ORDER if rel.get(m) == k)}"
+            for k, w in (("at", "at"), ("below", "below"), ("above", "above")) if k in rel.values()]
+    return ("PBR sits " + "; ".join(part).replace("at it for", "at the model's own over-refusal rate for", 1)
+            + " (95% intervals overlapping = at); the anchor RSR sits well above it.") if part else ""
+
+
 def _rq4_panel(agg):
     o = agg["overrefusal"]
     d, done = o["data"], o["complete"]
-    rows, tab = [], []
+    rows, tab, rel = [], [], {}
     anc = (agg.get("anchor") or {})
     for i, m in enumerate([m for m in ORDER if m in done and m in agg["pbr"]]):
         orr = d["models"][m]["safe_refusal_judged"]
@@ -210,6 +229,7 @@ def _rq4_panel(agg):
                          tip=f"{label(m)}: {pb['k_bypassed']} of {pb['n_resolved']} own SORRY-Bench refusals re-opened by an admitted "
                              f"rewording · PBR {pct(p_)} (Wilson {ci_txt(lo, hi)}) · qwen2.5:14b judge, raw"))
         tab.append([esc(label(m)), pct(orr["rate"]), pct(p_), pct(p_ - orr["rate"])])
+        rel[m] = "below" if hi < orr["ci"][0] else "above" if lo > orr["ci"][1] else "at"
         if m == "llama31-8b" and anc.get("RSR"):
             r = anc["RSR"]
             rows.append(dict(label="", sub="RSR · anchor fixes (corrected)", point=r["RSR_corrected"], lo=r["CI"][0], hi=r["CI"][1],
@@ -219,8 +239,7 @@ def _rq4_panel(agg):
     return (f'<div class="panel"><h3>The RQ4 reference: each model against its own over-refusal</h3>'
             f'<p class="note">The exposé anchors RQ4\'s reference to the model\'s own benign over-refusal rate; the study used the fixed '
             f'π* = 0.15 instead. Here the two meet: for each model, how often it refuses benign prompts, how often rewording re-opens what '
-            f'it refuses on SORRY-Bench (full-benchmark lineage run), and for Llama 3.1 8B the anchor RSR. The Llama 3 models\' PBR sits '
-            f'at their over-refusal rate; the Llama 2 models\' sits far below it; the anchor RSR sits well above it. Different '
+            f'it refuses on SORRY-Bench (full-benchmark lineage run), and for Llama 3.1 8B the anchor RSR. {_rq4_reading(rel)} Different '
             f'denominators (benign prompts, refused harmful requests, fixes), so this is a reference, not a test.</p>'
             f'<div class="legend"><span><i class="lg ctl-lg-or"></i>benign over-refusal</span>'
             f'<span><i class="lg ctl-lg-re"></i>share re-opened by rewording (PBR, RSR)</span><span>whiskers: 95% interval</span></div>'

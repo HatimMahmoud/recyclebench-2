@@ -172,9 +172,10 @@ channels (ETHICS.md, exposé §10).
 short-circuiting. Human audit (2026-10-29, 178 rewordings over four benchmarks): 3 of 98 admitted rewordings that re-opened a
 fix changed the request; rows 19–178 were labelled with a model guess visible (stated in the thesis).
 
-**Known limitations.** One paraphraser; one judge (calibrated on Llama 3.1 8B responses, bundle κ 0.833); the gate's
-false-rejection rate was measured on a related population (prereg Amendment 2 §B4.1); `bid` is a row position, not a
-SORRY-Bench question id.
+**Known limitations.** One paraphraser; one judge (calibrated on Llama 3.1 8B responses, bundle κ 0.833), which scores
+whether a reply *attempts* the request, not whether its content is correct or harmful; the gate's false-rejection rate is
+not yet measured: a blind audit on a related population is registered (prereg Amendment 2 §B4.1) and unlabelled at the time
+of this build; `bid` is a row position, not a SORRY-Bench question id.
 
 **Licence.** Derived from SORRY-Bench; redistribution follows the source benchmark's terms, which must be checked before any
 public release. Provenance: `{MANIFEST}`, verdicts `{VERDICTS}`, built {_dt.date.today().isoformat()} by `tools/release_c2.py`.

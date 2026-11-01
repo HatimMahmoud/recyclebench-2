@@ -33,6 +33,7 @@ from typing import Optional
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lineage_core as lc                                                   # noqa: E402
+import primary_calibration as pc                                            # noqa: E402
 from recyclebench.calibration import calibrate, cohen_kappa                  # noqa: E402
 from recyclebench.config import Config                                       # noqa: E402
 from recyclebench.datasets import load_jailbreakbench                        # noqa: E402
@@ -699,8 +700,9 @@ def build_recycle_runs(gate_fn) -> list:
                                          lo=p.raw_ci.low, hi=p.raw_ci.high, verdict=p.verdict, n_cm=p.n_cm)
                                     if p and p.n_resolved else None),
                              reported=rep, complete=ok, match=match)
-        if sp.calibrated and (d / sp.calibrated).exists():
-            rr.calibrated = json.loads((d / sp.calibrated).read_text())
+        cp = pc.resolve(d / sp.calibrated) if sp.calibrated else None       # the primary calibration's file
+        if cp is not None and cp.exists():
+            rr.calibrated = json.loads(cp.read_text())
         rr.gate = gate_fn(man, STRICT_GATE)
         out.append(rr)
     return out
@@ -1088,8 +1090,14 @@ def _weighted(rows, judge_col, N_pos, N_neg, n_boot=4000, seed=11):
 
 
 def judge_calibrations() -> dict:
+    """the human calibrations; SORRY-Bench's is the primary one under prereg Amendment 2 §B4.3 (tools/primary_calibration.py)"""
+    with pc.sheet(ROOT) as sorry:
+        return _judge_calibrations(sorry, pc.status(ROOT)["primary"])
+
+
+def _judge_calibrations(sorry: Path, source: str) -> dict:
     out = {}
-    for name, sheet in [("sorrybench", ROOT / "audit/sorrybench/judge_sheet.csv"),
+    for name, sheet in [("sorrybench", sorry),
                         ("harmbench", ROOT / "audit/harmbench/judge_sheet.csv"),
                         ("attack", ROOT / "audit/attack/judge_sheet.csv")]:
         if not sheet.exists():
@@ -1113,7 +1121,9 @@ def judge_calibrations() -> dict:
         bh = [int(any(x["h"] for x in v)) for v in bundles.values()]
         bq = [int(any(x["q"] for x in v)) for v in bundles.values()]
         bo = [int(any(x["o"] for x in v)) for v in bundles.values()]
-        res = {"sheet": rel(sheet), "n_rows": len(rows), "n_bundles": len(bundles), "strata": (n_pos, n_neg),
+        blind = name == "sorrybench" and source == "blind"
+        res = {"sheet": pc.BLIND if blind else rel(sheet), "source": "blind re-label" if blind else "original",
+               "n_rows": len(rows), "n_bundles": len(bundles), "strata": (n_pos, n_neg),
                "dropped_bundles": len(incomplete),
                "package": dict(se=pkg.bundle.chars.se, sp=pkg.bundle.chars.sp, var_se=pkg.bundle.chars.var_se,
                                var_sp=pkg.bundle.chars.var_sp, kappa=float(pkg.bundle.kappa),
@@ -1236,8 +1246,9 @@ def build_registry(pilots, recycle_runs, rpe_runs, attack, calib) -> list:
                                 "valid" if not any("verdicts incomplete" in i for i in rr.issues) else "incomplete",
                                 [i for i in rr.issues if "verdicts incomplete" in i], _mtime(ROOT / sp.verdicts)))
         if rr.calibrated is not None:
-            reg.append(Artifact(rel(ROOT / sp.run_dir / sp.calibrated), "calibrated headline", f"{sp.id}",
-                                "llm (qwen2.5:14b) + human sheet", "valid", [], _mtime(ROOT / sp.run_dir / sp.calibrated)))
+            cp = pc.resolve(ROOT / sp.run_dir / sp.calibrated)
+            reg.append(Artifact(rel(cp), "calibrated headline", f"{sp.id}",
+                                "llm (qwen2.5:14b) + human sheet", "valid", [], _mtime(cp)))
     for r in rpe_runs:
         reg.append(Artifact(rel(ROOT / r.spec.path), "RPE manifest", f"{r.spec.old} → {r.spec.new} · {r.spec.dataset}",
                             r.judge, r.status, r.issues, _mtime(ROOT / r.spec.path)))

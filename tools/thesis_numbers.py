@@ -21,6 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
+import primary_calibration as pc                                    # noqa: E402
 
 PENDING = "[pending]"
 SOURCES = dict(
@@ -113,7 +114,7 @@ class Numbers:
 def collect() -> Numbers:
     N = Numbers()
     # anchor (dedicated recycle run, 60-bundle calibration)
-    a = _load(SOURCES["anchor"]); s = SOURCES["anchor"]
+    s = str(pc.resolve(SOURCES["anchor"])); a = _load(s)                # primary calibration (Amendment 2 §B4.3)
     r, j = a["RSR"], a["judge"]
     N.put("AnchorPminus", str(r["n_p_minus"]), s)
     N.put("AnchorK", str(r["k_recovered"]), s)
@@ -136,15 +137,17 @@ def collect() -> Numbers:
     N.put("AnchorResolvedRSRcorr", num(cr.point), s)
     N.put("AnchorResolvedRSRcorrCI", ci(cr.low, cr.high), s)
     p = a["PBR_new"]
-    N.put("AnchorPBRraw", num(p["PBR_raw"]), s)
-    N.put("AnchorPBRk", f"{p['k_bypassed']}/{p['n_resolved']}", s)
-    N.put("AnchorPBRcorr", num(p["PBR_corrected"]), s)
-    N.put("AnchorPBRcorrCI", ci(*p["CI"]), s)
+    # PBR inside the dedicated anchor run = over the 61 requests the pair fixed (offline rule), NOT the model-level
+    # backbone; the model-level PBR is the lineage run's (PBR<model>Corr below)
+    N.put("AnchorSubsetPBRraw", num(p["PBR_raw"]), s)
+    N.put("AnchorSubsetPBRk", f"{p['k_bypassed']}/{p['n_resolved']}", s)
+    N.put("AnchorSubsetPBRcorr", num(p["PBR_corrected"]), s)
+    N.put("AnchorSubsetPBRcorrCI", ci(*p["CI"]), s)
     N.put("JudgeSe", num(j["se"]), s); N.put("JudgeSeCI", ci(*j["se_ci"]), s)
     N.put("JudgeSp", num(j["sp"]), s); N.put("JudgeSpCI", ci(*j["sp_ci"]), s)
     N.put("JudgeKappa", num(j["kappa"]), s); N.put("JudgeBundles", str(j["n_bundles"]), s)
     # confirmatory replication
-    h = _load(SOURCES["heldout"]); s = SOURCES["heldout"]
+    s = str(pc.resolve(SOURCES["heldout"])); h = _load(s)
     r, p = h["RSR"], h["PBR_new"]
     N.put("ConfKn", f"{r['k']}/{r['n']}", s)
     N.put("ConfRSRraw", num(r["raw"]), s); N.put("ConfRSRrawCI", ci(*r["raw_wilson95"]), s)
@@ -175,6 +178,14 @@ def collect() -> Numbers:
     rows = list(csv.DictReader(relabel.open()))
     n_lab = sum(1 for r in rows if (r.get("human_fulfilled") or "").strip() in ("0", "1"))
     N.put("BlindRelabelProgress", f"{n_lab}/{len(rows)}", str(relabel.relative_to(ROOT)))
+    import attack_audit as aa
+    at = aa.score(ROOT / "audit/attack_classes"); s = "audit/attack_classes"
+    if at:
+        done = at["complete"] and "overall" in at
+        N.put("AttackAuditProgress", f"{at['labelled']}/{at['of']}", s)
+        N.put("AttackAuditTransfer", pct(at["overall"]["stratified"]) if done else PENDING, s)
+        N.put("AttackAuditTransferCI", ci(*[100 * x for x in at["overall"]["bootstrap_ci"]], 1) if done else PENDING, s)
+        N.put("AttackAuditJudgeRaw", pct(at["arm_raw_judge"]["rate"]) if done and at.get("arm_raw_judge") else PENDING, s)
     # lineage + C4 + power + pooled + RQ3 + RPE + compose
     c4p = _latest(LATEST["c4"]); c4 = json.loads(c4p.read_text()); s = str(c4p.relative_to(ROOT))
     names = {"llama2-7b -> llama2-13b": "LinA", "llama2-13b -> llama3-8b": "LinB", "llama3-8b -> llama31-8b": "LinC",
@@ -189,6 +200,9 @@ def collect() -> Numbers:
         k = mnames[m["model"]]
         N.put(f"PBR{k}Naive", num(m["naive"]["raw"]), s); N.put(f"PBR{k}Raw", num(m["judge"]["raw"]), s)
         N.put(f"PBR{k}Corr", num(m["judge"]["corrected"]), s)
+        N.put(f"PBR{k}CorrCI", ci(*m["judge"]["corrected_ci"]), s)
+        N.put(f"PBR{k}Kn", f"{m['judge']['k']}/{m['judge']['n']}", s)
+        N.put(f"PBR{k}Verdict", m["judge"]["verdict"], s)
     pw = _latest(LATEST["power"]); P = json.loads(pw.read_text()); s = str(pw.relative_to(ROOT))
     words = {9: "Nine", 23: "TwentyThree", 49: "FortyNine", 82: "EightyTwo"}
     N.put("McNemarKmin", str(P["by_n"][0]["mcnemar_k_min"]), s)
@@ -201,10 +215,22 @@ def collect() -> Numbers:
     po = A["headline"]["pooled"]
     N.put("PooledKn", f"{po['k']}/{po['n_pminus']}", s); N.put("PooledCorr", num(po["corrected"]), s)
     N.put("PooledCorrCI", ci(po["corrected_lo"], po["corrected_hi"]), s)
-    rq3 = {t["term"]: t for t in A["rq3_drivers"]["anchor_pooled"]["table"]}
-    for term, nm in (("C(transform_class)[T.paraphrase]", "Paraphrase"), ("C(transform_class)[T.register]", "Register")):
-        if term in rq3:
-            N.put(f"RQThreeOR{nm}", num(rq3[term]["odds_ratio"], 2), s)
+    # RQ3, registered re-specification (Amendment 2 §B5.4): GEE, source-behaviour clusters, reference paraphrase
+    for key, nm in (("M1_anchor_sorrybench", "MOne"), ("M2_anchor_pooled", "MTwo"), ("M3_sorry_lineage", "MThree")):
+        g = (A["rq3_drivers"].get(key) or {}).get("gee")
+        if not g:
+            continue
+        o = g["omnibus_class"]
+        N.put(f"RQThree{nm}OmniChi", f"\\chi^2({o['df']}) = {num(o['chi2'], 2)}", s)
+        N.put(f"RQThree{nm}OmniP", pval(o["p_value"]), s)
+        N.put(f"RQThree{nm}Drivers", str(sum(1 for t in g["table"] if t.get("driver"))), s)
+        N.put(f"RQThree{nm}Rewordings", str(g["n_obs"]), s)
+        N.put(f"RQThree{nm}Clusters", str(g["n_clusters"]), s)
+        for t in g["table"]:
+            if t["term"] in ("transform_class:register", "transform_class:syntactic"):
+                c = "Register" if t["term"].endswith("register") else "Syntactic"
+                N.put(f"RQThree{nm}OR{c}", f"{num(t['odds_ratio'], 2)} [{num(t['or_ci'][0], 2)}, {num(t['or_ci'][1], 2)}]", s)
+                N.put(f"RQThree{nm}Holm{c}", pval(t["p_holm"]), s)
     rp = _load(SOURCES["rpe"]); s = SOURCES["rpe"]
     pr = next(x for x in rp["harm"]["pairs"] if x["pair"] == "llama3-8b->llama31-8b" and x["benchmark"] == "sorrybench")
     N.put("RPEPRRkn", f"{pr['lower']['k']}/{pr['lower']['n']}", s)
@@ -213,16 +239,62 @@ def collect() -> Numbers:
         cp = _latest(LATEST[key]); C = json.loads(cp.read_text()); s = str(cp.relative_to(ROOT))
         N.put(f"{nm}MinHolm", num(min(x["p_holm"] for x in C["primary_pair_vs_either_single"]), 2), s)
         N.put(f"{nm}Fixes", str(C["p_minus"]), s)
+    # robustness checks registered 2026-10-31 afternoon (pending until their runs finish)
+    def newest(pattern):
+        c = sorted(ROOT.glob(pattern))
+        return c[-1] if c else None
+    st = newest("results/runs/staleness_*/summary.json")
+    if st:
+        S = json.loads(st.read_text()); s = str(st.relative_to(ROOT))
+        ag = [c["verdict_agreement"] for c in S["cells"].values() if c["verdict_agreement"]["n"]]
+        N.put("StaleVerdictAgree", f"{sum(x['k'] for x in ag)}/{sum(x['n'] for x in ag)}", s)
+        N.put("StaleIdentical", f"{sum(c['identical']['k'] for c in S['cells'].values())}/{sum(c['identical']['n'] for c in S['cells'].values())}", s)
+        N.put("StaleFlagged", str(sum(1 for c in S["cells"].values() if c["verdict_agreement"]["n"] and c["verdict_agreement"]["rate"] < 0.9)), s)
+    else:
+        for k in ("StaleVerdictAgree", "StaleIdentical", "StaleFlagged"):
+            N.put(k, PENDING, "results/runs/staleness_*")
+    qf = newest("results/runs/quant_check_*/summary.json")
+    Q = json.loads(qf.read_text()) if qf else None
+    if Q and (Q.get("arm_B_q4_k_m") or {}).get("resolved"):
+        s = str(qf.relative_to(ROOT))
+        for arm, nm in (("arm_A_q4_0", "A"), ("arm_B_q4_k_m", "B")):
+            r = Q[arm]["resolved"]
+            N.put(f"Quant{nm}Kn", f"{r['k']}/{r['n']}", s)
+            N.put(f"Quant{nm}Corr", num(r["corrected"]), s)
+            N.put(f"Quant{nm}CorrCI", ci(*r["corrected_ci"]), s)
+        N.put("QuantJaccard", num(Q["p_minus_overlap"]["jaccard"], 2), s)
+        N.put("QuantOldMcNemar", pval(Q["old_answered"]["mcnemar_p"]), s)
+    else:
+        for k in ("QuantAKn", "QuantACorr", "QuantACorrCI", "QuantBKn", "QuantBCorr", "QuantBCorrCI", "QuantJaccard", "QuantOldMcNemar"):
+            N.put(k, PENDING, "results/runs/quant_check_*")
+    lf = newest("results/runs/gate_loosen_*/summary.json")
+    L = json.loads(lf.read_text()) if lf else None
+    for d, nm in (("0.0", "Strict"), ("0.05", "FivePct"), ("0.1", "TenPct")):
+        if L and d in L.get("by_delta", {}):
+            a_ = L["by_delta"][d]["conditions"]["any"]
+            N.put(f"Loosen{nm}Kn", f"{a_['reopened']}/{a_['resolved']}", str(lf.relative_to(ROOT)))
+        else:
+            N.put(f"Loosen{nm}Kn", PENDING, "results/runs/gate_loosen_*")
+    import gate_recheck as grc
+    rc = grc.score(ROOT / "audit/gate_recheck")
+    done = rc and rc["labelled"] == rc["of"] and "anchoring_excess_disagreement" in rc
+    N.put("RecheckExcess", f"{rc['anchoring_excess_disagreement']:+.2f}" if done else PENDING, "audit/gate_recheck")
     # 2026-10-31 controls
     import controls_section as ctl
     agg = ctl.aggregate(ROOT)
     o = agg["overrefusal"]; s = str(o["path"].relative_to(ROOT))
-    for m, k in mnames.items():
+    for m, k in {**mnames, "mistral7b-v02": "MistralTwo", "mistral7b-v03": "MistralThree"}.items():
         if m in o["complete"]:
             N.put(f"OR{k}", pct(o["data"]["models"][m]["safe_refusal_judged"]["rate"]), s)
-    anc = ctl._pair_line(o["data"], "llama3-8b", "llama31-8b")
-    N.put("ORAnchorSwap", f"{anc['newly_refused']}/{anc['newly_answered']}", s)
-    N.put("ORAnchorP", pval(ctl.mc_p(anc)), s)
+    # benign-refusal swaps (newly refused / newly answered) and exact McNemar p for every consecutive pair that ran
+    for nm, (a, b) in {"Anchor": ("llama3-8b", "llama31-8b"), "TwoSevenTwoThirteen": ("llama2-7b", "llama2-13b"),
+                       "TwoThirteenThreeEight": ("llama2-13b", "llama3-8b"), "ThreeOneThreeTwoOne": ("llama31-8b", "llama32-1b"),
+                       "ThreeTwoOneThreeTwoThree": ("llama32-1b", "llama32-3b"),
+                       "Mistral": ("mistral7b-v02", "mistral7b-v03")}.items():
+        pr = ctl._pair_line(o["data"], a, b)
+        if pr:
+            N.put(f"OR{nm}Swap", f"{pr['newly_refused']}/{pr['newly_answered']}", s)
+            N.put(f"OR{nm}P", pval(ctl.mc_p(pr)), s)
     x = agg["xfamily"]; s = str(x["dir"].relative_to(ROOT))
     N.put("XfamPminus", str(x["screen"]["p_minus"]), s); N.put("XfamNegFlips", str(x["screen"]["negative_flips"]), s)
     rr = x["summary"]["RSR_primary_RAW"][0]
@@ -231,6 +303,25 @@ def collect() -> Numbers:
     for m, k in (("llama3-8b", "ThreeEight"), ("llama31-8b", "ThreeOneEight"), ("llama2-7b", "TwoSeven")):
         h = ct["models"][m]["harmbench"]
         N.put(f"ContamHarm{k}", f"{h['reproduced']}/{h['n']}", s)
+    # white-box causal test (PREREG_MECH_CAUSAL_20261031.md); smoke tests (limited) never count
+    docs = [(q, json.loads(q.read_text())) for q in sorted(ROOT.glob("results/mech/causal_anchor_sorrybench_*.json"))]
+    docs = [(q, d) for q, d in docs if not d.get("limited")]
+    if docs:
+        q, d = docs[-1]
+        s, m = str(q.relative_to(ROOT)), d["summary"]
+        N.put("MechCausalLayer", str(d["direction"]["layer"]), s)
+        N.put("MechCausalFixes", str(m["n_fixes"]), s)
+        N.put("MechCausalRewordings", str(m["n_rewordings"]), s)
+        for nm, key in (("A", "A_vs_A0"), ("B", "B_vs_B0"), ("C", "C_vs_C0")):
+            t = m[key]["sign_test"]
+            N.put(f"MechCausal{nm}Sign", f"{t['positive']}/{t['positive'] + t['negative']}", s)
+            N.put(f"MechCausal{nm}P", pval(t["p_value"]), s)
+        r = m["A_vs_A0"]["restored"]
+        N.put("MechCausalRestored", f"{r['k']}/{r['n']}", s)
+        N.put("MechCausalRestoredCI", ci(*[100 * x for x in r["ci"]], 1), s)
+        N.put("MechCausalIncrease", num(m["A_vs_A0"]["median_increase_A"], 2), s)
+        N.put("MechCausalIncreaseRandom", num(m["A_vs_A0"]["median_increase_A0"], 4), s)
+        N.put("MechCausalDecrease", num(m["B_vs_B0"]["median_decrease_B"], 2), s)
     return N
 
 
@@ -249,7 +340,7 @@ def main(argv=None) -> int:
     tex += [f"\\newcommand{{\\rb{k}}}{{{v}}}  % {N.src[k]}" for k, v in N.v.items()]
     stem.with_suffix(".tex").write_text("\n".join(tex) + "\n")
     pend = [k for k, v in N.v.items() if v == PENDING]
-    print(f"wrote {stem.relative_to(ROOT)}.{{json,tex}} · {len(N.v)} values · pending: {', '.join(pend) or 'none'}")
+    print(f"wrote {stem.relative_to(ROOT) if stem.is_relative_to(ROOT) else stem}.{{json,tex}} · {len(N.v)} values · pending: {', '.join(pend) or 'none'}")
     return 0
 
 

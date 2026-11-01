@@ -8,6 +8,8 @@ rewording that re-opened the fix:
   B  representation divergence by layer (1 - cosine of the residual stream to the canonical prompt)
   C  most differential MLP neurons      (at the layer where the newer model separates canonical and re-opening most)
   D  what the model is about to say     (top next tokens) and the faithfulness check against the cached Ollama reply
+  E  the registered causal test         (tools/mech_causal.py): P(refusal opening) after moving along the refusal
+                                         direction against the same move along a random direction
 """
 from __future__ import annotations
 
@@ -46,6 +48,59 @@ def load(old: str, new: str, bench: str):
                                   items={m: res[m]["items"][i] for m in res})
     _CACHE[key] = out
     return out
+
+
+def load_causal(bench: str):
+    """the newest full registered causal test of this benchmark (tools/mech_causal.py), or None; smoke tests are skipped"""
+    key = ("causal", bench)
+    if key not in _CACHE:
+        docs = [json.loads(f.read_text()) for f in sorted((ROOT / "results" / "mech").glob(f"causal_anchor_{bench}_*.json"),
+                                                            key=lambda p: p.stat().st_mtime)]
+        docs = [d for d in docs if not d.get("limited")]
+        _CACHE[key] = dict(docs[-1], items={it["bid"]: it for it in docs[-1]["items"]}) if docs else None
+    return _CACHE[key]
+
+
+def _pv(p):
+    return "p < 0.0001" if p < 1e-4 else f"p = {p:.4f}" if p < 0.01 else f"p = {p:.2f}"
+
+
+def causal_sentence(bench: str = "sorrybench") -> str:
+    """the registered causal test in two sentences, for the RQ cards (empty if it has not run)"""
+    c = load_causal(bench)
+    if not c:
+        return ""
+    s = c["summary"]
+    a, b, r = s["A_vs_A0"]["sign_test"], s["B_vs_B0"]["sign_test"], s["A_vs_A0"]["restored"]
+    return (f" A registered causal test (Llama 3.1 8B, layer {c['direction']['layer']}): moving each re-opening rewording back up "
+            f"the refusal direction raises P(refusal opening) more than the same move along a random direction in {a['positive']} of "
+            f"{s['n_fixes']} fixes ({_pv(a['p_value'])}), but restores the canonical request's level for only {r['k']} of {r['n']} "
+            f"rewordings; moving the canonical request down by the same amount lowers it more than a random move in {b['positive']} "
+            f"of {s['n_fixes']} ({_pv(b['p_value'])}). Registered reading: sufficient — {esc(s['reading']['sufficient'])}; "
+            f"necessary — {esc(s['reading']['necessary'])}.")
+
+
+def _causal_fig(bench: str, bid: str) -> str:
+    c = load_causal(bench)
+    it = (c or {}).get("items", {}).get(bid)
+    if not it:
+        return ""
+
+    def cell(before, along, rnd):
+        return (f'<td class="num">{before:.2f}</td><td class="num"><b>{along:.2f}</b></td><td class="num">{rnd:.2f}</td>')
+    rows = "".join(f'<tr><td><span class="mkey" style="--c:{ROLE["reopen"][1]}"></span>re-opening rewording '
+                   f'<span class=sub>({esc(r["cls"])})</span> moved up to the canonical\'s position</td>'
+                   f'{cell(r["P_rewording"], r["P_A"], r["P_A0"])}</tr>'
+                   f'<tr><td><span class="mkey" style="--c:{ROLE["canonical"][1]}"></span>canonical request moved down by the same amount</td>'
+                   f'{cell(it["P_canonical"], r["P_B"], r["P_B0"])}</tr>' for r in it["reopen"])
+    rows += (f'<tr><td><span class="mkey" style="--c:{ROLE["canonical"][1]}"></span>canonical request, direction removed at every layer</td>'
+             f'{cell(it["P_canonical"], it["P_C"], it["P_C0"])}</tr>')
+    return (f'<figure class="mfig"><figcaption>E · Causal test <span class="sub">registered ({esc(c["prereg"])}) · Llama 3.1 8B · '
+            f'P(refusal opening) before and after moving the residual stream at layer {c["direction"]["layer"]} along the refusal '
+            f'direction, against the same move along a random direction</span></figcaption>'
+            f'<div class="tscroll"><table class="tbl mtab"><thead><tr><th>Intervention</th><th class="num">Before</th>'
+            f'<th class="num">Along the refusal direction</th><th class="num">Along a random direction</th></tr></thead>'
+            f'<tbody>{rows}</tbody></table></div></figure>')
 
 
 def _line_chart(series_by_model, title, y_lab, y_min, y_max, ref_lines=(), mark=None, h=170, weak=None):
@@ -185,6 +240,7 @@ def panel(old: str, new: str, bench: str, bid: str) -> str:
          f'<th>P(refusal opening)</th><th>Top next tokens</th><th class="num">Greedy</th><th class="num">Ollama decoding</th></tr></thead>'
          f'<tbody>{rows}</tbody></table></div></figure>')
     reading = f'<ul class="mread">{_reading(items, old)}{_reading(items, new)}</ul>'
+    e = _causal_fig(bench, bid)
     legend = "".join(f'<span><i class="mkey" style="--c:{ROLE[r][1]}"></i>{esc(ROLE[r][0])}</span>' for r in ROLE if r in roles)
     meta = data["models"]
     note = (f"Weights: the GGUF files Ollama served ({esc(meta[old]['ollama'])} {esc(', '.join(meta[old]['types']))}; "
@@ -193,10 +249,11 @@ def panel(old: str, new: str, bench: str, bid: str) -> str:
             f"refuse and {data['direction']['n_harmless']} harmless requests, per layer and per model (separation d′ peaks at "
             f"{max(dp[old]):.1f} / {max(dp[new]):.1f}). Vertical line: layer of the neuron view. Probe {esc(data['file'])}. "
             "Ollama decoding = greedy with Ollama's default repeat penalty (1.1 over the last 64 tokens), which the study did not override. "
-            "Exploratory and correlational: a lower score is consistent with the rewording moving the prompt off the refusal "
-            "direction, not proof that it causes the answer.")
+            "Panels A–D are correlational: a lower score is consistent with the rewording moving the prompt off the refusal "
+            "direction, not proof that it causes the answer" + ("; panel E intervenes on the direction (exploratory, registered)."
+                                                               if e else "."))
     return (f'<details class="mech" open><summary><span class="mbadge">white-box</span> Inside the model · how the three prompts differ internally</summary>'
-            f'<div class="mlegend">{legend}</div>{reading}{a}{b}{c}{d}<p class="note">{note}</p></details>')
+            f'<div class="mlegend">{legend}</div>{reading}{a}{b}{c}{d}{e}<p class="note">{note}</p></details>')
 
 
 CSS = r"""

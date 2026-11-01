@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 import lineage_core as lc                                      # noqa: E402
+import primary_calibration as pc                               # noqa: E402
 import study_data as sd                                        # noqa: E402
 from recyclebench.config import Config                         # noqa: E402
 from recyclebench.datasets import load_jailbreakbench          # noqa: E402
@@ -105,7 +106,8 @@ def main(argv=None) -> int:
     mods = [dict(model=m, naive=off_pbr[m], judge=q_pbr[m],
                  gap_corrected_minus_naive=_r(q_pbr[m]["corrected"] - off_pbr[m]["raw"]),
                  gap_corrected_minus_judge_raw=_r(q_pbr[m]["corrected"] - q_pbr[m]["raw"])) for m in models]
-    held = json.loads((ROOT / HELDOUT).read_text()) if (ROOT / HELDOUT).exists() else None
+    hp = ROOT / pc.resolve(HELDOUT)                                   # primary calibration (Amendment 2 §B4.3)
+    held = json.loads(hp.read_text()) if hp.exists() else None
     res = dict(created=_dt.datetime.now().isoformat(timespec="seconds"), benchmark="SORRY-Bench (440)", run=RUN,
                judge=tag, calibration=dict(se=_r(jc.se), sp=_r(jc.sp), bundles=60, labelled_on="llama31-8b responses"),
                assumption="the calibration is applied to every model; it was measured on llama3.1-8b responses only",
@@ -129,6 +131,8 @@ def main(argv=None) -> int:
         lines += ["", f"confirmatory (held-out, registered): RSR {r['k_recovered']}/{r['n_p_minus']} raw {r['RSR_raw']:.3f} "
                       f"→ corrected {r['RSR_corrected']:.3f} {r['CI']}"]
     out = Path(args.out) if args.out else ROOT / "results" / f"analysis_c4_{_dt.datetime.now():%Y%m%d_%H%M}"
+    if (out / "c4.json").exists():
+        raise SystemExit(f"{out / 'c4.json'} exists -- refusing to overwrite")
     out.mkdir(parents=True, exist_ok=True)
     (out / "c4.json").write_text(json.dumps(res, indent=1))
     (out / "c4.txt").write_text("\n".join(lines) + "\n")

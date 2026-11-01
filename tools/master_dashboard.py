@@ -33,6 +33,8 @@ import gate_audit as ga                         # noqa: E402
 import compose_v2_section as cv2                # noqa: E402
 import controls_section as ctl                  # noqa: E402
 import method_section as mth                    # noqa: E402
+import mech_section                             # noqa: E402
+import primary_calibration as pc                # noqa: E402
 from recyclebench.stats import wilson_interval  # noqa: E402
 
 esc, pct, ci_txt, p_txt, num = ld.esc, ld.pct, ld.ci_txt, ld.p_txt, ld.num
@@ -133,9 +135,11 @@ def panel(title, body, note=""):
 # Derived figures (pure functions of the Study)
 # =============================================================================
 def recycle_cells(s):
-    """One recycle result per (pair, dataset): full-scope runs before subsets, never an incomplete pair.
+    """One EXPLORATORY recycle result per (pair, dataset): full-scope runs before subsets, never an incomplete pair.
+    The registered confirmatory run is left out: it is shown on its own and never pooled (Amendment 1 A2).
     -> {(o, n, ds): (RecycleRun, pair_dict)}"""
-    order = sorted(s.recycle, key=lambda r: (r.spec.behaviour_scope != "full", r.spec.id))
+    order = sorted((r for r in s.recycle if not r.spec.confirmatory),
+                   key=lambda r: (r.spec.behaviour_scope != "full", r.spec.id))
     out = {}
     for rr in order:
         for (o, n), pr in rr.pairs.items():
@@ -393,24 +397,67 @@ def sec_header(s, today):
 </header>"""
 
 
+def _robustness_finding() -> str:
+    """the 2026-10-31 robustness checks in one finding (only the parts whose run exists)"""
+    agg = mth.aggregate(sd.ROOT)
+    part, holds = [], True
+    st = agg.get("staleness")
+    if st:
+        ag = [c["verdict_agreement"] for c in st["cells"].values() if c["verdict_agreement"]["n"]]
+        flagged = sum(1 for a in ag if a["rate"] < 0.9)
+        holds &= not flagged
+        part.append(f"cached verdicts reproduce with today's weights ({sum(a['k'] for a in ag)}/{sum(a['n'] for a in ag)}"
+                    + (f"; {flagged} model × stratum cell(s) below the registered 90%" if flagged else "") + ")")
+    q = agg.get("quant")
+    if q and (q.get("arm_B_q4_k_m") or {}).get("resolved"):
+        a, b, ov = q["arm_A_q4_0"]["resolved"], q["arm_B_q4_k_m"]["resolved"], q["p_minus_overlap"]
+        same = a["verdict"] == b["verdict"]
+        holds &= same
+        part.append(f"re-screening the older model at the newer model's quantisation {'keeps' if same else 'changes'} the verdict "
+                    f"(lineage-run RSR corrected {a['corrected']:.3f} → {b['corrected']:.3f}, {esc(b['verdict'])}), though only "
+                    f"{ov['both']} of {ov['both'] + ov['only_A'] + ov['only_B']} fixes are shared")
+    lo = agg.get("loosen")
+    if lo and lo.get("by_delta"):
+        r = list(lo["by_delta"].values())
+        k0, k1, n = r[0]["conditions"]["any"]["reopened"], max(x["conditions"]["any"]["reopened"] for x in r), r[0]["conditions"]["any"]["resolved"]
+        part.append(f"loosening the gate by up to 0.10 re-opens {k1 - k0} more of {n} fixes, not yet intent-audited")
+    if not part:
+        return ""
+    head = ("The anchor survives the robustness checks of 2026-10-31." if holds else
+            "The robustness checks of 2026-10-31 qualify the anchor.")
+    return (f"<b>{head}</b> " + "; ".join(part)[0].upper()
+            + "; ".join(part)[1:] + " (section 08b). Exploratory.")
+
+
 def sec_summary(s):
     rr_anchor, cal = anchor(s)
     t = []
+    conf = next((r for r in s.recycle if r.spec.confirmatory and r.calibrated), None)
+    if conf:
+        c = conf.calibrated["RSR"]
+        t.append(tile("Confirmatory replication · held-out set · 3-8B → 3.1-8B", pct(c["corrected"]),
+                      f"95% CI {ci_txt(*c['corrected_ci95_delta'])} · raw {pct(c['raw'])} ({c['k']}/{c['n']})"
+                      f"<br>{esc(c['verdict'])} · McNemar p = {p_txt(c['mcnemar_p'])}", emph=True,
+                      tip="The only confirmatory figure (prereg Amendment 1 §A2): registered before its behaviours were screened; "
+                          "corrected with the registered SORRY-Bench calibration. Never pooled with the exploratory results."))
     if cal:
         r = cal["RSR"]
-        t.append(tile("Calibrated anchor RSR · SORRY-Bench · 3-8B → 3.1-8B", pct(r["RSR_corrected"]),
+        t.append(tile("Anchor RSR · SORRY-Bench fix subset · exploratory", pct(r["RSR_corrected"]),
                       f"95% CI {ci_txt(*r['CI'])} · raw {pct(r['RSR_raw'])} ({r['k_recovered']}/{r['n_p_minus']})"
                       f"<br>human-calibrated qwen2.5:14b · κ {cal['judge']['kappa']:.2f}", emph=True,
-                      tip="Rogan–Gladen corrected at the behaviour-bundle level; recomputed here from audit/sorrybench/judge_sheet.csv"))
+                      tip="Rogan–Gladen corrected at the behaviour-bundle level; recomputed here from "
+                          + ((s.calib or {}).get("sorrybench") or {}).get("sheet", pc.ORIGINAL)))
     lin = lineage_rows(s)
     if lin:
         k = sum(r["k_recovered"] for r in lin.values())
         n = sum(r["n_p_minus"] for r in lin.values())
         p, lo, hi = wil(k, n)
         c = sd.corrected(k, n, s.anchor_jc)
-        t.append(tile("Lineage RSR · SORRY-Bench · 5 consecutive releases", pct(p),
-                      f"{k}/{n} fixes · Wilson {ci_txt(lo, hi)}" + (f"<br>corrected {pct(c['point'])} {ci_txt(c['lo'], c['hi'])}" if c else ""),
-                      tip="qwen2.5:14b judge (run summary); correction transfers the anchor calibration to other models"))
+        per = " · ".join(f"{pair_short(o_, n_)} {r['k_recovered']}/{r['n_p_minus']}" for (o_, n_), r in lin.items())
+        t.append(tile("Lineage · SORRY-Bench · 5 consecutive releases", f"{len(lin)} pairs",
+                      f"{per}<br>exploratory · read per pair, not pooled",
+                      tip="Not pooled: one behaviour can be a fix in several pairs, so a pooled rate double-counts it "
+                          "(THESIS_KB §8.5). qwen2.5:14b judge, raw, over |P⁻|."))
     k, n, cells, dss = pooled_offline(s)
     p, lo, hi = wil(k, n)
     t.append(tile(f"Every recycle cell · {len(dss)} benchmarks · offline rule", pct(p),
@@ -442,12 +489,21 @@ def sec_summary(s):
 
     # findings, all data-driven
     f = []
+    if conf:
+        c = conf.calibrated["RSR"]
+        f.append(f"<b>The registered replication holds.</b> On the held-out set (Amendment 1 §A2, registered before its "
+                 f"behaviours were screened), {c['k']} of the {c['n']} fixes of Llama 3 8B → 3.1 8B were re-opened: "
+                 f"{pct(c['corrected'])} corrected {ci_txt(*c['corrected_ci95_delta'])}, McNemar p = {p_txt(c['mcnemar_p'])}, "
+                 f"{esc(c['verdict'])}. This is the only confirmatory result; everything else on this page is exploratory.")
     if cal:
-        f.append(f"<b>The confirmatory result holds.</b> On SORRY-Bench, {cal['RSR']['k_recovered']} of the "
-                 f"{cal['RSR']['n_p_minus']} requests Llama 3 8B answered and Llama 3.1 8B refused were re-opened by a "
-                 f"meaning-preserving rewording: {pct(cal['RSR']['RSR_corrected'])} after human-calibrated judge "
-                 f"correction {ci_txt(*cal['RSR']['CI'])}, McNemar p = {p_txt(cal['RSR']['mcnemar_p'])}. "
-                 f"Recomputed here from the human sheet: identical.")
+        f.append(f"<b>The exploratory anchor points the same way.</b> On SORRY-Bench, {cal['RSR']['k_recovered']} of the "
+                 f"{cal['RSR']['n_p_minus']} requests Llama 3 8B answered and Llama 3.1 8B refused (the dedicated anchor run "
+                 f"over its 61-request fix subset) were re-opened by a meaning-preserving rewording: "
+                 f"{pct(cal['RSR']['RSR_corrected'])} after human-calibrated judge correction {ci_txt(*cal['RSR']['CI'])}, "
+                 f"McNemar p = {p_txt(cal['RSR']['mcnemar_p'])}. Recomputed here from the human sheet: identical.")
+    rb = _robustness_finding()
+    if rb:
+        f.append(rb)
     if lin:
         f.append("<b>Fixes are wording-bound across the lineage.</b> Every consecutive SORRY-Bench pair re-opens "
                  f"between {pct(min(r['RSR_raw'] for r in lin.values()), 0)} and {pct(max(r['RSR_raw'] for r in lin.values()), 0)} "
@@ -939,7 +995,11 @@ def sec_anchor(s):
     same = rec and abs(rec["point"] - r["RSR_corrected"]) < 5e-4 and abs(rec["lo"] - r["CI"][0]) < 5e-4
     tiles = (tile("RSR · corrected", pct(r["RSR_corrected"]), f"95% CI {ci_txt(*r['CI'])}", emph=True)
              + tile("RSR · raw", pct(r["RSR_raw"]), f"{r['k_recovered']}/{r['n_p_minus']} · McNemar p {p_txt(r['mcnemar_p'])}")
-             + tile(f"PBR · {label('llama31-8b')} · corrected", pct(pb["PBR_corrected"]), f"95% CI {ci_txt(*pb['CI'])} · raw {pct(pb['PBR_raw'])}")
+             + tile(f"PBR · {label('llama31-8b')} · anchor fix subset", pct(pb["PBR_corrected"]),
+                    f"95% CI {ci_txt(*pb['CI'])} · raw {pct(pb['PBR_raw'])} ({pb['k_bypassed']}/{pb['n_resolved']})"
+                    f"<br>over the {pb['n_cm']} requests this run screened, not the model's own refused set",
+                    tip="PBR inside the dedicated anchor run, whose behaviours are the 61 requests the pair fixed under the offline "
+                        "rule. The model-level PBR backbone is the full-benchmark lineage run (section 07, chapter 08b).")
              + tile("Judge vs humans (bundle level)", f"κ {j['kappa']:.3f}", f"se {j['se']:.3f} · sp {j['sp']:.3f} · {j['n_bundles']} bundles · admitted"))
     check = (status_chip("valid", "recomputed from the human sheet: identical") if same else
              status_chip("warn", "recomputation differs"))
@@ -960,8 +1020,9 @@ def sec_anchor(s):
     return section("s-anchor", "08", "Calibrated headline — the anchor pair",
                    f'<div class="tiles">{tiles}</div>'
                    + panel("Provenance", f"<p class='note'>{check} {esc(raw_line)}</p>"
-                           f"<p class='note'>Sources: <code>{esc(sd.rel(sd.ROOT / rr.spec.run_dir / rr.spec.calibrated))}</code> · "
-                           f"<code>audit/sorrybench/judge_sheet.csv</code> ({_sheet_bundles(s)}) · the audit sampled every resolved "
+                           f"<p class='note'>Sources: <code>{esc(sd.rel(pc.resolve(sd.ROOT / rr.spec.run_dir / rr.spec.calibrated)))}</code> · "
+                           f"<code>{esc(((s.calib or {}).get('sorrybench') or {}).get('sheet', pc.ORIGINAL))}</code> ({_sheet_bundles(s)}), "
+                           f"{esc(pc.label())} · the audit sampled every resolved "
                            f"bundle, so the design-weighted and unweighted calibrations agree.</p>")
                    + panel("The same calibration applied to every lineage pair",
                            table(["Pair", "P⁻", "Re-opened", "RSR raw", "Wilson 95%", "Corrected", "Corrected 95% CI"], lrows, num_cols=(1, 2, 3, 5)),
@@ -1099,10 +1160,12 @@ def sec_arcs(s):
                      f'<div class="arcf">best: <b>{esc(best["name"].replace("_", " ") if best else "—")}</b>'
                      + (f' · <span class="warnt">placeholder ranking said {esc(naive_best["name"].replace("_", " "))}</span>' if flip else "")
                      + "</div></div>")
-    # recovery by style, offline, every complete pair
+    # recovery by style, offline, every complete exploratory pair (the confirmatory run is never pooled)
     rec_rows = []
     agg = defaultdict(lambda: [0, 0, 0, 0])
     for rr in s.recycle:
+        if rr.spec.confirmatory:
+            continue
         for (o, n), byc in sd.recovery_by_style(rr).items():
             for tc, (vh, vn, ih, inn) in byc.items():
                 a = agg[tc]
@@ -1284,6 +1347,9 @@ def sec_judges(s):
                            "<li>On attack outputs neither judge is adequate: qwen under-detects compliance in transformed replies, the offline rule "
                            "over-detects it in garbled ones. A per-class human audit of judge-negatives is the missing piece.</li>"
                            + _harmbench_transfer_li(s) + _benign_judge_li() +
+                           "<li>The rubric asks whether a reply <i>attempts</i> the request and deliberately ignores whether its content is "
+                           "correct or complete. Every RSR and PBR on this page is therefore a statement about refusal behaviour, "
+                           "not about harmful capability or uplift.</li>"
                            "<li>Every corrected figure on this page uses the package's bundle-level Rogan–Gladen correction with the SORRY-Bench "
                            "calibration; it is never applied to the attack arm.</li></ul>"))
 
@@ -1515,16 +1581,21 @@ def rq_answers():
                           f"({hi[1]['k']}/{hi[1]['n']}, {hi[1]['rate']:.0%}), lowest in {ld.esc(lo[0].lower())} "
                           f"({lo[1]['k']}/{lo[1]['n']}, {lo[1]['rate']:.0%}). Re-opening in every domain argues against a single "
                           "intent-level fix; the wide intervals argue against ranking the domains.")
-        d3 = (a.get("rq3_drivers") or {}).get("anchor_pooled") or {}
-        if d3.get("table"):
-            sig = [r for r in d3["table"] if r["term"].startswith("C(transform_class)") and r.get("driver_after_holm")]
-            sd_ = next((r for r in d3["table"] if r["term"] == "surface_distance"), None)
-            nm = lambda t: t.split("[T.")[-1].rstrip("]").replace("_", " ")
-            ans["RQ3"] = ((f"<b>{', '.join(nm(r['term']) for r in sig)}</b> rewordings drive recovery "
-                           + "(" + "; ".join(f"OR {r['odds_ratio']:.2f}" for r in sig) + ", vs back-translation, Holm-corrected)"
-                           if sig else "No transform class survives Holm correction")
-                          + (f"; surface distance itself does not (OR {sd_['odds_ratio']:.2f}, p = {sd_['p_value']:.2f})" if sd_ else "")
-                          + f". Anchor, {d3.get('n_obs')} rewordings of {d3.get('n_groups')} fixes, behaviour random intercept.")
+        rq3 = a.get("rq3_drivers") or {}
+        m1, m3 = (rq3.get("M1_anchor_sorrybench") or {}).get("gee"), (rq3.get("M3_sorry_lineage") or {}).get("gee")
+        if m1 or m3:
+            def omni(g):
+                o = (g or {}).get("omnibus_class") or {}
+                return f"χ²({o.get('df')}) p = {_pf(o['p_value'])}" if o.get("p_value") is not None else "not estimable"
+            drivers = [t["term"].split(":")[1].replace("_", " ") for g in (m1, m3) if g for t in g["table"] if t.get("driver")]
+            sep = sorted({c.replace("_", " ") for g in (m1, m3) if g for c in (g.get("separated") or {})})
+            ans["RQ3"] = ((f"<b>{', '.join(sorted(set(drivers)))}</b> drive recovery" if drivers else
+                           "<b>No single rewording style drives recovery</b> once the registered model is used")
+                          + f" (GEE, source-behaviour clusters, Holm across the class contrasts vs paraphrase). Anchor on "
+                          f"SORRY-Bench: omnibus {omni(m1)}; SORRY-Bench lineage: omnibus {omni(m3)}, so style matters jointly "
+                          "there without any one class separating after Holm."
+                          + (f" {', '.join(sep).capitalize()} re-opened nothing and has no finite estimate." if sep else "")
+                          + " Replaces an earlier table that used the benchmark as 'category' and variational p-values.")
         pb = [r for r in a.get("pbr", []) if r.get("complete") and r.get("pbr") is not None]
         if pb:
             by = defaultdict(list)
@@ -1545,7 +1616,8 @@ def rq_answers():
             tot = max(v[3] for v in ms.values())
             ans["Beyond the RQs"] = (f"<b>Mostly, in the newer model.</b> Anchor SORRY-Bench, {tot} fixes: the re-opening rewording sits lower "
                                      "on the refusal direction than a still-refused one in " + "; ".join(bits)
-                                     + ". Correlational, last prompt token, reproduced under the server's decoding (repeat penalty 1.1/64).")
+                                     + ". Correlational, last prompt token, reproduced under the server's decoding (repeat penalty 1.1/64)."
+                                     + mech_section.causal_sentence("sorrybench"))
     return ans, src
 
 

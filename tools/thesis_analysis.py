@@ -10,7 +10,9 @@ corrected_interval, mcnemar_exact, fit_drivers), so the numbers are the ones the
   2  RQ2 per harm category / domain  (descriptive; exploratory by registration §8)
   3  RQ3 drivers                     mixed-effects logit of per-variant recovery on transform class + surface distance
   4  sensitivity                     gate thresholds tightened +0.05/+0.10 (loosening needs the rejected texts, which
-                                     the manifests do not keep), budget t in {1, 2, 4, 8}, judge (qwen vs offline rule)
+                                     the manifests do not keep; the loosened half on the compose v2 store is read from
+                                     tools/gate_loosen.py's newest summary), budget t in {1, 2, 4, 8}, judge (qwen vs
+                                     offline rule)
   5  PBR backbone                    per model, only where every needed verdict is stored
   6  inversion arm                   the current closed-loop runs per benchmark x pair: PRR under the intent gate,
                                      the closed loop and both, beside RSR on the same judged P^-, plus the
@@ -35,10 +37,11 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lineage_core as lc                                          # noqa: E402
+import primary_calibration as pc                                   # noqa: E402
 import study_data as sd                                            # noqa: E402
 from recyclebench.config import Config                             # noqa: E402
 from recyclebench.datasets import load_jailbreakbench              # noqa: E402
-from recyclebench.drivers import fit_drivers                       # noqa: E402
+from recyclebench.drivers import fit_drivers_gee, fit_drivers_vb   # noqa: E402
 from recyclebench.judge import looks_like_refusal                  # noqa: E402
 from recyclebench.manifest import Manifest                         # noqa: E402
 from recyclebench.pbr import compute_pbr                           # noqa: E402
@@ -238,7 +241,9 @@ def main(argv=None):
             dom[d][1] += 1
     res["rq2_sorry_lineage_by_domain"] = {d: wil(k, n) for d, (k, n) in sorted(dom.items())}
 
-    # ---- 3. RQ3 drivers: per-variant recovery on P^- of the newer model -----------------------------
+    # ---- 3. RQ3 drivers: per-variant recovery on P^- of the newer model (prereg Amendment 2 §B5.4) ---------------
+    # one row per admitted rewording of a fix; clusters = SOURCE behaviour (benchmark:row id), shared across pairs;
+    # harm category = SORRY-Bench domain, entered only where the taxonomy is SORRY-Bench's
     def trials(pairs_by_src):
         rows = []
         for src, o, n in pairs_by_src:
@@ -246,18 +251,31 @@ def main(argv=None):
                 for v in src.obs[n].variants.get(bid, []):
                     if v.verdict is None:
                         continue
-                    rows.append(dict(bid=f"{src.bench}:{o}>{n}:{bid}", success=int(v.verdict), transform_class=v.transform_class,
-                                     surface_distance=surface_distance(src.bmap[bid].canonical_prompt, v.text),
-                                     category=src.bench))
+                    rows.append(dict(cluster=f"{src.bench}:{bid}", pair=f"{o}>{n}", benchmark=src.bench,
+                                     harm_domain=lc.domain_of(src.bmap[bid].category) if src.bench == "sorrybench" else "n/a",
+                                     success=int(v.verdict), transform_class=v.transform_class,
+                                     surface_distance=surface_distance(src.bmap[bid].canonical_prompt, v.text)))
         return pd.DataFrame(rows)
+    cls_term = "C(transform_class, Treatment(reference='paraphrase'))"
+    specs = {
+        "M1_anchor_sorrybench": ([(srcs["sorrybench"], OLD, NEW)], f"success ~ {cls_term} + surface_distance + C(harm_domain)"),
+        "M2_anchor_pooled": ([(srcs[b], OLD, NEW) for b in SOURCES], f"success ~ {cls_term} + surface_distance + C(benchmark)"),
+        "M3_sorry_lineage": ([(s, o, n) for o, n in zip(lineage, lineage[1:])],
+                             f"success ~ {cls_term} + surface_distance + C(harm_domain) + C(pair)"),
+    }
     rq3 = {}
-    for name, spec in {"anchor_pooled": [(srcs[b], OLD, NEW) for b in SOURCES],
-                       "sorry_lineage": [(s, o, n) for o, n in zip(lineage, lineage[1:])]}.items():
+    for name, (spec, formula) in specs.items():
         df = trials(spec)
-        r = fit_drivers(df, list(df["bid"].unique())) if not df.empty else None
-        rq3[name] = (dict(r.summary(), class_rates=df.groupby("transform_class")["success"].agg(["mean", "count"]).round(3)
-                          .reset_index().to_dict(orient="records")) if r else None)
+        if df.empty:
+            rq3[name] = None
+            continue
+        rq3[name] = dict(gee=fit_drivers_gee(df, formula), vb=fit_drivers_vb(df, formula),
+                         class_rates=df.groupby("transform_class")["success"].agg(["mean", "count"]).round(3)
+                         .reset_index().to_dict(orient="records"))
     res["rq3_drivers"] = rq3
+    res["rq3_note"] = ("Registered re-specification (prereg Amendment 2 §B5.4): GEE with source-behaviour clusters is the "
+                       "inference; the variational mixed model is a sensitivity analysis with credible intervals only. The "
+                       "earlier driver table (benchmark as 'category', pair-specific intercepts, VB p-values) is withdrawn.")
 
     # ---- 4. sensitivity -------------------------------------------------------------------------------
     sens = []
@@ -269,7 +287,17 @@ def main(argv=None):
         wr = wil(p["k"], nres)
         sens.append(dict(setting=label, n_pminus=p["n_pminus"], k=p["k"], unresolved=p["unresolved"],
                          rsr=p["rate"], lo=p["lo"], hi=p["hi"], rsr_resolved=wr["rate"], lo_r=wr["lo"], hi_r=wr["hi"]))
-    sens.append(dict(setting="loosened -0.05 / -0.10", note="not estimable: rejected rewordings' text is not stored"))
+    lo_runs = sorted((ROOT / "results" / "runs").glob("gate_loosen_*/summary.json"))
+    if lo_runs:
+        lo = json.loads(lo_runs[-1].read_text())
+        any_ = {d: r["conditions"]["any"] for d, r in lo["by_delta"].items()}
+        sens.append(dict(setting="loosened -0.05 / -0.10",
+                         note=("not estimable on this population (rejected rewordings' text is not stored); on the compose v2 "
+                               f"single-style candidates of the 49 SORRY-Bench fixes ({lo['prereg']}): any single style "
+                               + " → ".join(f"{a['reopened']}/{a['resolved']} (δ {d})" for d, a in any_.items())
+                               + f", {lo_runs[-1].parent.relative_to(ROOT)}")))
+    else:
+        sens.append(dict(setting="loosened -0.05 / -0.10", note="not estimable: rejected rewordings' text is not stored"))
     from regate_intent import IntentStore, intent_key
     ip = ROOT / f"cache/intent_{INTENT_MODEL.replace(':', '_')}.jsonl"
     if ip.exists():
@@ -383,10 +411,10 @@ def pct(x):
 def load_confirmatory():
     """The registered confirmatory headline, as its run directory recorded it."""
     for name in CONFIRM_FILES:
-        p = ROOT / CONFIRM_DIR / name
+        p = pc.resolve(ROOT / CONFIRM_DIR / name)                      # primary calibration (Amendment 2 §B4.3)
         if p.exists():
             d = json.loads(p.read_text())
-            d["_file"] = f"{CONFIRM_DIR}/{name}"
+            d["_file"] = f"{CONFIRM_DIR}/{p.name}"
             d["_superseded_files"] = [f"{CONFIRM_DIR}/{o}" for o in CONFIRM_FILES
                                       if o != name and (ROOT / CONFIRM_DIR / o).exists()]
             return d
@@ -462,16 +490,27 @@ def render_md(r):
     for c, k, n in r["rq2_anchor_by_category"]:
         if n >= 3:
             L.append(f"| {c} | {k}/{n} |")
-    L += ["", "## 3. RQ3 drivers (per-variant recovery on P⁻, behaviour random intercept, Holm)", ""]
+    L += ["", "## 3. RQ3 drivers (registered re-specification, prereg Amendment 2 §B5.4)", "", r.get("rq3_note", ""), ""]
     for name, d in r["rq3_drivers"].items():
-        if not d:
+        if not d or not d.get("gee"):
             L.append(f"- {name}: not estimable")
             continue
-        L += [f"**{name}** — {d['method']}, {d['n_obs']} variants in {d['n_groups']} behaviours", "",
-              "| term | odds ratio | p | Holm |", "|---|--:|--:|---|"]
-        for t in d["table"]:
-            L.append(f"| {t['term']} | {t['odds_ratio']:.2f} | {t['p_value']:.3g} | {'yes' if t['driver_after_holm'] else ''} |")
-        L += ["", "| class | recovery rate | variants |", "|---|--:|--:|"]
+        g, vb = d["gee"], d.get("vb") or {}
+        om = g.get("omnibus_class") or {}
+        L += [f"**{name}** — GEE logit (exchangeable, bias-reduced sandwich), {g['n_obs']} rewordings in {g['n_clusters']} "
+              f"source behaviours; omnibus transform class χ²({om.get('df')}) = {om.get('chi2')}, p = {om.get('p_value')}"
+              + (f"; left out for complete separation (no finite estimate): "
+                 + ", ".join(f"{c} {kn}" for c, kn in g["separated"].items()) if g.get("separated") else ""), "",
+              "| term | odds ratio [95%] | p | Holm p (class) | drives recovery | VB OR [95% credible] |", "|---|--:|--:|--:|---|--:|"]
+        vbt = {t["term"]: t for t in vb.get("table", [])}
+        for t in g["table"]:
+            v = vbt.get(t["term"])
+            vb_txt = f"{v['odds_ratio']:.2f} [{v['or_cri'][0]:.2f}, {v['or_cri'][1]:.2f}]" if v else ""
+            holm = f"{t['p_holm']:.3g}" if "p_holm" in t else ""
+            drives = "yes" if t.get("driver") else ""
+            L.append(f"| {t['term']} | {t['odds_ratio']:.2f} [{t['or_ci'][0]:.2f}, {t['or_ci'][1]:.2f}] | {t['p_value']:.3g} | "
+                     f"{holm} | {drives} | {vb_txt} |")
+        L += ["", "| class | recovery rate | rewordings |", "|---|--:|--:|"]
         for c in d["class_rates"]:
             L.append(f"| {c['transform_class']} | {pct(c['mean'])} | {c['count']} |")
         L.append("")

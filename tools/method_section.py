@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import lineage_dashboard as ld                  # noqa: E402
+import primary_calibration as pc                # noqa: E402
 
 esc, pct, num, ci_txt = ld.esc, ld.pct, ld.num, ld.ci_txt
 ANCHOR = "results/runs/recycle_3_31_sorrybench/corrected_sorrybench_recal_n60.json"
@@ -43,7 +44,8 @@ def _read(p):
 
 def aggregate(root: Path = ROOT) -> dict:
     root = Path(root)
-    import blind_relabel_score as brs
+    import attack_audit as aa
+    import gate_recheck as grc
     import gate_rejection_audit as gra
     import overrefusal_judge_audit as oja
     import csv
@@ -53,12 +55,17 @@ def aggregate(root: Path = ROOT) -> dict:
     return dict(
         power=_read(_newest(root, "results/analysis_power_*/power.json")),
         c4=_read(_newest(root, "results/analysis_c4_*/c4.json")),
-        anchor=_read(root / ANCHOR),
+        anchor=_read(pc.resolve(root / ANCHOR, root)),
         numbers=(nums or {}).get("values", {}),
         rejection=gra.score(root / "audit/gate_rejection"),
         benign=oja.score(root / "audit/overrefusal"),
         relabel=dict(labelled=sum(1 for r in rel_rows if (r.get("human_fulfilled") or "").strip() in ("0", "1")), of=len(rel_rows)),
         relabel_result=_read(_newest(root, "results/analysis_blind_relabel_*/blind_relabel.json")),
+        recheck=grc.score(root / "audit/gate_recheck"),
+        attack=aa.score(root / "audit/attack_classes"),
+        staleness=_read(_newest(root, "results/runs/staleness_*/summary.json")),
+        quant=_read(_newest(root, "results/runs/quant_check_*/summary.json")),
+        loosen=_read(_newest(root, "results/runs/gate_loosen_*/summary.json")),
     )
 
 
@@ -203,6 +210,25 @@ def _audits_panel(agg):
             res = (f"κ original vs blind {rr['row']['kappa']:.2f}; blind calibration se {rr['calibration']['se']:.3f}, "
                    f"sp {rr['calibration']['sp']:.3f}; anchor RSR corrected {h['registered']:.3f} → {h['blind']:.3f}")
         rows.append(["Blind re-label of the calibration sheet (§B4.3)", status(done, rl["labelled"], rl["of"]), esc(res)])
+    rc = agg.get("recheck")
+    if rc:
+        done = rc["labelled"] == rc["of"]
+        res = "pending"
+        if done and "anchoring_excess_disagreement" in rc:
+            b = rc["strata"]["B"]["agreement"]
+            res = (f"baseline agreement {b['k']}/{b['n']}; excess disagreement on model-assisted rows "
+                   f"{rc['anchoring_excess_disagreement']:+.2f}; {rc['toward_guess']} change(s) had matched the guess")
+        rows.append(["Blind re-check of the model-assisted gate audit (§B4.4)", status(done, rc["labelled"], rc["of"]), esc(res)])
+    at = agg.get("attack")
+    if at:
+        done = at["complete"] and "overall" in at
+        res = "pending"
+        if done:
+            o, raw = at["overall"], at.get("arm_raw_judge") or {}
+            res = (f"human transfer-on-refused {pct(o['stratified'])} {ci_txt(*o['bootstrap_ci'])} over {o['classes']} classes"
+                   + (f" against the judge's raw {pct(raw['rate'])}" if raw.get("rate") is not None else "")
+                   + (f"; {at['blank']} left blank" if at["blank"] else ""))
+        rows.append(["Class-stratified attack-transfer audit (§B4.5)", status(done, at["labelled"] + at["blank"], at["of"]), esc(res)])
     if not rows:
         return ""
     return (f'<div class="panel"><h3>Audits registered before labelling</h3><p class="note">Blind sheets, sampling designs '
@@ -211,8 +237,61 @@ def _audits_panel(agg):
             f'{ld.table(["Audit", "Status", "Result"], rows)}</div>')
 
 
+def _robustness_panel(agg):
+    rows, pending = [], 0
+    st = agg.get("staleness")
+    if st:
+        cells = st["cells"]
+        agree = [c["verdict_agreement"] for c in cells.values() if c["verdict_agreement"]["n"]]
+        k, n = sum(a["k"] for a in agree), sum(a["n"] for a in agree)
+        ident = sum(c["identical"]["k"] for c in cells.values()), sum(c["identical"]["n"] for c in cells.values())
+        flagged = [key.replace("|", " · ") for key, c in cells.items()
+                   if c["verdict_agreement"]["n"] and c["verdict_agreement"]["rate"] < 0.9]
+        rows.append(["Cache staleness (PREREG_STALENESS)",
+                     f"judge verdicts reproduced {k}/{n} over {len(agree)} model × stratum cells; byte-identical {ident[0]}/{ident[1]}",
+                     esc("flagged: " + ", ".join(flagged)) if flagged else
+                     "no cell below 90% verdict agreement: the cached decisions reproduce with the current weights and runtime"])
+    else:
+        pending += 1
+        rows.append(["Cache staleness (PREREG_STALENESS)", "running / queued", ""])
+    q = agg.get("quant")
+    if q and q.get("arm_A_q4_0", {}).get("resolved"):
+        a, b = q["arm_A_q4_0"], q["arm_B_q4_k_m"] or {}
+        ra, rb = a["resolved"], b.get("resolved")
+        ci = lambda r: f"[{r['corrected_ci'][0]:.3f}, {r['corrected_ci'][1]:.3f}]"
+        ov, oa = q["p_minus_overlap"], q["old_answered"]
+        same = rb and rb["verdict"] == ra["verdict"]
+        rows.append(["Quantisation of the older model (D7; lineage run, llama3-8b draw 0)",
+                     f"Q4_0: P⁻ {a['size']}, RSR {ra['k']}/{ra['n']} → {ra['corrected']:.3f} {ci(ra)}; "
+                     + (f"Q4_K_M: P⁻ {b['size']}, RSR {rb['k']}/{rb['n']} → {rb['corrected']:.3f} {ci(rb)}" if rb else "Q4_K_M: —"),
+                     esc((f"same π* verdict ({ra['verdict']}): robust to the mismatch" if same else
+                          f"verdict changes: {ra['verdict']} → {(rb or {}).get('verdict', '—')}")
+                         + f"; fixes shared {ov['both']} of {ov['both'] + ov['only_A'] + ov['only_B']} (Jaccard {ov['jaccard']:.2f}); "
+                         f"older model answered {oa['q4_0']} vs {oa['q4_k_m']} of {q['n']} (McNemar p {oa['mcnemar_p']:.2f})")])
+    else:
+        pending += 1
+        rows.append(["Quantisation of the older model (D7)", "running / queued", ""])
+    lo = agg.get("loosen")
+    if lo and lo.get("by_delta"):
+        lab = lambda d: "strict" if float(d) == 0 else f"δ {float(d):.2f}"
+        txt = " · ".join(f"{lab(d)}: {r['conditions']['any']['reopened']}/{r['conditions']['any']['resolved']} "
+                         f"({r['admitted']} admitted)" for d, r in lo["by_delta"].items())
+        cs = [r["conditions"]["any"]["corrected"] for r in lo["by_delta"].values()]
+        rows.append(["Loosened gate (A3.5; compose v2 single-style candidates, 49 fixes)", txt,
+                     esc(f"corrected {' → '.join(f'{c:.3f}' for c in cs)}; judge-scored, and the newly admitted rewordings "
+                         "carry no intent label until the false-rejection sheet (§B4.1) is labelled, so no claim about the anchor yet")])
+    else:
+        pending += 1
+        rows.append(["Loosened gate (A3.5)", "running / queued", ""])
+    note = ("Each registered before its data (<code>PREREG_STALENESS_20261031.md</code>, <code>PREREG_QUANT_20261031.md</code>, "
+            "<code>PREREG_GATE_LOOSEN_20261031.md</code>)" + ("; results appear as the runs finish" if pending else "")
+            + ". Exploratory; each row names its population.")
+    return (f'<div class="panel"><h3>Robustness checks registered 2026-10-31</h3><p class="note">{note}</p>'
+            f'{ld.table(["Check", "Result", "Reading"], rows)}</div>')
+
+
 def section_body(agg) -> str:
-    return _denominator_panel(agg) + _c4_panel(agg) + _power_panel(agg) + _audits_panel(agg)
+    return _denominator_panel(agg) + _c4_panel(agg) + _power_panel(agg) + _robustness_panel(agg) + _audits_panel(agg)
 
 
 CSS = ""

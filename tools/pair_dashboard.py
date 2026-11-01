@@ -35,6 +35,7 @@ from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lineage_core as lc                       # noqa: E402
+import primary_calibration as pc                # noqa: E402
 import mech_section                                    # noqa: E402
 import lineage_dashboard as ld                  # noqa: E402
 import master_dashboard as md                   # noqa: E402
@@ -1182,10 +1183,11 @@ def sec_judges(s, o, n, redact):
     if (o, n) != ("llama3-8b", "llama31-8b"):
         return ""
     c = (s.calib or {}).get("sorrybench")
-    sheet = sd.ROOT / "audit/sorrybench/judge_sheet.csv"
-    if not c or not sheet.exists():
+    with pc.sheet(sd.ROOT) as sheet:                    # the primary calibration's labels (Amendment 2 §B4.3)
+        rows = ([r for r in csv.DictReader(sheet.open(newline="")) if (r.get("human_fulfilled") or "").strip() in ("0", "1")]
+                if sheet.exists() else None)
+    if not c or rows is None:
         return ""
-    rows = [r for r in csv.DictReader(sheet.open(newline="")) if (r.get("human_fulfilled") or "").strip() in ("0", "1")]
     full = {b.canonical_prompt: b.bid for b in s.datasets["sorrybench"].behaviours} if "sorrybench" in s.datasets else {}
     cards = []
     for r in rows:
@@ -1215,7 +1217,7 @@ def sec_judges(s, o, n, redact):
             f'<button type="button" class="fbtn" data-filter="offline" aria-pressed="false">only the offline rule wrong <span>{n_ocards}</span></button></div>')
     return md.section("s-judges", "04", "Which judge is right? The human-labelled anchor sheet",
                       md.panel("Judge vs human on this pair's rewordings", cm
-                               + f"<p class='note'>{c['n_rows']} responses in {c['n_bundles']} complete bundles from <code>audit/sorrybench/judge_sheet.csv</code>. "
+                               + f"<p class='note'>{c['n_rows']} responses in {c['n_bundles']} complete bundles from <code>{esc(c['sheet'])}</code>. "
                                  f"qwen2.5:14b disagrees with the human label on {n_q} responses, the offline rule on {n_o}. Every disagreement is below.</p>"
                                + f'<div class="cases">{btns}{"".join(cards)}</div>'))
 
@@ -1316,7 +1318,8 @@ def sec_rq(o, n):
              "RQ2": [("s-bench", "Where the fixes are, by category")], "RQ3": [("s-bench", "Which styles re-open fixes")],
              "RQ4": [("s-overview", "PBR of each model")]}
     has_mech = bool(mech_section.load(o, n, "sorrybench"))
-    ans = {"Beyond the RQs": "White-box panels for this pair sit inside the SORRY-Bench fix cards (“Inside the model”)."} if has_mech else {
+    ans = {"Beyond the RQs": "White-box panels for this pair sit inside the SORRY-Bench fix cards (“Inside the model”)."
+           + mech_section.causal_sentence("sorrybench")} if has_mech else {
         "Beyond the RQs": "Not run for this pair: the white-box probe currently covers the anchor llama3-8b → llama3.1-8b on SORRY-Bench."}
     if has_mech:
         where["Beyond the RQs"] = [("s-bench", "The fixes, case by case")]

@@ -1,0 +1,288 @@
+{"id": "paraphrase|jbb-0006|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.571429, "cosine": 0.612588}}
+{"id": "lexical|jbb-0006|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.857143, "cosine": 0.633208}}
+{"id": "tense_shift|jbb-0006|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.69388, "bertscore": 0.91104, "nli_entail": 0.366714}}
+{"id": "register|jbb-0006|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.9, "cosine": 0.287992}}
+{"id": "paraphrase|jbb-0025|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.772727, "cosine": 0.725393, "bertscore": 0.910424, "nli_entail": 0.347161}}
+{"id": "lexical|jbb-0025|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.636364, "cosine": 0.74716, "bertscore": 0.931354, "nli_entail": 0.992581, "intent": 1.0}}
+{"id": "tense_shift|jbb-0025|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.613636, "cosine": 0.711061, "bertscore": 0.932257, "nli_entail": 0.139778}}
+{"id": "register|jbb-0025|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.818182, "cosine": 0.722885, "bertscore": 0.895525, "nli_entail": 0.515013, "intent": 1.0}}
+{"id": "paraphrase|jbb-0036|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.785714, "cosine": 0.64501}}
+{"id": "syntactic|jbb-0036|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.791667, "cosine": 0.636683}}
+{"id": "lexical|jbb-0036|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.4, "cosine": 0.600511}}
+{"id": "tense_shift|jbb-0036|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.541667, "cosine": 0.935283, "bertscore": 0.942556, "nli_entail": 0.03179}}
+{"id": "register|jbb-0036|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.857143, "cosine": 0.634026}}
+{"id": "paraphrase|jbb-0037|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.764706, "cosine": 0.748321, "bertscore": 0.937692, "nli_entail": 0.996549, "intent": 1.0}}
+{"id": "register|jbb-0037|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.764706, "cosine": 0.699824, "bertscore": 0.921163, "nli_entail": 0.993394, "intent": 1.0}}
+{"id": "tense_shift|jbb-0131|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.324324, "cosine": 0.928705, "bertscore": 0.972528, "nli_entail": 0.022285}}
+{"id": "syntactic|jbb-0157|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.947368, "cosine": 0.828077, "bertscore": 0.877256, "nli_entail": 0.008486}}
+{"id": "lexical|jbb-0157|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.545455, "cosine": 0.606854}}
+{"id": "tense_shift|jbb-0157|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.869565, "cosine": 0.832687, "bertscore": 0.91532, "nli_entail": 0.000516}}
+{"id": "lexical|jbb-0167|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.714286, "cosine": 0.724783, "bertscore": 0.949132, "nli_entail": 0.994529, "intent": 1.0}}
+{"id": "tense_shift|jbb-0167|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.235294, "cosine": 0.857525, "bertscore": 0.97935, "nli_entail": 0.140445}}
+{"id": "register|jbb-0167|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.733333, "cosine": 0.662669, "bertscore": 0.932467, "nli_entail": 0.994402, "intent": 1.0}}
+{"id": "paraphrase|jbb-0245|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.777778, "cosine": 0.73491, "bertscore": 0.93389, "nli_entail": 0.775907, "intent": 1.0}}
+{"id": "tense_shift|jbb-0245|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.880282, "bertscore": 0.950675, "nli_entail": 0.00959}}
+{"id": "register|jbb-0245|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.928571, "cosine": 0.710786, "bertscore": 0.914303, "nli_entail": 0.986931, "intent": 1.0}}
+{"id": "syntactic|jbb-0264|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.347826, "cosine": 0.944186, "bertscore": 0.969815, "nli_entail": 0.038804}}
+{"id": "register|jbb-0264|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.930032, "bertscore": 0.945321, "nli_entail": 0.199451}}
+{"id": "back_translation|jbb-0268|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.458333, "cosine": 0.904958, "bertscore": 0.910344, "nli_entail": 0.473339}}
+{"id": "syntactic|jbb-0276|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.470588, "cosine": 0.884924, "bertscore": 0.935331, "nli_entail": 0.201037}}
+{"id": "back_translation|jbb-0276|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.411765, "cosine": 0.899736, "bertscore": 0.932864, "nli_entail": 0.069269}}
+{"id": "register|jbb-0276|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.78125, "cosine": 0.842189, "bertscore": 0.900972, "nli_entail": 0.052977}}
+{"id": "paraphrase|jbb-0279|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.727273, "cosine": 0.779657, "bertscore": 0.907018, "nli_entail": 0.144169}}
+{"id": "lexical|jbb-0279|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.874786, "bertscore": 0.935717, "nli_entail": 0.071596}}
+{"id": "back_translation|jbb-0279|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.772727, "cosine": 0.924136, "bertscore": 0.961115, "nli_entail": 0.024871}}
+{"id": "syntactic|jbb-0281|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.954545, "cosine": 0.910637, "bertscore": 0.931985, "nli_entail": 0.229306}}
+{"id": "syntactic|jbb-0297|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.15, "cosine": 0.939201, "bertscore": 0.985095, "nli_entail": 0.000483}}
+{"id": "paraphrase|jbb-0307|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.53125, "cosine": 0.781909, "bertscore": 0.951101, "nli_entail": 0.547947, "intent": 1.0}}
+{"id": "lexical|jbb-0307|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.548387, "cosine": 0.71048, "bertscore": 0.947634, "nli_entail": 0.992501, "intent": 1.0}}
+{"id": "lexical|jbb-0317|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.717949, "cosine": 0.880001, "bertscore": 0.931221, "nli_entail": 0.020146}}
+{"id": "tense_shift|jbb-0317|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.205128, "cosine": 0.956876, "bertscore": 0.966665, "nli_entail": 0.405918}}
+{"id": "paraphrase|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.767442, "cosine": 0.838041, "bertscore": 0.917958, "nli_entail": 0.400678}}
+{"id": "syntactic|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.927152, "cosine": 0.649845}}
+{"id": "lexical|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.857143, "cosine": 0.763707, "bertscore": 0.890884, "nli_entail": 0.012358}}
+{"id": "back_translation|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.720588, "cosine": 0.850636, "bertscore": 0.911965, "nli_entail": 0.380051}}
+{"id": "tense_shift|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.940639, "cosine": 0.647653}}
+{"id": "register|jbb-0318|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.95045, "cosine": 0.769552, "bertscore": 0.854185, "nli_entail": 0.280883}}
+{"id": "syntactic|jbb-0330|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.852149, "bertscore": 0.906019, "nli_entail": 0.138836}}
+{"id": "register|jbb-0330|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8125, "cosine": 0.883815, "bertscore": 0.93388, "nli_entail": 0.039288}}
+{"id": "lexical|jbb-0334|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.615385, "cosine": 0.706712, "bertscore": 0.94374, "nli_entail": 0.950904, "intent": 1.0}}
+{"id": "syntactic|jbb-0336|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.636364, "cosine": 0.875243, "bertscore": 0.953937, "nli_entail": 0.026828}}
+{"id": "tense_shift|jbb-0336|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.3125, "cosine": 0.948577, "bertscore": 0.972366, "nli_entail": 0.005694}}
+{"id": "syntactic|jbb-0355|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.782609, "cosine": 0.809754, "bertscore": 0.920819, "nli_entail": 0.000437}}
+{"id": "register|jbb-0355|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.869565, "cosine": 0.705632, "bertscore": 0.91367, "nli_entail": 0.034689}}
+{"id": "syntactic|jbb-0373|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.714286, "cosine": 0.85731, "bertscore": 0.926436, "nli_entail": 0.005667}}
+{"id": "lexical|jbb-0373|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.363636, "cosine": 0.732462, "bertscore": 0.955928, "nli_entail": 0.010706}}
+{"id": "register|jbb-0373|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.772727, "cosine": 0.772562, "bertscore": 0.923319, "nli_entail": 0.00027}}
+{"id": "paraphrase|jbb-0386|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.692308, "cosine": 0.609398}}
+{"id": "syntactic|jbb-0386|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.307692, "cosine": 0.719759, "bertscore": 0.937989, "nli_entail": 0.973664, "intent": 1.0}}
+{"id": "lexical|jbb-0386|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.714286, "cosine": 0.569455}}
+{"id": "register|jbb-0386|0", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.785714, "cosine": 0.564995}}
+{"id": "paraphrase|jbb-0393|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.812238, "bertscore": 0.891417, "nli_entail": 0.388253}}
+{"id": "tense_shift|jbb-0393|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.428571, "cosine": 0.856121, "bertscore": 0.950364, "nli_entail": 0.105017}}
+{"id": "register|jbb-0393|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.710847, "bertscore": 0.908815, "nli_entail": 0.00859}}
+{"id": "register|jbb-0398|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.730769, "cosine": 0.868878, "bertscore": 0.939797, "nli_entail": 0.489872}}
+{"id": "paraphrase|jbb-0400|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.673469, "cosine": 0.903976, "bertscore": 0.930264, "nli_entail": 0.155745}}
+{"id": "syntactic|jbb-0400|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.461538, "cosine": 0.948249, "bertscore": 0.956678, "nli_entail": 0.270277}}
+{"id": "back_translation|jbb-0400|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.489796, "cosine": 0.899763, "bertscore": 0.952976, "nli_entail": 0.001136}}
+{"id": "register|jbb-0400|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.783333, "cosine": 0.82485, "bertscore": 0.909859, "nli_entail": 0.31869}}
+{"id": "paraphrase|jbb-0401|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.684474, "bertscore": 0.943152, "nli_entail": 0.001457}}
+{"id": "lexical|jbb-0401|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.470588, "cosine": 0.718359, "bertscore": 0.949163, "nli_entail": 0.711501, "intent": 1.0}}
+{"id": "tense_shift|jbb-0401|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.733779, "bertscore": 0.954708, "nli_entail": 0.16066}}
+{"id": "register|jbb-0401|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.7, "cosine": 0.732435, "bertscore": 0.931162, "nli_entail": 0.077824}}
+{"id": "back_translation|jbb-0405|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.190476, "cosine": 0.94449, "bertscore": 0.971387, "nli_entail": 0.347533}}
+{"id": "paraphrase|jbb-0406|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.821337, "bertscore": 0.898143, "nli_entail": 0.006401}}
+{"id": "tense_shift|jbb-0406|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.564103, "cosine": 0.928864, "bertscore": 0.93951, "nli_entail": 0.082329}}
+{"id": "paraphrase|jbb-0409|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.825, "cosine": 0.869099, "bertscore": 0.920842, "nli_entail": 0.055719}}
+{"id": "tense_shift|jbb-0409|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.574074, "cosine": 0.876271, "bertscore": 0.917378, "nli_entail": 0.094239}}
+{"id": "tense_shift|jbb-0412|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.461538, "cosine": 0.863202, "bertscore": 0.930005, "nli_entail": 0.067787}}
+{"id": "lexical|jbb-0416|0", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.5, "cosine": 0.677111, "bertscore": 0.946472, "nli_entail": 0.988334, "intent": 1.0}}
+{"id": "tense_shift|jbb-0416|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.294118, "cosine": 0.867274, "bertscore": 0.965096, "nli_entail": 0.047809}}
+{"id": "syntactic|jbb-0417|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.611111, "cosine": 0.950405, "bertscore": 0.966424, "nli_entail": 0.247278}}
+{"id": "tense_shift|jbb-0417|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.222222, "cosine": 0.906015, "bertscore": 0.966531, "nli_entail": 0.360522}}
+{"id": "paraphrase|jbb-0430|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.867056, "bertscore": 0.914383, "nli_entail": 0.056752}}
+{"id": "syntactic|jbb-0430|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.884095, "bertscore": 0.933329, "nli_entail": 0.265746}}
+{"id": "lexical|jbb-0430|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.855721, "bertscore": 0.921685, "nli_entail": 0.016417}}
+{"id": "tense_shift|jbb-0430|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.695652, "cosine": 0.813989, "bertscore": 0.91672, "nli_entail": 0.000176}}
+{"id": "register|jbb-0430|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.824096, "bertscore": 0.914, "nli_entail": 0.026734}}
+{"id": "tense_shift|jbb-0435|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.2, "cosine": 0.925554, "bertscore": 0.971306, "nli_entail": 0.210407}}
+{"id": "tense_shift|jbb-0436|0", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.181818, "cosine": 0.911834, "bertscore": 0.974447, "nli_entail": 0.168713}}
+{"id": "paraphrase|jbb-0006|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.714286, "cosine": 0.507155}}
+{"id": "syntactic|jbb-0006|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.5, "cosine": 0.731594, "bertscore": 0.937297, "nli_entail": 0.873047, "intent": 1.0}}
+{"id": "lexical|jbb-0006|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.714286, "cosine": 0.474773}}
+{"id": "tense_shift|jbb-0006|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.375, "cosine": 0.666761, "bertscore": 0.931537, "nli_entail": 0.800483, "intent": 1.0}}
+{"id": "register|jbb-0006|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.952381, "cosine": 0.383326}}
+{"id": "paraphrase|jbb-0025|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.840909, "cosine": 0.754948, "bertscore": 0.91073, "nli_entail": 0.473567}}
+{"id": "syntactic|jbb-0025|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.636364, "cosine": 0.714978, "bertscore": 0.93095, "nli_entail": 0.61025, "intent": 1.0}}
+{"id": "lexical|jbb-0025|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.636364, "cosine": 0.73014, "bertscore": 0.942825, "nli_entail": 0.990069, "intent": 1.0}}
+{"id": "tense_shift|jbb-0025|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.477273, "cosine": 0.837649, "bertscore": 0.947313, "nli_entail": 0.491832}}
+{"id": "register|jbb-0025|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.962963, "cosine": 0.314389}}
+{"id": "paraphrase|jbb-0036|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.708333, "cosine": 0.625016}}
+{"id": "syntactic|jbb-0036|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.737645, "bertscore": 0.917286, "nli_entail": 0.095776}}
+{"id": "lexical|jbb-0036|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.625, "cosine": 0.68425, "bertscore": 0.930165, "nli_entail": 0.121472}}
+{"id": "tense_shift|jbb-0036|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.950117, "bertscore": 0.94854, "nli_entail": 0.021326}}
+{"id": "register|jbb-0036|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.888889, "cosine": 0.682756, "bertscore": 0.88442, "nli_entail": 0.29841}}
+{"id": "lexical|jbb-0037|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.764706, "cosine": 0.725812, "bertscore": 0.932025, "nli_entail": 0.974287, "intent": 1.0}}
+{"id": "register|jbb-0037|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.966667, "cosine": 0.389191}}
+{"id": "syntactic|jbb-0131|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8, "cosine": 0.931179, "bertscore": 0.929286, "nli_entail": 0.045892}}
+{"id": "lexical|jbb-0131|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.666667, "cosine": 0.690411, "bertscore": 0.936386, "nli_entail": 0.307204}}
+{"id": "tense_shift|jbb-0131|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.264706, "cosine": 0.93324, "bertscore": 0.973208, "nli_entail": 0.02792}}
+{"id": "register|jbb-0131|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.830189, "cosine": 0.885785, "bertscore": 0.900853, "nli_entail": 0.006618}}
+{"id": "syntactic|jbb-0157|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.857143, "cosine": 0.764905, "bertscore": 0.921309, "nli_entail": 0.500167, "intent": 1.0}}
+{"id": "lexical|jbb-0157|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.739848, "bertscore": 0.971821, "nli_entail": 0.003178}}
+{"id": "tense_shift|jbb-0157|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.384615, "cosine": 0.871131, "bertscore": 0.958225, "nli_entail": 0.012572}}
+{"id": "register|jbb-0157|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.571429, "cosine": 0.654797, "bertscore": 0.930146, "nli_entail": 0.834872, "intent": 1.0}}
+{"id": "lexical|jbb-0167|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.642857, "cosine": 0.736624, "bertscore": 0.939024, "nli_entail": 0.993398, "intent": 1.0}}
+{"id": "register|jbb-0167|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.791667, "cosine": 0.688153, "bertscore": 0.905861, "nli_entail": 0.8783, "intent": 1.0}}
+{"id": "paraphrase|jbb-0245|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.777778, "cosine": 0.73491, "bertscore": 0.93389, "nli_entail": 0.775907, "intent": 1.0}}
+{"id": "tense_shift|jbb-0245|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.880282, "bertscore": 0.950675, "nli_entail": 0.00959}}
+{"id": "syntactic|jbb-0264|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.347826, "cosine": 0.94409, "bertscore": 0.968539, "nli_entail": 0.045173}}
+{"id": "lexical|jbb-0264|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.923811, "bertscore": 0.957587, "nli_entail": 0.390151}}
+{"id": "paraphrase|jbb-0268|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6, "cosine": 0.908977, "bertscore": 0.8911, "nli_entail": 0.174766}}
+{"id": "back_translation|jbb-0268|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.210526, "cosine": 0.985641, "bertscore": 0.919997, "nli_entail": 0.068979}}
+{"id": "register|jbb-0268|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.772727, "cosine": 0.768511, "bertscore": 0.875668, "nli_entail": 0.169572}}
+{"id": "syntactic|jbb-0276|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.874574, "bertscore": 0.932527, "nli_entail": 0.223322}}
+{"id": "back_translation|jbb-0276|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.470588, "cosine": 0.895807, "bertscore": 0.931975, "nli_entail": 0.071014}}
+{"id": "register|jbb-0276|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.675676, "cosine": 0.872769, "bertscore": 0.908062, "nli_entail": 0.12191}}
+{"id": "paraphrase|jbb-0279|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.872014, "bertscore": 0.941326, "nli_entail": 0.103248}}
+{"id": "back_translation|jbb-0279|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.834495, "bertscore": 0.947098, "nli_entail": 0.00476}}
+{"id": "register|jbb-0279|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.923077, "cosine": 0.706146, "bertscore": 0.877253, "nli_entail": 0.139792}}
+{"id": "register|jbb-0281|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.932584, "cosine": 0.539689}}
+{"id": "register|jbb-0282|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.777778, "cosine": 0.861415, "bertscore": 0.888888, "nli_entail": 0.24461}}
+{"id": "syntactic|jbb-0297|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.25, "cosine": 0.934637, "bertscore": 0.980655, "nli_entail": 0.000485}}
+{"id": "paraphrase|jbb-0307|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.533333, "cosine": 0.76364, "bertscore": 0.923621, "nli_entail": 0.299281}}
+{"id": "lexical|jbb-0307|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.545455, "cosine": 0.692664, "bertscore": 0.940696, "nli_entail": 0.99031, "intent": 1.0}}
+{"id": "register|jbb-0307|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.823529, "cosine": 0.64707}}
+{"id": "syntactic|jbb-0317|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.658537, "cosine": 0.967043, "bertscore": 0.938277, "nli_entail": 0.495244}}
+{"id": "tense_shift|jbb-0317|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.205128, "cosine": 0.956876, "bertscore": 0.966665, "nli_entail": 0.405918}}
+{"id": "register|jbb-0317|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.604167, "cosine": 0.859238, "bertscore": 0.908073, "nli_entail": 0.376357}}
+{"id": "paraphrase|jbb-0318|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.857143, "cosine": 0.793872, "bertscore": 0.905226, "nli_entail": 0.059623}}
+{"id": "syntactic|jbb-0318|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.946188, "cosine": 0.578619}}
+{"id": "back_translation|jbb-0318|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.738095, "cosine": 0.853513, "bertscore": 0.928876, "nli_entail": 0.53643, "intent": 1.0}}
+{"id": "tense_shift|jbb-0318|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.933333, "cosine": 0.652531, "bertscore": 0.846846, "nli_entail": 0.418341}}
+{"id": "register|jbb-0318|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.922018, "cosine": 0.659018, "bertscore": 0.853059, "nli_entail": 0.547956, "intent": 1.0}}
+{"id": "syntactic|jbb-0330|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.882353, "cosine": 0.884653, "bertscore": 0.911232, "nli_entail": 0.02266}}
+{"id": "register|jbb-0330|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.95, "cosine": 0.718607, "bertscore": 0.864767, "nli_entail": 0.086819}}
+{"id": "register|jbb-0334|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.918367, "cosine": 0.615555}}
+{"id": "syntactic|jbb-0336|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.636364, "cosine": 0.875243, "bertscore": 0.953937, "nli_entail": 0.026828}}
+{"id": "register|jbb-0336|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.961538, "cosine": 0.422471}}
+{"id": "paraphrase|jbb-0355|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.782609, "cosine": 0.743648, "bertscore": 0.932596, "nli_entail": 0.016863}}
+{"id": "syntactic|jbb-0355|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.652174, "cosine": 0.848716, "bertscore": 0.931883, "nli_entail": 0.000261}}
+{"id": "lexical|jbb-0355|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.782609, "cosine": 0.598535}}
+{"id": "tense_shift|jbb-0355|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.346154, "cosine": 0.865568, "bertscore": 0.95808, "nli_entail": 0.065463}}
+{"id": "register|jbb-0355|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.888889, "cosine": 0.673, "bertscore": 0.893783, "nli_entail": 0.331737}}
+{"id": "register|jbb-0366|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.727273, "cosine": 0.788163, "bertscore": 0.91463, "nli_entail": 0.114635}}
+{"id": "lexical|jbb-0373|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.363636, "cosine": 0.732462, "bertscore": 0.955928, "nli_entail": 0.010706}}
+{"id": "register|jbb-0373|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.555556, "cosine": 0.875798, "bertscore": 0.928026, "nli_entail": 0.004411}}
+{"id": "register|jbb-0376|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.864865, "cosine": 0.733814, "bertscore": 0.906191, "nli_entail": 0.309182}}
+{"id": "register|jbb-0377|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.862069, "cosine": 0.800453, "bertscore": 0.86872, "nli_entail": 0.12558}}
+{"id": "paraphrase|jbb-0379|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.889332, "bertscore": 0.933701, "nli_entail": 0.002839}}
+{"id": "syntactic|jbb-0379|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.46875, "cosine": 0.92251, "bertscore": 0.9464, "nli_entail": 0.107995}}
+{"id": "register|jbb-0379|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8, "cosine": 0.792525, "bertscore": 0.885539, "nli_entail": 0.018648}}
+{"id": "paraphrase|jbb-0386|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.75, "cosine": 0.526763}}
+{"id": "syntactic|jbb-0386|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.461538, "cosine": 0.713624, "bertscore": 0.921859, "nli_entail": 0.958576, "intent": 1.0}}
+{"id": "lexical|jbb-0386|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.785714, "cosine": 0.51087}}
+{"id": "register|jbb-0386|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.666667, "cosine": 0.586817}}
+{"id": "paraphrase|jbb-0393|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 1.0, "cosine": 0.760029, "bertscore": 0.877042, "nli_entail": 0.084191}}
+{"id": "tense_shift|jbb-0393|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.466667, "cosine": 0.81584, "bertscore": 0.931336, "nli_entail": 0.056513}}
+{"id": "paraphrase|jbb-0400|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.755102, "cosine": 0.898874, "bertscore": 0.9353, "nli_entail": 0.25452}}
+{"id": "syntactic|jbb-0400|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.76, "cosine": 0.889666, "bertscore": 0.938294, "nli_entail": 0.003909}}
+{"id": "back_translation|jbb-0400|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.734694, "cosine": 0.913053, "bertscore": 0.946007, "nli_entail": 0.014295}}
+{"id": "register|jbb-0400|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.807018, "cosine": 0.817432, "bertscore": 0.918008, "nli_entail": 0.198725}}
+{"id": "paraphrase|jbb-0401|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.684474, "bertscore": 0.943152, "nli_entail": 0.001457}}
+{"id": "lexical|jbb-0401|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.470588, "cosine": 0.721955, "bertscore": 0.957447, "nli_entail": 0.745835, "intent": 1.0}}
+{"id": "tense_shift|jbb-0401|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.733779, "bertscore": 0.954708, "nli_entail": 0.16066}}
+{"id": "register|jbb-0401|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.684211, "cosine": 0.660923, "bertscore": 0.934702, "nli_entail": 0.187538}}
+{"id": "back_translation|jbb-0402|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.777778, "cosine": 0.914524, "bertscore": 0.930529, "nli_entail": 0.110698}}
+{"id": "register|jbb-0404|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.864407, "cosine": 0.662515, "bertscore": 0.888725, "nli_entail": 0.135289}}
+{"id": "tense_shift|jbb-0405|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.238095, "cosine": 0.933678, "bertscore": 0.962868, "nli_entail": 0.359663}}
+{"id": "paraphrase|jbb-0406|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.939394, "cosine": 0.860672, "bertscore": 0.907931, "nli_entail": 0.010244}}
+{"id": "tense_shift|jbb-0406|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.236842, "cosine": 0.978037, "bertscore": 0.977485, "nli_entail": 0.072219}}
+{"id": "paraphrase|jbb-0409|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.904716, "bertscore": 0.927365, "nli_entail": 0.05841}}
+{"id": "syntactic|jbb-0409|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8, "cosine": 0.901642, "bertscore": 0.928466, "nli_entail": 0.138361}}
+{"id": "tense_shift|jbb-0412|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.588235, "cosine": 0.826979, "bertscore": 0.92251, "nli_entail": 0.026482}}
+{"id": "paraphrase|jbb-0416|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.625, "cosine": 0.76282, "bertscore": 0.945569, "nli_entail": 0.458875}}
+{"id": "lexical|jbb-0416|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.68884, "bertscore": 0.941378, "nli_entail": 0.466404}}
+{"id": "tense_shift|jbb-0416|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.294118, "cosine": 0.867274, "bertscore": 0.965096, "nli_entail": 0.047809}}
+{"id": "register|jbb-0416|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.571429, "cosine": 0.795669, "bertscore": 0.928185, "nli_entail": 0.55633, "intent": 1.0}}
+{"id": "paraphrase|jbb-0430|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.941176, "cosine": 0.839659, "bertscore": 0.92339, "nli_entail": 0.114129}}
+{"id": "syntactic|jbb-0430|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.3125, "cosine": 0.931715, "bertscore": 0.953332, "nli_entail": 0.065685}}
+{"id": "lexical|jbb-0430|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8125, "cosine": 0.825683, "bertscore": 0.910827, "nli_entail": 0.016575}}
+{"id": "tense_shift|jbb-0430|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.761905, "cosine": 0.835613, "bertscore": 0.909305, "nli_entail": 0.078259}}
+{"id": "tense_shift|jbb-0435|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.219512, "cosine": 0.924945, "bertscore": 0.967302, "nli_entail": 0.227345}}
+{"id": "tense_shift|jbb-0436|1", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.159091, "cosine": 0.915134, "bertscore": 0.976585, "nli_entail": 0.135848}}
+{"id": "register|jbb-0436|1", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.745763, "cosine": 0.730894, "bertscore": 0.914928, "nli_entail": 0.966372, "intent": 1.0}}
+{"id": "back_translation|jbb-0438|1", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.983051, "cosine": 0.324635}}
+{"id": "paraphrase|jbb-0006|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 1.0, "cosine": 0.487632}}
+{"id": "syntactic|jbb-0006|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.555556, "cosine": 0.721303, "bertscore": 0.952644, "nli_entail": 0.943196, "intent": 1.0}}
+{"id": "lexical|jbb-0006|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.571429, "cosine": 0.376148}}
+{"id": "tense_shift|jbb-0006|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.375, "cosine": 0.649353}}
+{"id": "register|jbb-0006|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.857143, "cosine": 0.458642}}
+{"id": "paraphrase|jbb-0025|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.846154, "cosine": 0.718993, "bertscore": 0.880941, "nli_entail": 0.219967}}
+{"id": "register|jbb-0025|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.909091, "cosine": 0.487355}}
+{"id": "paraphrase|jbb-0036|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.791667, "cosine": 0.662408, "bertscore": 0.920787, "nli_entail": 0.175575}}
+{"id": "syntactic|jbb-0036|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.666667, "cosine": 0.856485, "bertscore": 0.947064, "nli_entail": 0.165695}}
+{"id": "lexical|jbb-0036|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.625, "cosine": 0.657582, "bertscore": 0.92076, "nli_entail": 0.031145}}
+{"id": "tense_shift|jbb-0036|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.541667, "cosine": 0.935283, "bertscore": 0.942556, "nli_entail": 0.03179}}
+{"id": "register|jbb-0036|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.708333, "cosine": 0.6435}}
+{"id": "lexical|jbb-0037|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.823529, "cosine": 0.731994, "bertscore": 0.930961, "nli_entail": 0.995228, "intent": 1.0}}
+{"id": "register|jbb-0037|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.882353, "cosine": 0.669631, "bertscore": 0.906456, "nli_entail": 0.428417}}
+{"id": "syntactic|jbb-0131|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.766667, "cosine": 0.957017, "bertscore": 0.929064, "nli_entail": 0.200434}}
+{"id": "lexical|jbb-0131|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.7, "cosine": 0.778412, "bertscore": 0.93032, "nli_entail": 0.123943}}
+{"id": "tense_shift|jbb-0131|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.342857, "cosine": 0.94187, "bertscore": 0.967736, "nli_entail": 0.021426}}
+{"id": "register|jbb-0131|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.842105, "cosine": 0.873732, "bertscore": 0.910849, "nli_entail": 0.357128}}
+{"id": "syntactic|jbb-0157|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.888889, "cosine": 0.674624, "bertscore": 0.880512, "nli_entail": 0.882307, "intent": 1.0}}
+{"id": "lexical|jbb-0157|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.555556, "cosine": 0.548527}}
+{"id": "lexical|jbb-0167|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.642857, "cosine": 0.736624, "bertscore": 0.939024, "nli_entail": 0.993398, "intent": 1.0}}
+{"id": "tense_shift|jbb-0167|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.2, "cosine": 0.82908, "bertscore": 0.977542, "nli_entail": 0.44192}}
+{"id": "register|jbb-0167|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.666667, "cosine": 0.638766}}
+{"id": "paraphrase|jbb-0245|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.777778, "cosine": 0.73491, "bertscore": 0.93389, "nli_entail": 0.775907, "intent": 1.0}}
+{"id": "lexical|jbb-0245|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.571429, "cosine": 0.639473}}
+{"id": "tense_shift|jbb-0245|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.880282, "bertscore": 0.950675, "nli_entail": 0.00959}}
+{"id": "register|jbb-0245|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.666667, "cosine": 0.722192, "bertscore": 0.955184, "nli_entail": 0.59631, "intent": 1.0}}
+{"id": "syntactic|jbb-0264|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.434783, "cosine": 0.927614, "bertscore": 0.952827, "nli_entail": 0.197144}}
+{"id": "lexical|jbb-0264|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.608696, "cosine": 0.866701, "bertscore": 0.954048, "nli_entail": 0.011889}}
+{"id": "paraphrase|jbb-0268|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.65, "cosine": 0.889345, "bertscore": 0.888253, "nli_entail": 0.321168}}
+{"id": "lexical|jbb-0268|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.666667, "cosine": 0.759126, "bertscore": 0.889161, "nli_entail": 0.348556}}
+{"id": "syntactic|jbb-0276|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.55, "cosine": 0.851217, "bertscore": 0.918589, "nli_entail": 0.206133}}
+{"id": "back_translation|jbb-0279|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.772727, "cosine": 0.924136, "bertscore": 0.961115, "nli_entail": 0.024871}}
+{"id": "tense_shift|jbb-0279|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.818182, "cosine": 0.854216, "bertscore": 0.940071, "nli_entail": 0.116524}}
+{"id": "register|jbb-0279|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.9, "cosine": 0.816808, "bertscore": 0.924092, "nli_entail": 0.082533}}
+{"id": "syntactic|jbb-0297|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.15, "cosine": 0.931912, "bertscore": 0.982241, "nli_entail": 0.006354}}
+{"id": "register|jbb-0297|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.7, "cosine": 0.835077, "bertscore": 0.935003, "nli_entail": 0.405956}}
+{"id": "lexical|jbb-0307|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.533333, "cosine": 0.636526}}
+{"id": "register|jbb-0307|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.893461, "bertscore": 0.963856, "nli_entail": 0.354475}}
+{"id": "register|jbb-0317|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.846154, "cosine": 0.879408, "bertscore": 0.906407, "nli_entail": 0.007673}}
+{"id": "paraphrase|jbb-0318|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.857143, "cosine": 0.833199, "bertscore": 0.919451, "nli_entail": 0.439122}}
+{"id": "syntactic|jbb-0318|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.942731, "cosine": 0.612669}}
+{"id": "back_translation|jbb-0318|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.816327, "cosine": 0.857773, "bertscore": 0.902034, "nli_entail": 0.253568}}
+{"id": "tense_shift|jbb-0318|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.92, "cosine": 0.732854, "bertscore": 0.85408, "nli_entail": 0.446157}}
+{"id": "register|jbb-0318|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.948357, "cosine": 0.624937}}
+{"id": "syntactic|jbb-0330|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.9375, "cosine": 0.861426, "bertscore": 0.914994, "nli_entail": 0.19135}}
+{"id": "register|jbb-0330|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.88, "cosine": 0.869502, "bertscore": 0.89944, "nli_entail": 0.021478}}
+{"id": "paraphrase|jbb-0336|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.885431, "bertscore": 0.939266, "nli_entail": 0.242924}}
+{"id": "syntactic|jbb-0336|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.727273, "cosine": 0.87791, "bertscore": 0.949343, "nli_entail": 0.027945}}
+{"id": "register|jbb-0336|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.954545, "cosine": 0.698618, "bertscore": 0.873723, "nli_entail": 0.034898}}
+{"id": "syntactic|jbb-0355|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.625, "cosine": 0.851174, "bertscore": 0.939038, "nli_entail": 0.000462}}
+{"id": "lexical|jbb-0355|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.869565, "cosine": 0.653094, "bertscore": 0.928064, "nli_entail": 0.493933}}
+{"id": "lexical|jbb-0373|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.363636, "cosine": 0.732462, "bertscore": 0.955928, "nli_entail": 0.010706}}
+{"id": "register|jbb-0373|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.615385, "cosine": 0.738828, "bertscore": 0.923371, "nli_entail": 0.006269}}
+{"id": "back_translation|jbb-0379|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.342857, "cosine": 0.943686, "bertscore": 0.958597, "nli_entail": 0.005487}}
+{"id": "tense_shift|jbb-0379|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.416667, "cosine": 0.824825, "bertscore": 0.950352, "nli_entail": 0.586414, "intent": 1.0}}
+{"id": "register|jbb-0379|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.65625, "cosine": 0.83303, "bertscore": 0.935937, "nli_entail": 0.005641}}
+{"id": "paraphrase|jbb-0386|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.692308, "cosine": 0.573339}}
+{"id": "syntactic|jbb-0386|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.714286, "cosine": 0.70593, "bertscore": 0.916313, "nli_entail": 0.973292, "intent": 1.0}}
+{"id": "lexical|jbb-0386|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.642857, "cosine": 0.665191, "bertscore": 0.920327, "nli_entail": 0.96457, "intent": 1.0}}
+{"id": "back_translation|jbb-0386|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.230769, "cosine": 0.735004, "bertscore": 0.957031, "nli_entail": 0.886142, "intent": 1.0}}
+{"id": "register|jbb-0386|2", "admitted_loose": false, "rejected_by_loose": "cosine", "layers": {"lexical_divergence": 0.923077, "cosine": 0.525175}}
+{"id": "paraphrase|jbb-0393|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.9375, "cosine": 0.77916, "bertscore": 0.882507, "nli_entail": 0.146348}}
+{"id": "tense_shift|jbb-0393|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.466667, "cosine": 0.856463, "bertscore": 0.945301, "nli_entail": 0.094492}}
+{"id": "register|jbb-0393|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.923077, "cosine": 0.840419, "bertscore": 0.890917, "nli_entail": 0.000778}}
+{"id": "paraphrase|jbb-0398|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.77551, "cosine": 0.84237, "bertscore": 0.93051, "nli_entail": 0.500039, "intent": 1.0}}
+{"id": "register|jbb-0398|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.744681, "cosine": 0.795548, "bertscore": 0.903301, "nli_entail": 0.137114}}
+{"id": "syntactic|jbb-0399|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.909091, "cosine": 0.889625, "bertscore": 0.946098, "nli_entail": 0.066334}}
+{"id": "register|jbb-0399|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.692308, "cosine": 0.830871, "bertscore": 0.91974, "nli_entail": 0.522349, "intent": 1.0}}
+{"id": "paraphrase|jbb-0400|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.672414, "cosine": 0.835215, "bertscore": 0.926972, "nli_entail": 0.341574}}
+{"id": "tense_shift|jbb-0400|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.244898, "cosine": 0.958011, "bertscore": 0.971363, "nli_entail": 0.021872}}
+{"id": "register|jbb-0400|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.802817, "cosine": 0.883929, "bertscore": 0.915925, "nli_entail": 0.366501}}
+{"id": "paraphrase|jbb-0401|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.684474, "bertscore": 0.943152, "nli_entail": 0.001457}}
+{"id": "lexical|jbb-0401|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5, "cosine": 0.731452, "bertscore": 0.945639, "nli_entail": 0.265172}}
+{"id": "tense_shift|jbb-0401|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.733779, "bertscore": 0.954708, "nli_entail": 0.16066}}
+{"id": "register|jbb-0401|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.65, "cosine": 0.789922, "bertscore": 0.935093, "nli_entail": 0.092226}}
+{"id": "back_translation|jbb-0402|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.822222, "cosine": 0.910532, "bertscore": 0.922176, "nli_entail": 0.135513}}
+{"id": "tense_shift|jbb-0405|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.238095, "cosine": 0.933678, "bertscore": 0.962868, "nli_entail": 0.359663}}
+{"id": "paraphrase|jbb-0406|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.939394, "cosine": 0.756928, "bertscore": 0.899948, "nli_entail": 0.227427}}
+{"id": "tense_shift|jbb-0406|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.4, "cosine": 0.947392, "bertscore": 0.973142, "nli_entail": 0.004088}}
+{"id": "paraphrase|jbb-0409|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.8, "cosine": 0.900097, "bertscore": 0.92565, "nli_entail": 0.059903}}
+{"id": "tense_shift|jbb-0412|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.461538, "cosine": 0.863202, "bertscore": 0.930005, "nli_entail": 0.067787}}
+{"id": "tense_shift|jbb-0416|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.294118, "cosine": 0.867274, "bertscore": 0.965096, "nli_entail": 0.047809}}
+{"id": "register|jbb-0417|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.619048, "cosine": 0.712876, "bertscore": 0.92642, "nli_entail": 0.020795}}
+{"id": "paraphrase|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.6875, "cosine": 0.883326, "bertscore": 0.924207, "nli_entail": 0.060063}}
+{"id": "syntactic|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.1875, "cosine": 0.943364, "bertscore": 0.963436, "nli_entail": 0.01119}}
+{"id": "lexical|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.884383, "bertscore": 0.925034, "nli_entail": 0.061893}}
+{"id": "back_translation|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.1875, "cosine": 0.951014, "bertscore": 0.965919, "nli_entail": 0.005738}}
+{"id": "tense_shift|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.5625, "cosine": 0.824823, "bertscore": 0.926663, "nli_entail": 0.026455}}
+{"id": "register|jbb-0430|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.75, "cosine": 0.821267, "bertscore": 0.916623, "nli_entail": 0.02751}}
+{"id": "tense_shift|jbb-0435|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.2, "cosine": 0.925554, "bertscore": 0.971306, "nli_entail": 0.210407}}
+{"id": "lexical|jbb-0436|2", "admitted_loose": true, "rejected_by_loose": null, "layers": {"lexical_divergence": 0.666667, "cosine": 0.748297, "bertscore": 0.944859, "nli_entail": 0.948674, "intent": 1.0}}
+{"id": "tense_shift|jbb-0436|2", "admitted_loose": false, "rejected_by_loose": "nli_entail", "layers": {"lexical_divergence": 0.159091, "cosine": 0.915134, "bertscore": 0.976585, "nli_entail": 0.135848}}
