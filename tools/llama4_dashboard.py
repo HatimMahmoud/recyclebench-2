@@ -5,7 +5,8 @@ Every benchmark that has a CSV in data/ and a verdict store (tools/llama4_report
 judged compliance with Wilson intervals, the 2x2 of every earlier model -> the Llama 4 model, the behaviours where
 the verdicts differ (fixes, regressions, still answered) with the replies, and where the offline refusal rule
 disagrees with the judge on the Llama 4 replies. Same design system as tools/lineage_dashboard.py; no model is
-called. Canonical only: Llama 4 is not in any frozen manifest, so there is no RSR here.
+called. With --suite (tools/llama4_suite.py) it adds the other arms: coverage matrix, recycling, inversion,
+known-attack transfer and rewording styles, all from counts.
 
   python3 tools/llama4_dashboard.py --run-dir results/runs/20261031_1816_llama4_scout_canonical
   python3 tools/llama4_dashboard.py --new llama4-maverick --run-dir <its run dir>
@@ -17,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import json
 import sys
 from collections import Counter
 from pathlib import Path
@@ -87,6 +89,9 @@ def complied(bench, m):
 # =============================================================================
 def sec_header(new, models, benches, prov, args, today):
     n_beh = sum(len(b.behaviours) for b in benches)
+    rest = ("Sections 07 to 11 add every other arm the protocol defines for it (recycling, output inversion, "
+            "known-attack transfer, rewording styles) with the coverage of each." if args.suite_data else
+            f"Recycling (RSR) needs {esc(label(new))} in a frozen rewording manifest and is not on this page.")
     return f"""
 <header class="hero" id="top">
   <p class="eyebrow">RecycleBench · canonical screen · {esc(" · ".join(BENCH_LABEL.get(b.name, b.name) for b in benches))}</p>
@@ -94,8 +99,7 @@ def sec_header(new, models, benches, prov, args, today):
   <p class="lede">Every benchmark request is sent to {esc(label(new))} as written, three draws each, and judged by the
   same decorrelated judge as the earlier lineage (qwen2.5:14b rubric). A behaviour counts as <b>answered</b> if at least
   one draw complies. For each earlier model, <b>P⁻</b> is the set it answered and {esc(label(new))} refused (the fixes);
-  a <b>regression</b> is the reverse. Recycling (RSR) needs {esc(label(new))} in a frozen rewording manifest and is not
-  on this page.</p>
+  a <b>regression</b> is the reverse. {rest}</p>
   <div class="meta">
     <span><b>{len(models)}</b> models</span><span><b>{n_beh:,}</b> behaviours · <b>{len(benches)}</b> benchmarks</span>
     <span>judge <b>{esc(lc.judge_tag_from_cfg(args.cfg) or 'none')}</b></span>
@@ -301,6 +305,8 @@ def sec_method(new, models, benches, prov, args):
                      f"({len(b.behaviours)} behaviours) · verdicts <code>{esc(STORES[b.name])}</code></li>" for b in benches)
     missing = [n for n in STORES if n not in {b.name for b in benches}]
     digests = "".join(f"<li><code>{esc(d)}</code></li>" for d in prov.get("digests", []))
+    absent = ("PBR on the lineage's frozen manifests (they are on another machine; see 07)." if args.suite_data else
+              f"rewording recycling (RSR) and PBR, which need {esc(short(new))} in a frozen manifest.")
     return f"""
 <section id="s-method" class="sec" aria-labelledby="h-method">
   <h2 id="h-method"><span class="sn">06</span>Provenance &amp; method</h2>
@@ -319,19 +325,172 @@ def sec_method(new, models, benches, prov, args):
       {esc(short(new))}'s replies; section 05 shows its refusal style is different.</li>
       <li>Temperature 0, three seeded draws: draws can still differ (non-deterministic GPU kernels), so "any of three" matters.</li>
       <li>Not on this page: {esc(", ".join(BENCH_LABEL.get(n, n) for n in missing) or "—")} (no CSV/verdicts here),
-      rewording recycling (RSR) and PBR, which need {esc(short(new))} in a frozen manifest.</li></ul></div>
+      {absent}</li></ul></div>
   </div>
 </section>"""
 
 
+# =============================================================================
+# the other arms (tools/llama4_suite.py JSON: counts and statuses only, no text)
+# =============================================================================
+SUITE_NAV = [("s-coverage", "07", "Experiment coverage"), ("s-recycle", "08", "Recycling (RSR)"),
+             ("s-rpe", "09", "Output inversion (RPE)"), ("s-attack", "10", "Known-attack transfer"),
+             ("s-arcs", "11", "Rewording styles at the gate")]
+STATUS_CHIP = {"COMPLETE": "matched-scale", "PENDING": "within-generation", "NOT APPLICABLE": "na",
+               "BLOCKED": "warn", "FAILED": "warn"}
+
+
+def _status(s):
+    head = s.split(" — ")[0]
+    kind = STATUS_CHIP.get(head, "na")
+    cls = "chip chip-warn" if kind == "warn" else f"chip chip-{kind}"
+    return f'<span class="{cls}">{esc(s)}</span>'
+
+
+def _kn(d):
+    if not d or not d.get("n"):
+        return "—"
+    p, lo, hi = wilson(d["k"], d["n"])
+    return f"<b>{d['k']}/{d['n']}</b> · {pct(p)} <span class='ci'>{ci_txt(lo, hi)}</span>"
+
+
+def sec_coverage(new, suite):
+    arms = [("recycle", "Recycling"), ("rpe", "Inversion"), ("canonical", "Canonical")]
+    tabs, panels = [], []
+    for i, (arm, title) in enumerate(arms):
+        cells = [c for c in suite["cells"] if c["arm"] == arm]
+        n_done = sum(c["status"].startswith("COMPLETE") for c in cells)
+        rows = [[esc(BENCH_LABEL.get(c["bench"], c["bench"])), f"{esc(label(c['old']))} → {esc(short(new))}",
+                 c.get("pminus", c.get("p_minus_stored", "")), _status(c["status"]), esc(c["why"])] for c in cells]
+        tid = f"c-{arm}"
+        tabs.append(_tab(tid, title, f"{n_done} of {len(cells)} complete", i == 0))
+        panels.append(f'<div class="tabpanel" role="tabpanel" id="panel-{tid}" aria-labelledby="tab-{tid}"'
+                      f'{"" if i == 0 else " hidden"}><div class="panel"><h3>{esc(title)}: every benchmark × older '
+                      f'model</h3>{table(["Benchmark", "Pair", "P⁻", "Status", "Evidence"], rows, num_cols=(2,))}</div></div>')
+    a = suite["attack"]
+    other = [["Known-attack transfer", _status(a["status"]), esc(a["why"])],
+             ["Rewording styles at the gate", _status(suite["style_arcs"]["status"]),
+              esc(", ".join(Path(f).name for f in suite["style_arcs"]["files"]) or "not drawn")]]
+    other += [[esc(x["arm"]), _status(x["status"]), esc(x["why"])] for x in suite["static"]]
+    return f"""
+<section id="s-coverage" class="sec" aria-labelledby="h-coverage">
+  <h2 id="h-coverage"><span class="sn">07</span>Experiment coverage</h2>
+  <p class="note">Every arm the protocol defines, for every benchmark and older model, with the status that decided it.
+  A scientifically ineligible arm (P⁻ below its floor, an arm registered for another pair) is not a failure, and an
+  unresolved behaviour is never counted as robust. Matrix built by tools/llama4_suite.py on {esc(suite['generated'])}.</p>
+  <div class="tablist" role="tablist" aria-label="Arms">{''.join(tabs)}</div>{''.join(panels)}
+  <div class="panel"><h3>Arms outside the pair grid</h3>{table(["Arm", "Status", "Evidence"], other)}</div>
+</section>"""
+
+
+def sec_recycle(new, suite):
+    rows, cls_rows = [], []
+    for c in suite["cells"]:
+        if c["arm"] != "recycle" or "rsr" not in c:
+            continue
+        r = c["rsr"]
+        pair = f"{esc(BENCH_LABEL.get(c['bench'], c['bench']))} · {esc(label(c['old']))} → {esc(short(new))}"
+        m = c.get("manifest", {})
+        rows.append([pair, c["p_minus_stored"], c.get("p_minus_rejudged", "—"), r["n_p_minus"],
+                     _kn({"k": r["k_recovered"], "n": r["n_p_minus"]}), r["n_unresolved"], r["mean_admitted"],
+                     f"{m.get('admitted', '—')}/{m.get('variants', '—')}"])
+        by = c.get("scout_variants_by_class") or {}
+        cls_rows.append([pair] + [f"{by[t]['reopened']}/{by[t]['admitted']}" if t in by else "0/0"
+                                  for t in ("paraphrase", "syntactic", "lexical", "back_translation",
+                                            "tense_shift", "register")])
+    if not rows:
+        return ""
+    head = ["Pair", "P⁻ stored", "P⁻ re-judged", "P⁻ in run", "RSR raw · Wilson", "Unresolved",
+            "Admitted / fix", "Gate admits"]
+    return f"""
+<section id="s-recycle" class="sec" aria-labelledby="h-recycle">
+  <h2 id="h-recycle"><span class="sn">08</span>Recycling (RSR)</h2>
+  <p class="note">The three pairs whose judged P⁻ reaches the driver's floor ({suite['recycle_floor']}); none reaches the
+  confirmatory {suite['confirmatory_floor']}, so every RSR here is <b>descriptive and exploratory</b>, raw, post hoc and
+  scale-confounded. Each pair froze its own manifest (qwen2.5:3b, 8 rewordings over 6 styles, production gate), then
+  re-screened both models on it with fresh canonical draws on the same GPU: that re-screen is why "P⁻ in run" can be
+  smaller than the screened P⁻. "P⁻ re-judged" is the experiment driver re-judging the cached canonical replies on the
+  cluster: where it differs from the stored figure, the judge scored a reply differently in another environment.</p>
+  <div class="panel"><h3>RSR per pair</h3>{table(head, rows, num_cols=(1, 2, 3, 5, 6))}</div>
+  <div class="panel"><h3>{esc(short(new))} rewordings that re-opened, per style (variant level)</h3>
+  {table(["Pair", "paraphrase", "syntactic", "lexical", "back_translation", "tense_shift", "register"], cls_rows)}
+  <p class="note">Re-opening / admitted variants for every subset behaviour. Variant counts are descriptive only and are
+  never an RSR denominator.</p></div>
+</section>"""
+
+
+def sec_rpe(new, suite):
+    tabs, panels = [], []
+    benches = [b for b in ("advbench", "harmbench", "strongreject")
+               if any(c["arm"] == "rpe" and c["bench"] == b for c in suite["cells"])]
+    for i, b in enumerate(benches):
+        rows = []
+        for c in suite["cells"]:
+            if c["arm"] != "rpe" or c["bench"] != b or "admission" not in c:
+                continue
+            a = c["admission"]
+            rows.append([f"{esc(label(c['old']))} → {esc(short(new))}", c["p_minus_stored"], c["candidates"],
+                         _kn(a.get("gate")), a["gate"]["unresolved"], _kn(a.get("loop")), a["loop"]["unresolved"],
+                         _kn(a.get("both")), a["both"]["unresolved"]])
+        tid = f"r-{b}"
+        tabs.append(_tab(tid, BENCH_LABEL.get(b, b), f"{len(rows)} pairs with fixes", i == 0))
+        body = (table(["Pair", "P⁻", "Candidates", "A_gate", "unres.", "A_loop", "unres.", "A_both", "unres."], rows,
+                      num_cols=(1, 2, 4, 6, 8)) if rows else '<p class="note">No pair has a fix on this benchmark.</p>')
+        panels.append(f'<div class="tabpanel" role="tabpanel" id="panel-{tid}" aria-labelledby="tab-{tid}"'
+                      f'{"" if i == 0 else " hidden"}><div class="panel"><h3>{esc(BENCH_LABEL.get(b, b))}: PRR under '
+                      f'three admission rules</h3>{body}</div></div>')
+    return f"""
+<section id="s-rpe" class="sec" aria-labelledby="h-rpe">
+  <h2 id="h-rpe"><span class="sn">09</span>Output inversion (RPE)</h2>
+  <p class="note">For each fix, qwen2.5:14b reconstructs the request from the older model's own compliant answer (8
+  candidates); {esc(short(new))} answers the admitted reconstructions. <b>A_gate</b>: the recycle arm's intent gate
+  against the original request (comparable to RSR). <b>A_loop</b>: the older model's reply to the reconstruction matches
+  its original answer (no intent check, an upper bound). <b>A_both</b>: both. k/n = fixes re-opened / fixes resolved;
+  "unres." = fixes with no admitted reconstruction, never counted as robust. A separate estimand from RSR; raw,
+  exploratory, every n ≤ 7.</p>
+  <div class="tablist" role="tablist" aria-label="Benchmarks">{''.join(tabs)}</div>{''.join(panels)}
+</section>"""
+
+
+def sec_attack(new, suite, root):
+    import attack_transfer_section as ats
+    a = suite["attack"]
+    if a.get("path"):
+        frag = ats.render_fragment(str(root / a["path"]), code="10", heading="Known-attack transfer",
+                                   anchor_id="s-attack")
+        if frag:
+            return frag
+    return f"""
+<section id="s-attack" class="sec" aria-labelledby="h-attack">
+  <h2 id="h-attack"><span class="sn">10</span>Known-attack transfer</h2>
+  <p class="note">{_status(a['status'])} {esc(a['why'])}</p>
+</section>"""
+
+
+def sec_arcs(suite, root):
+    import style_arcs as sa
+    mans = [str(root / c["manifest"]["path"]) for c in suite["cells"] if c.get("manifest")]
+    if not mans:
+        return ""
+    styles = sa.aggregate(mans)
+    return (f'<section id="s-arcs" class="sec">{sa.render_fragment(styles, "nli", section_no="11")}'
+            f'<p class="note">Built from the {len(mans)} frozen Scout manifests above. Gate scores only: no judge, no text.</p>'
+            f'</section>')
+
+
 def render(new, models, benches, prov, args) -> str:
     today = _dt.date.today().isoformat()
-    nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in NAV)
+    nav_items = NAV + (SUITE_NAV if args.suite_data else [])
+    nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in nav_items)
     body = (sec_header(new, models, benches, prov, args, today) + sec_headline(new, models, benches, args.cfg.decision.min_p_minus)
             + sec_models(new, models, benches) + sec_pairs(new, models, benches)
             + sec_cases(new, models, benches, args.redact) + sec_judge(new, benches, args.redact)
             + sec_method(new, models, benches, prov, args))
-    title = f"{label(new)} Canonical Screen"
+    if args.suite_data:
+        s, root = args.suite_data, Path(".")
+        body += (sec_coverage(new, s) + sec_recycle(new, s) + sec_rpe(new, s) + sec_attack(new, s, root)
+                 + sec_arcs(s, root))
+    title = f"{label(new)} Study" if args.suite_data else f"{label(new)} Canonical Screen"
     foot = ("Generated by tools/llama4_dashboard.py · recyclebench. "
             + ("Prompt and response text is omitted in this build. " if args.redact else
                "Contains benchmark prompts and model responses (collapsed, truncated): a working file, not a released "
@@ -358,7 +517,11 @@ def main(argv=None):
     ap.add_argument("--run-dir", required=True, help="the llama4_canonical.sh run dir (provenance, output)")
     ap.add_argument("--redact", action="store_true", help="omit every prompt and response text")
     ap.add_argument("--out", default=None, help="default: <run-dir>/dashboard_llama4_<stamp>.html (never overwrites)")
+    ap.add_argument("--suite", default=None,
+                    help="tools/llama4_suite.py JSON: adds the coverage matrix, recycling, inversion, attack-transfer "
+                         "and style sections (counts only, so --redact needs no change)")
     args = ap.parse_args(argv)
+    args.suite_data = json.loads(Path(args.suite).read_text(encoding="utf-8")) if args.suite else None
 
     args.cfg = cfg = Config.load(args.config)
     if args.new not in cfg.lineage:

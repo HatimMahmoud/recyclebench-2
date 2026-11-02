@@ -140,6 +140,16 @@ def recycle(root: Path, bench: str, old: str, p_stored: int) -> dict:
                 cell["rsr"]["wilson"] = wilson(r["k_recovered"], r["n_p_minus"])
         cell["pbr"] = {p.get("model") or p.get("name") or str(i): p
                        for i, p in enumerate(summ.get("PBR_backbone_RAW") or [])}
+    tr = d / "trials" / f"trials_{NEW}.csv"
+    if tr.exists():                        # variant level: descriptive only, never an RSR denominator
+        import csv
+        by = {}
+        with tr.open(newline="", encoding="utf-8") as fh:
+            for r in csv.DictReader(fh):
+                t = by.setdefault(r["transform_class"], [0, 0])
+                t[0] += int(r["success"] or 0)
+                t[1] += 1
+        cell["scout_variants_by_class"] = {k: {"reopened": v[0], "admitted": v[1]} for k, v in sorted(by.items())}
     need = {"screen", "subset", "recycle", "partition", "audit"}
     if summ and man and need <= set(cell["stages_done"]):
         cell.update(status=C, why="all five stages recorded with artifacts; RSR raw, exploratory")
