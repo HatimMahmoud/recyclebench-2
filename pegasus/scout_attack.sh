@@ -15,6 +15,11 @@
 # The judge runs inline beside Scout (67 GB + 9 GB), hence a >80 GB GPU. Responses are cached in
 # cache/llama4_scout/attack_transfer.jsonl (never the shared cache/attack_transfer.jsonl); verdicts are
 # not cached by this tool, so a resubmission after a timeout re-judges (minutes) but never re-generates.
+#
+# Too slow for one job (~10 s/call on 2 x A100-80GB, ~9,900 calls): shard it by class (docs/pegasus/LESSONS.md
+# §4b.7). Each shard runs tools/run_attack_transfer.py on its classes with its own cache, seeded from
+# $CACHE; merge the shards into $CACHE with tools/cache_consolidate.py; then run this script once more. Every
+# reply is then a cache hit, Scout never loads, and all classes share one baseline and one judge pass.
 set -euo pipefail
 CFG=configs/llama4_pegasus.yaml
 OUT=results/runs/llama4_scout/attack_transfer
@@ -36,7 +41,7 @@ EOF
 echo "$CLASSES" | tr ' ' '\n' > "$OUT/classes.txt"
 echo "classes ($(wc -l < "$OUT/classes.txt")): $CLASSES"
 
-python3 tools/run_attack_transfer.py --config "$CFG" --model llama4-scout --classes $CLASSES \
+python3 -u tools/run_attack_transfer.py --config "$CFG" --model llama4-scout --classes $CLASSES \
     --cache "$CACHE" --judge-against original \
     --out "$OUT/llama4-scout_judged_original_$(date +%Y%m%d_%H%M).json"
 echo "done $(date -Is)"

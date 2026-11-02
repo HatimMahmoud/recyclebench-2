@@ -82,6 +82,47 @@ sbatch -p RTXA6000 --gpus=0 --mem=16G --time=00:20:00 pegasus/run.sbatch \
 9. **Wrong Grafana filter.** A saved link filtered `var-partition=batch`, so jobs on other partitions looked
    missing. Use `$__all`.
 
+## 4b. The Llama 4 Scout suite (2026-11-01/02): what broke, what it costs
+
+Run as `llama4-scout-suite` (`pegasus/scout_{prefetch,recycle,rpe,attack}.sh`, `experiments/llama4_scout/`,
+`tools/llama4_suite.py`); the chain is logged in `/netscratch/$USER/recyclebench/logs/scout_chain.txt`.
+
+1. **Code reaches Pegasus as a `git bundle`.** The clone's HTTPS remote needs browser auth. `git bundle create
+   x.bundle <have>..<branch> main` locally, `scp` it to `/netscratch`, `git fetch x.bundle ...` in a CPU job. Every
+   run then records a real `code_revision`. For a build or a validation, clone the exact commit into
+   `/netscratch/.../src/<rev>` and point `RB_REPO` at it: it does not have to wait for a job using the home clone.
+2. **This Slurm ignores `SBATCH_DEPENDENCY`**, and `--dependency=afterok:<id>` on a job that finished long ago is
+   refused ("Job dependency problem"). Pass `--dependency` explicitly, only on jobs still known to Slurm.
+3. **A stopped local orchestrator can survive.** One that was stopped still submitted a duplicate chain an hour
+   later, including a rebuild of the validated image path. Anything that may run twice now takes an atomic
+   `mkdir` lock on `/netscratch/$USER/recyclebench/locks/<name>.d` and exits if it is held (the lock is released by
+   an EXIT trap). Use the same lock for **twin jobs**: one job per hardware shape (1 GPU > 80 GB, or 2 × 80 GB),
+   whichever starts first runs, the other exits in a minute; cancel the pending twin when one starts.
+4. **The gate image needs memory.** `pip` installs cleanly, then podman is OOM-killed committing the torch/CUDA layer
+   at 24G: `RB_BUILD_MEM=96G`. The image is 10.9 GB, and **unpacking it at job start needs ~16 GB**: an 8 GB job is
+   OOM-killed in `unsquashfs` before the command runs.
+5. **The gate layer was not locked.** `WITH_GATE=1` installed torch/sentence-transformers without the lock file, so
+   numpy/scipy/pandas could move. It is now `-c requirements-lock.txt`; `env_check --strict` passes in the image.
+   **The byte-reproducibility test now passes in the container** (246 passed, 0 failed); locking and thread pinning
+   changed together, so which of the two fixed it is not separable.
+6. **One Scout plus the judge needs more than 80 GB.** On one 80 GB card Ollama swaps Scout (67 GB, ~8 min from
+   `/netscratch`) and qwen2.5:14b. Phase-separated tools (RPE) tolerate it; tools that judge inline (run-real,
+   attack transfer) need 1 card > 80 GB (B200, RTXB6000, H200) or 2 × 80 GB. **Ollama 0.40.12 runs on B200**
+   (compute 10.0). `pegasus/gpu_guard.sh` stops a job whose judge is not 100 % on the GPU.
+7. **Attack transfer is the long arm:** ~10 s per call (Scout + inline judge) on 2 × A100-80GB, ~9,900 calls. Shard by
+   class (classes are independent): each shard seeds its own cache from the arm's cache, then merge
+   (`cache_consolidate.py`) and run `scout_attack.sh` once more, which hits the cache and only judges, so every class
+   shares one baseline and one judging environment.
+8. **The driver plans once per invocation.** On a fresh run `subset` and `recycle` are skipped as "needs screen
+   first" even after screen succeeded; `scout_recycle.sh` re-invokes `experiment run` until a pass runs nothing.
+9. **A job-id shard breaks resume.** `experiment.sbatch` named the cache shard after `$SLURM_JOB_ID`, so a
+   resubmission started an empty shard. `RB_SHARD=` (set, empty) runs unsharded; a shard is for concurrent jobs only.
+10. **Fair-share moves estimates by days.** After a night of use, a B200 start went from "now" to 11 Nov while seven
+    B200 GPUs sat idle (a higher-priority array). Check `sbatch --test-only` for several shapes and submit twins.
+11. **Python output in job logs is block-buffered.** Progress lines arrive in bursts or at exit: use `python3 -u`.
+12. **On Windows, use `PYTHONUTF8=1`** for any local rebuild: under cp1252 one StrongREJECT prompt decodes differently,
+    its cache key misses, and the count silently drops 313 → 312.
+
 ## 5. Things that differ from the Mac runs (record them, don't hide them)
 
 - CUDA vs Metal, Ollama 0.40.12 here vs whatever the Mac has: new responses are a separate environment.
@@ -91,15 +132,20 @@ sbatch -p RTXA6000 --gpus=0 --mem=16G --time=00:20:00 pegasus/run.sbatch \
 - Temperature 0 with three seeded draws still gives differing draws on GPU (e.g. AdvBench jbb-0000: R, C, C), so
   "any of k draws" matters.
 - Tags are not digests: `llama3:8b` pulled on Pegasus in 2026 may not be the blob the Mac pulled months earlier.
-  Compare `ollama list` IDs before letting Pegasus regenerate anything for the six old models.
+  Compare `ollama list` IDs before letting Pegasus regenerate anything for the six old models. **Still open:** no Mac
+  digest is recorded anywhere in the repo; the Scout recycle and RPE runs regenerated old-model replies on Pegasus,
+  so they are internally consistent (both models, one environment) but not tied to the Mac's old-model blobs.
+- The judge is not environment-invariant either. Re-judging the identical cached canonical replies on a B200 gave
+  HarmBench llama3-8b → Scout P⁻ = 8 against the stored 7 (one verdict moved); AdvBench and HarmBench llama32-3b
+  reproduced exactly (6, 5). Report re-judged figures beside stored ones, never silently replace them.
 
 ## 6. Cleanup list for the next person
 
 Ordered by how much they get in the way of a seamless run.
 
-1. **Merging results back is manual.** `tools/cache_consolidate.py` merges response caches (`{k, t}`) only; verdict
-   stores (`{k, v}`) need the same append-only merge. Then document one `sync_from_pegasus.sh` (rsync
-   `results/runs/` with `--ignore-existing`, caches into a staging dir, consolidate).
+1. **Merging results back is manual.** `tools/cache_consolidate.py` now merges verdict stores too (13744c3); still
+   missing is one `sync_from_pegasus.sh` (rsync `results/runs/` with `--ignore-existing`, caches into a staging dir,
+   consolidate).
 2. **Parallel jobs and the shared cache.** Two jobs must never append to the same JSONL (`fill_responses.py`
    has a lock file; the verdict stores have none). Today the second job writes a side cache and skips judging, and
    someone merges and judges later by hand. Make that a supported mode: per-job cache shards
@@ -108,20 +154,16 @@ Ordered by how much they get in the way of a seamless run.
    (e.g. `pegasus/canonical_screen.sh`) and take the config from `RB_CONFIG`.
 4. **Provenance gaps.** Add `ollama show --modelfile` per model, the image digest, the git commit, and copy the
    provenance file into every run dir (only the report step does it now).
-5. **Container test failure.** `tests/test_recycling.py::test_study_is_byte_reproducible_under_same_seed` fails
-   inside the image (136 other tests passed before `-x` stopped). Strong hint that it is BLAS threading: on a Windows
-   Anaconda the same test aborts inside `numpy.dot` unless `MKL_NUM_THREADS=1 OMP_NUM_THREADS=1` is set, and then the
-   full suite passes (153 passed; the 2 `test_master_dashboard` failures are Windows path separators and predate this
-   work). Next step: export `OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1` in `pegasus/env.sh` (the
-   Pegasus known-issues page recommends it anyway, see kb/07) and rerun
-   `sbatch -p RTXA6000 --gpus=0 --mem=16G --time=00:20:00 pegasus/run.sbatch python3 -m pytest tests/ -q`.
+5. ~~**Container test failure.**~~ Resolved 2026-11-01 (§4b.5): in the locked gate image with pinned BLAS threads
+   the full suite passes, the byte-reproducibility test included.
 6. **The 70B lineage is downloaded but not configured.** `llama2:70b`, `llama3:70b`, `llama3.1:70b`, `llama3.3:70b`
    are in `/netscratch/…/ollama`; add config keys, `MODEL_META` entries in `tools/lineage_core.py`, and pick
    48 GB+ GPUs (a 70B q4 is ~40–43 GB).
 7. **SORRY-Bench is missing on Pegasus.** Gated on Hugging Face: accept the licence, export `HF_TOKEN`, run
    `tools/prepare_sorrybench.py` in a job. The scripts skip a benchmark whose CSV is absent.
-8. **Rewording arm (RSR/PBR) for Llama 4.** Needs Llama 4 in a frozen manifest; the frozen manifests live only on
-   the Mac. Copy them over (they hold harmful text: `/netscratch`, `chmod 600`).
+8. **Rewording arm (RSR/PBR) for Llama 4.** Done for Scout's three eligible pairs on their own frozen manifests
+   (§4b). Still blocked: PBR and RSR for every pair on the *lineage's* frozen manifests, which live only on the Mac.
+   Copy them over (they hold harmful text: `/netscratch`, `chmod 600`).
 9. **`fill_responses.py` should create a missing cache itself** instead of relying on the caller's `touch`.
 10. **Pin and record the Ollama version in one place.** It is `RB_OLLAMA_VERSION` in `env.sh` and the Dockerfile
     `ARG`; the build script passes one to the other. Keep it that way; bump both by rebuilding the image.
