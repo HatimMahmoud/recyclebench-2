@@ -5,6 +5,9 @@ export RB_SCRATCH=${RB_SCRATCH:-/netscratch/$USER/recyclebench}
 export RB_OLLAMA_VERSION=${RB_OLLAMA_VERSION:-0.40.12}
 export RB_IMAGE=${RB_IMAGE:-$RB_SCRATCH/images/recyclebench_ollama-$RB_OLLAMA_VERSION.sqsh}
 export RB_LOGS=$RB_SCRATCH/logs
+# The image has no git: read HEAD here on the host (srun passes the environment into the container, where
+# this line keeps the inherited value), so the experiment driver can record its code revision.
+export RECYCLEBENCH_CODE_REVISION=${RECYCLEBENCH_CODE_REVISION:-$(git -C "$RB_REPO" rev-parse HEAD 2>/dev/null || true)}
 
 export OLLAMA_MODELS=$RB_SCRATCH/ollama          # ~475 GB with Scout, Maverick, the 70B lineage; no backup, re-pullable
 export OLLAMA_MAX_LOADED_MODELS=2                # target + judge resident (CLAUDE.md)

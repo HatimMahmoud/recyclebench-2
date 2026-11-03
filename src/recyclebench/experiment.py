@@ -65,7 +65,12 @@ def _sha256_text(s: str) -> str:
 
 
 def code_revision() -> str:
-    """git HEAD, or 'unknown' outside a checkout. Recorded so a resume can refuse a code change."""
+    """git HEAD; else RECYCLEBENCH_CODE_REVISION; else 'unknown'. Recorded so a resume can refuse a change.
+
+    The cluster image has no git, so inside a job `git rev-parse` fails: pegasus/run.sbatch and
+    experiment.sbatch read HEAD on the host and pass it in (the Scout recycle runs of 2026-11-02
+    recorded 'unknown' before this fallback existed).
+    """
     try:
         out = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
                              capture_output=True, text=True, timeout=10)
@@ -73,7 +78,7 @@ def code_revision() -> str:
             return out.stdout.strip()
     except (OSError, subprocess.SubprocessError):
         pass
-    return "unknown"
+    return os.environ.get("RECYCLEBENCH_CODE_REVISION") or "unknown"
 
 
 @dataclass
