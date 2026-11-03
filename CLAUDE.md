@@ -176,6 +176,15 @@ replaces `llama4_canonical.sh` and takes `RB_CONFIG`. **Unverified on hardware i
 job was submitted, so every cluster claim here rests on the earlier session's runs plus syntax and
 render checks.
 
+**External corpora on every model (2026-11-03, `PREREG_EXTERNAL_CLUSTER_20261103.md`, draft until signed).**
+GuidedBench, ScienceSafetyData and JBB-Behaviors on all eight models (six dense + Llama 4 Scout + Maverick), 19 pairs,
+canonical → recycle → RPE → arcs. `tools/external_suite.py` is its single source of truth: corpora with registered
+fingerprints, pairs and job groups, generated per-pair configs (`configs/{lineage_pairs,llama4_scout,llama4_maverick}/`,
+`configs --check`) and 57 specs (`experiments/external/`, `specs --check`), eligibility, and the completion matrix.
+`bash pegasus/external_submit.sh [--submit] [--only ...]` prints or submits the whole chain;
+runbook `docs/EXTERNAL_CORPORA_CLUSTER.md`. Isolated like any new corpus: `cache/external/` (gitignored),
+`results/runs/external/`, not in `study_data`, on no dashboard. The Mac's model IDs: `docs/pegasus/MAC_OLLAMA_IDS_20261103.md`.
+
 ## Configs
 `real_llama_lineage_all.yaml` holds the 6-model lineage (`llama2-7b → llama2-13b → llama3-8b → llama31-8b →
 llama32-1b → llama32-3b`) and the seed the lineage cache was built with. `recycle_3_31.yaml` holds the

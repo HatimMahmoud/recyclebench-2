@@ -33,3 +33,6 @@ cache/judge_sciencesafety_*.jsonl
 cache/rpe_gate_sciencesafety_*.jsonl
 # derived macro file for the standalone thesis preview (tools/thesis_numbers.py)
 docs/thesis/thesis_numbers_latest.tex
+# external-corpora run on Pegasus (PREREG_EXTERNAL_CLUSTER_20261103.md): new populations stay isolated, like the
+# ScienceSafetyData pilot above -- their caches hold model replies to harmful requests and are never committed
+cache/external/

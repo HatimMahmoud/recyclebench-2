@@ -1,0 +1,113 @@
+# =====================================================================
+# llama3-8b -> llama4-maverick release pair, generated from configs/llama4_pegasus.yaml
+# by tools/external_suite.py for the external-corpora run (PREREG_EXTERNAL_CLUSTER_20261103.md).
+#
+# Byte-identical to that config except this header and `lineage:`. run-real screens every
+# lineage model and pairs ADJACENT rungs only, so the pair has to be the whole lineage. Seed,
+# judges, gate, budgets, transform classes, paraphraser and model endpoints are unchanged, so
+# cache keys and verdicts are shared with every other run of that config.
+# Design: post hoc, scale-confounded (400B MoE, 17B active, vs dense <= 13B). EXPLORATORY, raw, never pooled with the registered pairs.
+# =====================================================================
+seed: 20260101
+
+lineage:
+  - llama3-8b
+  - llama4-maverick
+
+real:
+  llama2-7b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama2:7b
+    temperature: 0.0
+    max_tokens: 512
+  llama2-13b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama2:13b
+    temperature: 0.0
+    max_tokens: 512
+  llama3-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3:8b
+    temperature: 0.0
+    max_tokens: 512
+  llama31-8b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.1:8b
+    temperature: 0.0
+    max_tokens: 512
+  llama32-1b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.2:1b
+    temperature: 0.0
+    max_tokens: 512
+  llama32-3b:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama3.2:3b
+    temperature: 0.0
+    max_tokens: 512
+  llama4-scout:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama4:17b-scout-16e-instruct-q4_K_M   # = llama4:scout, pinned to its quantisation
+    temperature: 0.0
+    max_tokens: 512
+    timeout: 600.0     # first call loads 67 GB from /netscratch
+  llama4-maverick:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: llama4:17b-maverick-128e-instruct-q4_K_M   # = llama4:maverick (sha256:ecdedd393ed1), 245 GB
+    temperature: 0.0
+    max_tokens: 512
+    timeout: 1800.0    # first call loads 245 GB from /netscratch (~20 min)
+
+# offline RuleBasedJudge fallback (no 'judges:' block) — pilot-grade screening.
+# A headline needs a calibrated non-Llama judge (add judges: + judge-export/ingest).
+
+paraphraser:
+  provider: openai_compatible
+  base_url: http://localhost:11434/v1
+  model_id: qwen2.5:3b        # non-Llama -> decorrelated from the target lineage
+  temperature: 0.7
+  max_tokens: 256
+
+gate:
+  cosine: 0.75
+  bertscore: 0.85
+  nli_entail: 0.60
+  llm_intent: 0.50
+
+budget:
+  k_canonical_samples: 3
+  paraphrases_per_behaviour: 8
+  samples_per_variant: 1
+
+decision:
+  min_p_minus: 30
+  pi_star: 0.15
+  kappa_floor: 0.60
+  delta_util: 0.05
+
+store_raw: false
+
+# --- added so the lineage recycle run matches the calibrated anchor ---
+transform_classes:
+  - paraphrase
+  - syntactic
+  - lexical
+  - back_translation
+  - tense_shift
+  - register
+
+judges:
+  rubric:
+    provider: openai_compatible
+    base_url: http://localhost:11434/v1
+    model_id: qwen2.5:14b
+    temperature: 0.0
+    max_tokens: 4

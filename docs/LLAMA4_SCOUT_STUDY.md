@@ -82,5 +82,7 @@ attack output is ~0.07, so this arm is under-counted (THESIS_KB §4.3).
 1. Copy `data/sorrybench.csv` and the lineage's frozen manifests from the Mac to `/netscratch` (chmod 600), then
    screen Scout on SORRY-Bench and re-screen it on the lineage manifests (RSR for every pair, PBR).
 2. Label `audit/llama4_scout__*/judge_sheet.csv` before any corrected Scout figure.
-3. Record the Mac's `ollama list` IDs to close the old-model identity question.
+3. ~~Record the Mac's `ollama list` IDs~~ Recorded in `docs/pegasus/MAC_OLLAMA_IDS_20261103.md`. The four Pegasus
+   IDs above (llama3:8b, llama3.2:3b, qwen2.5:14b, qwen2.5:3b) match the Mac. llama2:7b, llama2:13b, llama3.1:8b
+   and llama3.2:1b remain to be compared against any job's `provenance_<job>.txt`.
 4. Maverick: 3,699 canonical replies in `cache/llama4_maverick.jsonl` (job 3689042) await merge + judge + report.

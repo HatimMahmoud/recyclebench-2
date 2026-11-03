@@ -28,10 +28,14 @@ STEPS=${RB_STEPS:-"generate judge report"}
 # Per-benchmark verdict store. RB_STORE_DIR relocates them for a side run; the defaults are the
 # stores the existing judged figures were built from, so a normal run keeps accumulating there.
 SD=${RB_STORE_DIR:-cache}
+# guidedbench / sciencesafety / jbb: the external-corpora run (pegasus/external_canonical.sh, RB_STORE_DIR=cache/external)
 declare -A STORE=([sorrybench]=$SD/judge_lineage_sorrybench.jsonl
                   [harmbench]=$SD/judge_qwen_harmbench.jsonl
                   [advbench]=$SD/judge_qwen_advbench.jsonl
-                  [strongreject]=$SD/judge_qwen_strongreject.jsonl)
+                  [strongreject]=$SD/judge_qwen_strongreject.jsonl
+                  [guidedbench]=$SD/judge_qwen_guidedbench.jsonl
+                  [sciencesafety]=$SD/judge_qwen_sciencesafety.jsonl
+                  [jbb]=$SD/judge_qwen_jbb.jsonl)
 EMPTY=$(mktemp); trap 'rm -f "$EMPTY"' EXIT          # canonical scope needs no manifest
 mkdir -p "$(dirname "$CACHE")"; touch "$CACHE"       # a side cache (RB_CACHE) starts empty
 
