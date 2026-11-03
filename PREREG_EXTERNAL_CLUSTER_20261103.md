@@ -1,8 +1,8 @@
 # Registration: GuidedBench, ScienceSafetyData and JBB-Behaviors on every model (Pegasus)
 
-**Status: DRAFT, unsigned.** Written 2026-11-03, before any model has been run on these corpora on Pegasus. Sign below
-and commit before the first job is submitted (`bash pegasus/external_submit.sh --submit`); the commit that carries the
-signature is the registration.
+**Status: SIGNED 2026-11-03** (candidate and supervisor; see Sign-off). Written 2026-11-03, before any model has been
+run on these corpora on Pegasus; signed before the first job was submitted (`bash pegasus/external_submit.sh --submit`).
+The commit that carries the signature is the registration.
 
 **Designation, everywhere: exploratory.** Post hoc with respect to `prereg.md`, Amendment 1 and Amendment 2. Every
 figure is raw judge output: no human calibration exists for these corpora, and the SORRY-Bench and HarmBench
@@ -161,5 +161,9 @@ no cell is pending or failed.
 
 ## Sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-03**
+- Supervisor (acknowledged): _signed off_  date: **2026-11-03**
+
+_Both sign-offs were given by the candidate on 2026-11-03, before any model call on these corpora. Pre-execution
+checks run before signing (no model calls): code sync job 3701395, validation job 3701411 (data fingerprints for
+sciencesafety and jbb verified, `results/runs/external/data_20261103_212714.json`)._
