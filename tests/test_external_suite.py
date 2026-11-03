@@ -8,12 +8,19 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 import external_suite as s                                      # noqa: E402
 from recyclebench.experiment import ExperimentSpec              # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _all_corpora(monkeypatch):
+    """A job may export RB_CORPORA; the tests always see the registered corpora unless they narrow it."""
+    monkeypatch.setattr(s, "SELECTED", tuple(s.CORPORA))
 
 
 # ---------------- design ----------------
