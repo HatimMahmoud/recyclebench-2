@@ -51,6 +51,11 @@ load one model at a time, so 80 GB is enough there, except for Maverick.
 The time requests come from the Scout suite's measured rates: 3 s per Scout call, 6.6 s on long answers, about 10 s with
 an inline judge. They are upper bounds, not estimates. Every step resumes, so a timeout costs only a resubmission.
 
+**One corpus at a time.** `RB_CORPORA=sciencesafety bash pegasus/external_submit.sh --submit` runs the same chain
+for a subset of the registered corpora; every job inherits the variable. The matrix still lists all three, so a
+corpus left out shows as PENDING or BLOCKED. A later run of the remaining corpora reuses the same caches (keys
+differ by prompt) and writes a new dated canonical report.
+
 ## Check, resume, finish
 
 - **Progress.** `results/runs/external/matrix_<stamp>.md` (job F, or `python3 tools/external_suite.py matrix` at any

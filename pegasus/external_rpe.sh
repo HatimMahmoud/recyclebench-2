@@ -21,7 +21,7 @@ C=cache/external
 OUT=results/runs/external/rpe
 GATE=$C/rpe_gate.jsonl
 MIN=${RB_MINUTES:-300}                                  # per-phase budget, minutes (resumable past it)
-CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.CORPORA))")
+CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.SELECTED))")
 export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1 TOKENIZERS_PARALLELISM=false PYTHONUNBUFFERED=1
 export HF_HUB_OFFLINE=1                                  # gate models are prefetched into $HF_HOME
 mkdir -p "$C" "$OUT"

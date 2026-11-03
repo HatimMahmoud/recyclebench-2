@@ -7,7 +7,7 @@
 set -uo pipefail
 C=cache/external
 OUT=results/runs/external
-CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.CORPORA))")
+CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.SELECTED))")
 export TRANSFORMERS_VERBOSITY=error HF_HUB_DISABLE_PROGRESS_BARS=1 PYTHONUNBUFFERED=1
 STAMP=$(date +%Y%m%d_%H%M)
 EMPTY=$C/empty_manifest.jsonl; : > "$EMPTY"

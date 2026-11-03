@@ -15,6 +15,10 @@ from it or read it, so a pair cannot be in one place and missing from another.
   list      what a job runs: --pairs (rpe_lineage format), or --specs [--group G] [--eligible]
   matrix    the completion matrix: every corpus x pair x arm gets one status, with the evidence that decided it
 
+RB_CORPORA (comma list, default all three) narrows what data / report / list and the pegasus/external_*.sh jobs
+act on, so one corpus can run while another's CSV is still missing. The matrix always covers all three: a corpus
+left out stays PENDING or BLOCKED there, never silently absent.
+
 No harmful text is printed or written: every output is counts, ids and hashes.
 
   python3 tools/external_suite.py configs --check && python3 tools/external_suite.py specs --check
@@ -29,6 +33,7 @@ import argparse
 import datetime as _dt
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -72,6 +77,17 @@ CORPORA = {
         "source": "JailbreakBench/JBB-Behaviors (Hugging Face), harmful split",
     },
 }
+
+
+def _selected() -> tuple:
+    names = tuple(c for c in os.environ.get("RB_CORPORA", "").replace(" ", ",").split(",") if c)
+    bad = [c for c in names if c not in CORPORA]
+    if bad:
+        raise SystemExit(f"RB_CORPORA: unknown corpus {bad} (registered: {', '.join(CORPORA)})")
+    return names or tuple(CORPORA)
+
+
+SELECTED = _selected()        # what this invocation acts on (RB_CORPORA); CORPORA stays the registration
 
 DENSE = ("llama2-7b", "llama2-13b", "llama3-8b", "llama31-8b", "llama32-1b", "llama32-3b")
 MODELS = DENSE + ("llama4-scout", "llama4-maverick")
@@ -230,9 +246,10 @@ def fingerprint(csv_path: Path) -> dict:
             "file_sha256": hashlib.sha256(csv_path.read_bytes()).hexdigest()}
 
 
-def data_check(root: Path, build: bool) -> dict:
+def data_check(root: Path, build: bool, corpora=None) -> dict:
     out = {}
-    for corpus, reg in CORPORA.items():
+    for corpus in (CORPORA if corpora is None else corpora):
+        reg = CORPORA[corpus]
         p = root / "data" / f"{corpus}.csv"
         if not p.exists() and build and reg["build"]:
             print(f"building data/{corpus}.csv: {' '.join(reg['build'])}")
@@ -306,7 +323,7 @@ def eligible_specs(root: Path, group=None, rep_path=None) -> list:
     if not rep_path:
         raise SystemExit(f"no {RUN_ROOT}/canonical_*.json: run the canonical job (external_suite.py report) first")
     out = []
-    for corpus in CORPORA:
+    for corpus in SELECTED:
         pairs = _pairs_of(rep_path, corpus)
         for old, new, g, _ in PAIRS:
             c = pairs.get(f"{old}->{new}")
@@ -503,7 +520,7 @@ def main(argv=None) -> int:
     sr = sub.add_parser("report")
     sr.add_argument("--config", default=BASE_CONFIG)
     sr.add_argument("--cache", default=CANONICAL_CACHE)
-    sr.add_argument("--corpora", nargs="*", default=list(CORPORA))
+    sr.add_argument("--corpora", nargs="*", default=list(SELECTED))
     sr.add_argument("--out", default=None)
     sl = sub.add_parser("list")
     g = sl.add_mutually_exclusive_group(required=True)
@@ -528,7 +545,7 @@ def main(argv=None) -> int:
         print(f"{args.cmd}: {'ok' if not problems else f'{len(problems)} problem(s)'}")
         return 1 if problems else 0
     if args.cmd == "data":
-        res = data_check(root, args.build)
+        res = data_check(root, args.build, SELECTED)
         for c, d in res.items():
             print(f"{c:14s} {d['status']}: {d['why']}")
         stamp = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -573,7 +590,7 @@ def main(argv=None) -> int:
         elif args.eligible:
             print("\n".join(eligible_specs(root, args.group, args.report)))
         else:
-            print("\n".join(spec_path(c, o, n) for c in CORPORA for o, n, g, _ in PAIRS if args.group in (None, g)))
+            print("\n".join(spec_path(c, o, n) for c in SELECTED for o, n, g, _ in PAIRS if args.group in (None, g)))
         return 0
     if args.cmd == "matrix":
         s = collect(root, args.report)

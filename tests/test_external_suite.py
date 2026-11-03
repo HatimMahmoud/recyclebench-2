@@ -153,3 +153,23 @@ def test_matrix_without_report_and_markdown_cells(tmp_path):
     assert all(c["status"] == s.B for c in res["cells"] if c["arm"] == "canonical")   # no data here
     rows = [ln for ln in s.markdown(res).splitlines() if ln.startswith("| jbb |") and "→" in ln]
     assert len(rows) == 19 * 3 and all(ln.replace("\\|", "").count("|") == 8 for ln in rows)
+
+
+def test_rb_corpora_narrows_the_run_but_never_the_registration(monkeypatch, capsys):
+    import importlib
+    import pytest
+    monkeypatch.setenv("RB_CORPORA", "sciencesafety")
+    m = importlib.reload(s)
+    try:
+        assert m.SELECTED == ("sciencesafety",)
+        assert set(m.CORPORA) == {"guidedbench", "sciencesafety", "jbb"}      # the registration is untouched
+        assert m.main(["list", "--specs", "--group", "dense"]) == 0
+        listed = capsys.readouterr().out.split()
+        assert len(listed) == 7 and all("/sciencesafety__" in x for x in listed)
+        monkeypatch.setenv("RB_CORPORA", "sorrybench")
+        with pytest.raises(SystemExit):
+            importlib.reload(s)
+    finally:
+        monkeypatch.delenv("RB_CORPORA", raising=False)
+        importlib.reload(s)
+    assert s.SELECTED == tuple(s.CORPORA)

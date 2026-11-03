@@ -18,7 +18,7 @@ SET=${2:-all}
 CFG=configs/llama4_pegasus.yaml
 C=cache/external
 MAIN=$C/canonical.jsonl
-CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.CORPORA))")
+CORPORA=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.SELECTED))")
 case "$SET" in
   all)      MODELS=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.MODELS))") ;;
   dense)    MODELS=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import external_suite as e; print(' '.join(e.DENSE))") ;;

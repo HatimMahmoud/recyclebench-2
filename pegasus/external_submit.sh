@@ -18,6 +18,7 @@
 #   end   F        style arcs, inversion reports, completion matrix (runs even when an arm failed)
 #
 # RB_IMAGE defaults to the validated gate image of the Scout suite; RB_PARTS_* override the partition lists.
+# RB_CORPORA=sciencesafety (comma list) runs a subset of the registered corpora; every job inherits it (--export=ALL).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 : "${RB_SCRATCH:=/netscratch/$USER/recyclebench}"
@@ -50,6 +51,9 @@ if [ "$MODE" = submit ]; then
   mkdir -p "$RB_LOGS"
 fi
 LOG=$RB_LOGS/external_submit_$(date +%Y%m%d_%H%M%S).txt
+CORP=${RB_CORPORA:-all registered (guidedbench,sciencesafety,jbb)}    # job D rejects an unknown name
+echo "corpora: $CORP"
+[ "$MODE" = submit ] && echo "corpora $CORP" >> "$LOG"
 declare_ids=""                                             # name=id pairs, bash 3 compatible
 
 id_of() { echo "$declare_ids" | tr ' ' '\n' | sed -n "s/^$1=//p" | tail -1; }
