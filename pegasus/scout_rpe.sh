@@ -32,13 +32,15 @@ export HF_HUB_OFFLINE=1                                  # gate models are prefe
 mkdir -p "$C" "$OUT"
 EMPTY=$C/empty_manifest.jsonl; : > "$EMPTY"
 PAIRS=$(for O in $OLDS; do printf "%s:%s," "$O" "$NEW"; done); PAIRS=${PAIRS%,}
+# canonical verdict store per benchmark, as pegasus/canonical_screen.sh (SORRY-Bench keeps the lineage's own store)
+verdicts() { [ "$1" = sorrybench ] && echo cache/judge_lineage_sorrybench.jsonl || echo "cache/judge_qwen_$1.jsonl"; }
 python3 tools/env_check.py --strict
 source pegasus/gpu_guard.sh                     # refuse a silent CPU fallback
 
 echo "===== [$(date +%T)] 1. inversion manifests"
 for B in $BENCH; do
   python3 tools/rpe_lineage.py --config "$CFG" --behaviours "data/$B.csv" --manifest "$EMPTY" \
-      --cache cache/llama_gen.jsonl --verdicts "cache/judge_qwen_$B.jsonl" --pairs "$PAIRS" \
+      --cache cache/llama_gen.jsonl --verdicts "$(verdicts "$B")" --pairs "$PAIRS" \
       --benchmark "$B" --out-root "$OUT/$B" --minutes "$MIN"
 done
 
@@ -62,7 +64,7 @@ for B in $BENCH; do
     done
   done
   python3 tools/rpe_lineage_report.py --config "$CFG" --behaviours "data/$B.csv" --manifest "$EMPTY" \
-      --cache cache/llama_gen.jsonl --verdicts "cache/judge_qwen_$B.jsonl" --rpe-root "$OUT/$B" \
+      --cache cache/llama_gen.jsonl --verdicts "$(verdicts "$B")" --rpe-root "$OUT/$B" \
       --pairs "$PAIRS" --out "$OUT/$B/lineage_report_$STAMP.json" || echo "!! report $B exited $?"
 done
 echo "done $(date -Is)"
