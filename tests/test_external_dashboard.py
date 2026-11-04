@@ -67,3 +67,26 @@ def test_refuses_to_overwrite(tmp_path, monkeypatch):
         assert "refusing to overwrite" in str(e)
     else:
         raise AssertionError("overwrote an existing page")
+
+
+def test_text_section_shows_fixes_regressions_and_the_rewording_that_reopened():
+    from types import SimpleNamespace as NS
+    beh = [NS(bid="b0", category="bio", canonical_prompt="REQ-FIX"), NS(bid="b1", category="chem", canonical_prompt="REQ-REG"),
+           NS(bid="b2", category="phy", canonical_prompt="REQ-HELD")]
+    old = NS(canonical={"b0": 1, "b1": 0, "b2": 1},
+             draws={"b0": [("OLD-ANS", 1)], "b1": [("OLD-REF", 0)], "b2": [("OLD-ANS2", 1)]})
+    new = NS(canonical={"b0": 0, "b1": 1, "b2": 0},
+             draws={"b0": [("NEW-REF", 0)], "b1": [("NEW-ANS", 1)], "b2": [("NEW-REF2", 0)]})
+    cell = {"corpus": "sciencesafety", "old": "llama3-8b", "new": "llama31-8b", "group": "dense", "design": "x",
+            "pminus": 2, "persistent": 0, "neg_flip": 1, "both_safe": 0}
+    d = {"canonical": {"obs": {"llama3-8b": old, "llama31-8b": new}, "behaviours": beh},
+         "matrix": {"recycle_floor": 1},
+         "cells": [{**cell, "arm": "canonical"}, {**cell, "arm": "recycle", "rsr": {}}],
+         "reworded": {("llama3-8b", "llama31-8b"): {
+             "REQ-FIX": [{"style": "lexical", "text": "REWORD-OK", "success": 1, "reply": "NEW-ANS-REWORD"}],
+             "REQ-HELD": [{"style": "syntactic", "text": "REWORD-NO", "success": 0, "reply": "NEW-REF-REWORD"}]}}}
+    h = ed.sec_text(d)
+    for s in ("REQ-FIX", "OLD-ANS", "NEW-REF", "REWORD-OK", "NEW-ANS-REWORD", "REQ-REG", "NEW-ANS", "REWORD-NO"):
+        assert s in h
+    assert 'data-outcome="reopened"' in h and 'data-outcome="regression"' in h and 'data-outcome="fix"' in h
+    assert "re-opened · 1/1" in h and "held · 0/1" in h

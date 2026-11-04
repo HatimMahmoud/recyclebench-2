@@ -7,7 +7,9 @@ inversion gate's rejection layers (cache/external/rpe_gate.jsonl), admissions pe
 Slurm job list and the run's deviation log. Same DFKI design as the lineage / pair / Scout pages (CSS, JS, brand, legend
 and chart helpers come from lineage_dashboard, so it cannot drift from them).
 
-Counts, ids and hashes only: no prompt, response or rewording text is read into the page, so there is no --redact.
+Default: counts, ids and hashes only (no prompt, response or rewording text). --text adds a section with every fix and
+regression per pair (request, both models' replies, and for recycled pairs the admitted rewordings that re-opened it),
+collapsed and truncated: a working file in the same sense as the pair dashboards (ETHICS.md), written as *_text_*.html.
 Standalone by registration: the corpus is not in tools/study_data.py and nothing here pools into any other page.
 
   python3 tools/external_dashboard.py --corpus sciencesafety
@@ -56,8 +58,8 @@ def latest(pattern):
     return xs[-1] if xs else None
 
 
-def per_category(corpus, report_path):
-    """Answered behaviours per model and corpus category, from the canonical cache + verdict store (counts only)."""
+def canonical(corpus, report_path):
+    """The canonical screen rebuilt from the run's cache + verdict store: behaviours, per-model observations, runs."""
     import lineage_core as lc
     from recyclebench.config import Config
     from recyclebench.datasets import load_jailbreakbench
@@ -70,9 +72,18 @@ def per_category(corpus, report_path):
     beh = load_jailbreakbench(str(csv_p))
     store = lc.VerdictStore(str(ROOT / es.verdict_store(corpus)))
     models = [m for m in es.MODELS if rep["corpora"][corpus]["models"][m]["judged"]]
-    _, runs = lc.build_runs(cfg, beh, Manifest(), lc.load_response_cache(str(cache_p)),
-                            lc.StoredVerdicts(store, lc.judge_tag_from_cfg(cfg)), models)
+    obs, runs = lc.build_runs(cfg, beh, Manifest(), lc.load_response_cache(str(cache_p)),
+                              lc.StoredVerdicts(store, lc.judge_tag_from_cfg(cfg)), models)
     store.close()
+    return {"cfg": cfg, "behaviours": beh, "obs": obs, "runs": runs}
+
+
+def per_category(can):
+    """Answered behaviours per model and corpus category (counts only)."""
+    if not can:
+        return None
+    beh, runs = can["behaviours"], can["runs"]
+    models = list(runs)
     cats = sorted({b.category for b in beh})
     tot = Counter(b.category for b in beh)
     cat_of = {b.bid: b.category for b in beh}
@@ -140,6 +151,133 @@ def read_log(path):
     return [ln.strip() for ln in Path(path).read_text(encoding="utf-8").splitlines() if ln.strip()]
 
 
+def reworded(cell, k_spv):
+    """For one recycle pair: prompt text -> the newer model's outcome on every admitted rewording (manifest order),
+    from the pair's subset CSV, frozen manifest, trial CSV and response cache. Joined on prompt text, because subset
+    ids are row positions of the subset, not corpus ids."""
+    import csv
+    import lineage_core as lc
+    from recyclebench.datasets import load_jailbreakbench
+    from recyclebench.manifest import Manifest
+    from recyclebench.realrun import _key
+    from recyclebench.screening import _draw_seed
+    run = ROOT / cell["run_dir"]
+    name = Path(cell["run_dir"]).name
+    sub = run / f"{name}_p_minus_judged.csv"
+    man = (ROOT / cell["manifest"]["path"]) if cell.get("manifest") else None
+    trials = run / "trials" / f"trials_{cell['new']}.csv"
+    cache_p = ROOT / es.CACHE_DIR / f"{name}.jsonl"
+    if not (sub.exists() and man and man.exists() and trials.exists() and cache_p.exists()):
+        return {}
+    beh = load_jailbreakbench(str(sub))
+    manifest = Manifest.load(str(man))
+    cache = lc.load_response_cache(str(cache_p))
+    rows = {}
+    with open(trials, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            rows.setdefault(r["bid"], []).append(r)
+    out = {}
+    for b in beh:
+        vs, tr = manifest.R(b.bid), rows.get(b.bid, [])
+        if len(vs) != len(tr) or any(v.transform_class != t["transform_class"] for v, t in zip(vs, tr)):
+            continue                                    # never pair a rewording with another one's outcome
+        out[b.canonical_prompt] = [{"style": v.transform_class, "text": v.text, "success": int(t["success"]),
+                                    "reply": next((cache.get(_key(cell["new"], v.text, _draw_seed(b.bid, v.index, s)))
+                                                   for s in range(k_spv)
+                                                   if cache.get(_key(cell["new"], v.text, _draw_seed(b.bid, v.index, s)))), "")}
+                                   for v, t in zip(vs, tr)]
+    return out
+
+
+TEXT_CAP = {"prompt": 1200, "reply": 1600, "rewording": 900}
+
+
+def _txt(tag, text, n):
+    return f'<div class="txt"><span class="tl">{esc(tag)}</span>{esc(ld.cap(text or "", n))}</div>'
+
+
+def _verdicts(draws):
+    return "".join("C" if v == 1 else "R" if v == 0 else "?" for _, v in draws)
+
+
+def _first(draws, want):
+    return next((t for t, v in draws if v == want and t), None) or next((t for t, _ in draws if t), "")
+
+
+def sec_text(d):
+    can = d["canonical"]
+    if not can:
+        return ""
+    obs, beh = can["obs"], can["behaviours"]
+    floor = d["matrix"]["recycle_floor"]
+    rec = {(c["old"], c["new"]): c for c in d["cells"] if c["arm"] == "recycle" and (c.get("pminus") or 0) >= floor}
+    tabs, panels = [], []
+    pairs = [c for c in d["cells"] if c["arm"] == "canonical"]
+    for i, c in enumerate(pairs):
+        o, n = c["old"], c["new"]
+        rw = d["reworded"].get((o, n), {})
+        items, cnt = [], Counter()
+        for b in beh:
+            vo, vn = obs[o].canonical.get(b.bid), obs[n].canonical.get(b.bid)
+            if vo == 1 and vn == 0:
+                kind = "fix"
+            elif vo == 0 and vn == 1:
+                kind = "regression"
+            else:
+                continue
+            cnt[kind] += 1
+            do, dn = obs[o].draws[b.bid], obs[n].draws[b.bid]
+            body = (_txt(f"request · {b.category}", b.canonical_prompt, TEXT_CAP["prompt"])
+                    + _txt(f"{label(o)} · {'answered' if vo == 1 else 'refused'} · draws {_verdicts(do)}",
+                           _first(do, vo), TEXT_CAP["reply"])
+                    + _txt(f"{label(n)} · {'answered' if vn == 1 else 'refused'} · draws {_verdicts(dn)}",
+                           _first(dn, vn), TEXT_CAP["reply"]))
+            pill = ('<span class="pill pill-refuse">fix</span>' if kind == "fix"
+                    else '<span class="pill pill-comply">regression</span>')
+            if kind == "fix" and (o, n) in rec:
+                vs = rw.get(b.canonical_prompt)
+                if vs is None:
+                    body += ('<p class="note">Not in the recycle run\'s own P⁻ (it was answered or refused differently on '
+                             'the run\'s fresh draws), or its rewordings could not be joined.</p>')
+                else:
+                    hit = [v for v in vs if v["success"]]
+                    pill += (f'<span class="pill pill-comply">re-opened · {len(hit)}/{len(vs)} rewordings</span>' if hit
+                             else f'<span class="pill">held · 0/{len(vs)} rewordings</span>' if vs
+                             else '<span class="pill">unresolved · no admitted rewording</span>')
+                    kind = "reopened" if hit else kind
+                    for v in (hit or vs)[:2]:
+                        body += (_txt(f"admitted rewording · {v['style']}", v["text"], TEXT_CAP["rewording"])
+                                 + _txt(f"{label(n)} · {'answered' if v['success'] else 'refused'} the rewording",
+                                        v["reply"], TEXT_CAP["reply"]))
+            if kind == "reopened":
+                cnt["reopened"] += 1
+            items.append(f'<details class="case" data-outcome="{kind}"><summary><span class="cid">{esc(b.bid)}</span>'
+                         f'<span class="ccat">{esc(b.category)}</span><span class="sens">sensitive</span>{pill}</summary>'
+                         f'<div class="cbody">{body}</div></details>')
+        btns = "".join(f'<button type="button" class="fbtn{" active" if k == "all" else ""}" data-filter="{k}" '
+                       f'aria-pressed="{"true" if k == "all" else "false"}">{lbl} <span>{x}</span></button>'
+                       for k, lbl, x in [("all", "All", len(items)), ("fix", "Fixes (held / not recycled)", cnt["fix"] - cnt["reopened"]),
+                                         ("reopened", "Fixes re-opened by a rewording", cnt["reopened"]),
+                                         ("regression", "Regressions", cnt["regression"])] if k == "all" or x)
+        cases = (f'<div class="cases"><div class="filters" role="group" aria-label="Filter cases">{btns}</div>'
+                 f'{"".join(items)}</div>' if items else '<p class="note">No fix and no regression on this pair.</p>')
+        tid = f"t-{o}__{n}".replace(".", "_")
+        tabs.append(_tab(tid, f"{short(o)} → {short(n)}", f"{cnt['fix']} fixes · {cnt['regression']} regr.", i == 0))
+        panels.append(f'<div class="tabpanel" role="tabpanel" id="panel-{tid}" aria-labelledby="tab-{tid}"'
+                      f'{"" if i == 0 else " hidden"}><div class="panel"><h3>{esc(label(o))} → {esc(label(n))}</h3>'
+                      f'{cases}</div></div>')
+    return f"""
+<section id="s-text" class="sec" aria-labelledby="h-text">
+  <h2 id="h-text"><span class="sn">10</span>Requests and replies</h2>
+  <p class="note"><b>Working file: real benchmark requests and model replies</b> (truncated, collapsed; see ETHICS.md).
+  Every fix and regression of every pair, from the canonical screen: draws read C = judged compliant, R = refused.
+  For a recycled pair each fix also shows up to two admitted rewordings: those that re-opened it if any, else the first
+  ones it held against, with {"the newer model's"} reply (first draw). "Not in the recycle run's own P⁻" marks a
+  canonical fix that did not stay a fix on the recycle run's fresh draws, which is why P⁻ in run can be smaller.</p>
+  <div class="tablist" role="tablist" aria-label="Pairs">{''.join(tabs)}</div>{''.join(panels)}
+</section>"""
+
+
 # =============================================================================
 # sections
 # =============================================================================
@@ -187,7 +325,8 @@ def sec_header(d, today):
   <div class="meta"><span class="chip chip-warn"><span aria-hidden="true">▲</span> exploratory · raw judge output</span>
   <span class="chip">registered · PREREG_EXTERNAL_CLUSTER_20261103 (signed 2026-11-03)</span>
   <span class="chip chip-warn">uncalibrated · blind judge sheets unlabelled</span>
-  <span class="chip">counts only · no prompt or response text</span></div>
+  {"<span class='chip chip-warn'>contains requests and replies · working file</span>" if d["text"] else
+   "<span class='chip'>counts only · no prompt or response text</span>"}</div>
 </header>"""
 
 
@@ -471,12 +610,16 @@ def sec_method(d):
 
 def render(d) -> str:
     today = _dt.date.today().isoformat()
-    nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in NAV)
+    items = NAV + ([("s-text", "10", "Requests and replies")] if d["text"] else [])
+    nav = "".join(f'<a href="#{i}"><span class="n">{n}</span>{t}</a>' for i, n, t in items)
     body = (sec_header(d, today) + sec_headline(d) + sec_models(d) + sec_pairs(d) + sec_recycle(d) + sec_rpe(d)
-            + sec_styles(d) + sec_coverage(d) + sec_exec(d) + sec_method(d))
+            + sec_styles(d) + sec_coverage(d) + sec_exec(d) + sec_method(d) + (sec_text(d) if d["text"] else ""))
     name = CORPUS_LABEL.get(d["corpus"], d["corpus"])
-    foot = (f"Generated by tools/external_dashboard.py · recyclebench · {today}. Counts, ids and hashes only: no prompt, "
-            f"response or rewording text. Exploratory; raw judge output.")
+    foot = (f"Generated by tools/external_dashboard.py · recyclebench · {today}. "
+            + ("Contains benchmark requests, model replies and rewordings (collapsed, truncated): a working file, not a "
+               "released artefact; see ETHICS.md. " if d["text"] else
+               "Counts, ids and hashes only: no prompt, response or rewording text. ")
+            + "Exploratory; raw judge output.")
     return (f'<!doctype html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
             f'<title>{esc(name)} Cluster Run</title><style>{ld.CSS}</style></head><body>'
@@ -497,6 +640,9 @@ def collect(args) -> dict:
     cells = [c for c in matrix["cells"] if c["corpus"] == args.corpus and c["new"] != "llama4-maverick"]
     models = [m for m in es.MODELS if report["corpora"][args.corpus]["models"][m]["judged"]]
     mans = [c["manifest"]["path"] for c in cells if c["arm"] == "recycle" and c.get("manifest")]
+    can = None if (args.no_category and not args.text) else canonical(args.corpus, rp)
+    if args.text and not can:
+        raise SystemExit("--text needs the canonical cache, the verdict store and data/<corpus>.csv on this machine")
     ids = {}
     if args.provenance and Path(args.provenance).exists():
         tags = {"llama2-7b": "llama2:7b", "llama2-13b": "llama2:13b", "llama3-8b": "llama3:8b",
@@ -509,7 +655,9 @@ def collect(args) -> dict:
                     ids[k] = f[1]
     return {"corpus": args.corpus, "matrix": matrix, "matrix_path": str(mp), "report": report, "report_path": str(rp),
             "cells": cells, "models": models, "pairs": [c for c in cells if c["arm"] == "canonical"],
-            "per_category": None if args.no_category else per_category(args.corpus, rp),
+            "canonical": can, "per_category": per_category(can), "text": args.text,
+            "reworded": {(c["old"], c["new"]): reworded(c, can["cfg"].budget.samples_per_variant)
+                         for c in cells if args.text and can and c["arm"] == "recycle" and c.get("rsr")},
             "gate": gate_layers(f"{es.CACHE_DIR}/rpe_gate.jsonl"),
             "styles": style_counts(mans) if mans else None, "n_manifests": len(mans),
             "arcs": [f for f in matrix["style_arcs"].get(args.corpus, {}).get("files", [])],
@@ -526,10 +674,12 @@ def main(argv=None):
     ap.add_argument("--provenance", default=None, help="a job's provenance_<id>.txt, for the ollama list IDs")
     ap.add_argument("--revision", default=None)
     ap.add_argument("--no-category", action="store_true", help="skip the per-domain table (needs cache + verdicts)")
+    ap.add_argument("--text", action="store_true",
+                    help="embed requests, replies and rewordings (collapsed, truncated): a working file, never released")
     ap.add_argument("--out", default=None)
     args = ap.parse_args(argv)
     d = collect(args)
-    out = Path(args.out) if args.out else ROOT / es.RUN_ROOT / f"dashboard_{args.corpus}_{_dt.datetime.now():%Y%m%d_%H%M}.html"
+    out = Path(args.out) if args.out else ROOT / es.RUN_ROOT / f"dashboard_{args.corpus}{'_text' if args.text else ''}_{_dt.datetime.now():%Y%m%d_%H%M}.html"
     if out.exists():
         raise SystemExit(f"{out} exists -- refusing to overwrite")
     out.parent.mkdir(parents=True, exist_ok=True)
