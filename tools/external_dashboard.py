@@ -608,10 +608,33 @@ def sec_method(d):
 </section>"""
 
 
+def _guard_failed(d, g):
+    import llamaguard_sensitivity as lgs
+    ins = lgs.INSTRUMENT["chat"]
+    ev = [[esc(k), esc(v)] for k, v in ins["evidence"].items()]
+    return f"""
+<section id="s-guard" class="sec" aria-labelledby="h-guard">
+  <h2 id="h-guard"><span class="sn">10</span>Llama Guard sensitivity (threat T1)</h2>
+  <div class="panel"><h3><span class="chip chip-warn">instrument check failed</span> The registered call judged the
+  request, not the reply</h3>
+  <p class="note">Registered in {esc(g.get('prereg', ''))}: {esc(g.get('judge_second', ''))} through Ollama's chat endpoint
+  and the model's own template. That template asks for the assessment of "ONLY THE LAST User message" whatever the last
+  role is, so every verdict tracks how harmful the <i>request</i> is. Instrument check (job {esc(ins['check_job'])}),
+  the same fixed refusal beside corpus requests:</p>
+  {table(["Case", "Llama Guard verdicts"], ev)}
+  <p class="note">A refusal beside a ScienceSafety request is called unsafe as often as the request alone. The pass
+  ({esc(Path(d['guard_path']).name)}) is therefore reported as a failed instrument check and none of its estimands
+  (E1 to E4) is shown or read. A corrected call (Meta's prompt for the last Agent message, sent raw) needs a signed
+  amendment before any verdict; its report replaces this panel when it exists.</p></div>
+</section>"""
+
+
 def sec_guard(d):
     g = d["guard"]
     if not g:
         return ""
+    if g.get("call", "chat") == "chat":
+        return _guard_failed(d, g)
     models = [m for m in d["models"] if m in g["E2"]]
     e2 = []
     for m in models:
@@ -692,7 +715,8 @@ def collect(args) -> dict:
     can = None if (args.no_category and not args.text) else canonical(args.corpus, rp)
     if args.text and not can:
         raise SystemExit("--text needs the canonical cache, the verdict store and data/<corpus>.csv on this machine")
-    gp = Path(args.llamaguard) if getattr(args, "llamaguard", None) else latest(f"llamaguard_{args.corpus}_*.json")
+    gp = (Path(args.llamaguard) if getattr(args, "llamaguard", None) else
+          latest(f"llamaguard_agent_{args.corpus}_*.json") or latest(f"llamaguard_{args.corpus}_*.json"))
     ids = {}
     if args.provenance and Path(args.provenance).exists():
         tags = {"llama2-7b": "llama2:7b", "llama2-13b": "llama2:13b", "llama3-8b": "llama3:8b",

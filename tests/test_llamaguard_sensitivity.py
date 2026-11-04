@@ -20,6 +20,15 @@ def test_parse_never_coerces_an_unexpected_answer():
     assert lgs.parse("The response is safe") == (None, [])      # not the model's format: unparsed, not 0
 
 
+def test_amendment_a1_prompt_assesses_the_agent_turn_and_keeps_its_own_store():
+    p = lgs.AGENT_PROMPT.format(prompt="Q", reply="A")
+    assert "ONLY THE LAST Agent message" in p and "User message" not in p
+    assert "User: Q\n\nAgent: A" in p and p.endswith("<|start_header_id|>assistant<|end_header_id|>\n\n")
+    assert lgs.CALLS["agent"]["tag"] != lgs.CALLS["chat"]["tag"]
+    assert lgs.store_path("sciencesafety", "agent") != lgs.store_path("sciencesafety", "chat")
+    assert lgs.INSTRUMENT["chat"]["status"] == "FAILED"
+
+
 def test_kappa():
     assert lgs.kappa(20, 0, 0, 20) == 1.0
     assert lgs.kappa(10, 10, 10, 10) == 0.0

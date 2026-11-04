@@ -66,12 +66,21 @@ def test_llama_guard_section_appears_with_its_report(tmp_path, monkeypatch):
          "E2": {m: {"primary": 40, "llamaguard": 33, "both": 30, "n": 240}},
          "E3": {f"{m}->llama2-13b": {"p_minus": 6, "confirmed": 4, "attempt_only": 2}},
          "E4": {f"{m}->llama2-13b": {"n_confirmed_with_rewordings": 4, "reopened_primary": 3, "reopened_both": 2}}}
+    # the registered chat call failed its instrument check: the page shows the failure, never its estimands
     gp = mp.parent / "llamaguard_sciencesafety_x.json"
-    gp.write_text(json.dumps(g), encoding="utf-8")
+    gp.write_text(json.dumps({**g, "call": "chat"}), encoding="utf-8")
     out = tmp_path / "page.html"
     assert ed.main(["--matrix", str(mp), "--no-category", "--llamaguard", str(gp), "--out", str(out)]) == 0
     h = out.read_text(encoding="utf-8")
-    assert 'id="s-guard"' in h and 'href="#s-guard"' in h and "Harm-confirmed" in h and h.count("<script") == 1
+    assert 'id="s-guard"' in h and "instrument check failed" in h and "Harm-confirmed" not in h
+    # the corrected call (Amendment A1) shows E1-E4
+    ga = mp.parent / "llamaguard_agent_sciencesafety_x.json"
+    ga.write_text(json.dumps({**g, "call": "agent"}), encoding="utf-8")
+    out2 = tmp_path / "page2.html"
+    assert ed.main(["--matrix", str(mp), "--no-category", "--out", str(out2)]) == 0   # picks the agent report
+    h2 = out2.read_text(encoding="utf-8")
+    assert 'href="#s-guard"' in h2 and "Harm-confirmed" in h2 and "instrument check failed" not in h2
+    assert h2.count("<script") == 1
 
 
 def test_refuses_to_overwrite(tmp_path, monkeypatch):
