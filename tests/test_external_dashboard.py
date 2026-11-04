@@ -56,6 +56,24 @@ def test_page_renders_counts_only_and_states_its_limits(tmp_path, monkeypatch):
     assert "llama4-maverick" not in h                   # its pairs are not shown as estimated
 
 
+def test_llama_guard_section_appears_with_its_report(tmp_path, monkeypatch):
+    mp = _tree(tmp_path)
+    monkeypatch.setattr(ed, "ROOT", tmp_path)
+    m = MODELS[0]
+    g = {"prereg": "PREREG_SCIENCESAFETY_LLAMAGUARD_20261104.md", "judge_primary": "rubric=qwen2.5:14b",
+         "judge_second": "llamaguard=llama-guard3:8b", "missing": 0, "unparsed": 0, "hazards": {"S2": 7},
+         "E1": {m: {"attempt_unsafe": 30, "attempt_safe": 10, "refusal_unsafe": 2, "refusal_safe": 100, "kappa": 0.75}},
+         "E2": {m: {"primary": 40, "llamaguard": 33, "both": 30, "n": 240}},
+         "E3": {f"{m}->llama2-13b": {"p_minus": 6, "confirmed": 4, "attempt_only": 2}},
+         "E4": {f"{m}->llama2-13b": {"n_confirmed_with_rewordings": 4, "reopened_primary": 3, "reopened_both": 2}}}
+    gp = mp.parent / "llamaguard_sciencesafety_x.json"
+    gp.write_text(json.dumps(g), encoding="utf-8")
+    out = tmp_path / "page.html"
+    assert ed.main(["--matrix", str(mp), "--no-category", "--llamaguard", str(gp), "--out", str(out)]) == 0
+    h = out.read_text(encoding="utf-8")
+    assert 'id="s-guard"' in h and 'href="#s-guard"' in h and "Harm-confirmed" in h and h.count("<script") == 1
+
+
 def test_refuses_to_overwrite(tmp_path, monkeypatch):
     mp = _tree(tmp_path)
     monkeypatch.setattr(ed, "ROOT", tmp_path)
