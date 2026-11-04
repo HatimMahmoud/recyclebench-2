@@ -1,6 +1,6 @@
 # Registration: Llama Guard as a second judge on the ScienceSafetyData cluster run (sensitivity, T1)
 
-**Status: SIGNED by the candidate 2026-11-04** (supervisor sign-off pending; see Sign-off). Written 2026-11-04 and
+**Status: SIGNED 2026-11-04** (candidate and supervisor; Amendment A1 signed the same day, see below). Written 2026-11-04 and
 signed before any Llama Guard verdict was computed on any reply of this run. The signed commit is the registration.
 
 **Designation: exploratory sensitivity analysis.** An addendum to `PREREG_EXTERNAL_CLUSTER_20261103.md` (signed
@@ -67,14 +67,14 @@ The rewordings of the pair still running when this is signed (3.2-3B → Scout) 
 ## Sign-off
 
 - Candidate: **Hatim Mahmoud**  date: **2026-11-04**
-- Supervisor: _pending_  date: __________
+- Supervisor (acknowledged): _signed off_  date: **2026-11-04**
 
 _The candidate's sign-off was given in session on 2026-11-04, before any Llama Guard verdict existed. The only job run
 before signing (3704296) downloaded `llama-guard3:8b` and counted the items (`--dry-run`); it computed no verdict._
 
 ---
 
-## Amendment A1: the registered call failed its instrument check (DRAFT, unsigned)
+## Amendment A1: the registered call failed its instrument check (SIGNED 2026-11-04)
 
 Written 2026-11-04, after the registered pass and before any verdict under the call below.
 
@@ -111,5 +111,8 @@ its estimands (E1 to E4) is read, and its store and reports are kept unchanged a
 
 ### A1 sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-04**
+- Supervisor (acknowledged): _signed off_  date: **2026-11-04**
+
+_Both sign-offs (the registration's supervisor line and A1) were given by the candidate in session on 2026-11-04,
+before any verdict under the amended call existed._
