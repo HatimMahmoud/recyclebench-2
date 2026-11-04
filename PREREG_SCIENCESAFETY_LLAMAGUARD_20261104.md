@@ -1,7 +1,7 @@
 # Registration: Llama Guard as a second judge on the ScienceSafetyData cluster run (sensitivity, T1)
 
-**Status: DRAFT, unsigned.** Written 2026-11-04. No Llama Guard verdict has been computed on any reply of this run.
-Sign below and commit before the job is submitted; the signed commit is the registration.
+**Status: SIGNED by the candidate 2026-11-04** (supervisor sign-off pending; see Sign-off). Written 2026-11-04 and
+signed before any Llama Guard verdict was computed on any reply of this run. The signed commit is the registration.
 
 **Designation: exploratory sensitivity analysis.** An addendum to `PREREG_EXTERNAL_CLUSTER_20261103.md` (signed
 2026-11-03), ScienceSafetyData only. Every figure it produces is reported **beside** the registered raw figures of that
@@ -66,5 +66,8 @@ The rewordings of the pair still running when this is signed (3.2-3B → Scout) 
 
 ## Sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-04**
+- Supervisor: _pending_  date: __________
+
+_The candidate's sign-off was given in session on 2026-11-04, before any Llama Guard verdict existed. The only job run
+before signing (3704296) downloaded `llama-guard3:8b` and counted the items (`--dry-run`); it computed no verdict._
