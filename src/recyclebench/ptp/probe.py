@@ -26,6 +26,7 @@ instruction frame and the model would answer it rather than continue it.
 from __future__ import annotations
 
 import json
+import os
 import random
 import time
 from dataclasses import dataclass, field
@@ -36,7 +37,8 @@ from typing import Callable, Optional, Sequence
 @dataclass
 class ProbeSpec:
     model_id: str = "qwen2.5:3b"
-    base_url: str = "http://localhost:11434"
+    # a cluster job serves Ollama on its own port (pegasus/in_container.sh); the Mac default is unchanged
+    base_url: str = field(default_factory=lambda: os.environ.get("RECYCLEBENCH_OLLAMA_URL", "http://localhost:11434"))
     n_seeds: int = 2000
     seq_len: int = 256
     temperature: float = 0.9

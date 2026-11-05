@@ -113,9 +113,14 @@ def main(argv=None) -> int:
                          "ladder registers exact pair counts (12,000 / 18,000), and a "
                          "--minutes budget would land wherever the night's throughput "
                          "happened to put it, so the rungs would not be comparable.")
+    ap.add_argument("--out-dir", default=None,
+                    help="directory for every artifact of this build (default cache/ptp, the local PoC's)")
     ap.add_argument("--gate-token-f1", type=float, default=0.30,
                     help="Gate A: held-out inversion token F1 floor")
     args = ap.parse_args(argv)
+    global OUT
+    if args.out_dir:                      # a separate build (e.g. the cluster PoC) never touches cache/ptp
+        OUT = Path(args.out_dir) if Path(args.out_dir).is_absolute() else ROOT / args.out_dir
 
     deadline = time.time() + args.minutes * 60 if args.minutes else None
     OUT.mkdir(parents=True, exist_ok=True)
