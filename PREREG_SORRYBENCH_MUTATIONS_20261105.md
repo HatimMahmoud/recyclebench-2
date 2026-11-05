@@ -21,10 +21,14 @@ its sha256 in the provenance file). Mutation styles, as the dataset names them: 
 
 ## 2. Models
 
-All twelve: llama2-7b, llama2-13b, llama3-8b, llama31-8b, llama32-1b, llama32-3b, llama4-scout, llama4-maverick
-(`configs/llama4_pegasus.yaml`), and llama2-70b, llama3-70b, llama31-70b, llama33-70b (`configs/chain70b.yaml`). Same
-serving and decoding as their canonical screens (Ollama 0.40.12, temperature 0, 512 tokens). One draw per prompt, seed
-`_draw_seed(bid, 1000 + style index, 0)` (disjoint from the canonical and rewording seeds).
+Seven: llama2-7b, llama2-13b, llama3-8b, llama31-8b, llama32-1b, llama32-3b and llama4-scout
+(`configs/llama4_pegasus.yaml`). Same serving and decoding as their canonical screens (Ollama 0.40.12, temperature 0,
+512 tokens). One draw per prompt, seed `_draw_seed(bid, 1000 + style index, 0)` (disjoint from the canonical and
+rewording seeds).
+
+**Scope set before signing (2026-11-05).** The draft first listed all twelve models. Because of cluster queue limits, the
+candidate cut it before any reply was generated: the four 70B models are deferred (they may enter later by a separate
+amendment), and Llama 4 Maverick is dropped. Their generation jobs were cancelled while still pending; none produced a reply.
 
 ## 3. Judging (against the original request)
 
@@ -49,7 +53,7 @@ serving and decoding as their canonical screens (Ollama 0.40.12, temperature 0, 
   are outside that range.
 - **T2, decoding and translation:** a decoder can fail on a partly encoded reply, and translation can add or lose
   content; both can move a verdict. Encoding and translation results are reported separately from English styles.
-- **T3, many comparisons:** 20 styles × 12 models; descriptive only, no test.
+- **T3, many comparisons:** 20 styles × 7 models; descriptive only, no test.
 - **T4, scale and release confounds:** as in each pair's own registration.
 
 ## Sign-off
