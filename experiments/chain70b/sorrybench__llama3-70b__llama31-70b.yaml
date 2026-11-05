@@ -1,0 +1,16 @@
+# 70B chain (PREREG_70B_CHAIN_20261105.md, signed): llama3-70b -> llama31-70b on SORRY-Bench. EXPLORATORY, post hoc.
+# Run by pegasus/chain70b.sh recycle only when the judged canonical |P^-| >= 5.
+name: chain70b__sorrybench__llama3-70b__llama31-70b
+science_config: configs/chain70b_pairs/llama3-70b__llama31-70b.yaml
+old: llama3-70b
+new: llama31-70b
+behaviours: data/sorrybench.csv
+
+execution:
+  target: cluster
+  run_root: results/runs/chain70b
+  cache_dir: cache/chain70b     # this spec's own cache, seeded from cache/chain70b/canonical.jsonl
+
+stages: [screen, subset, recycle, partition, audit]
+audit_bundles: 60
+min_p_minus_for_recycle: 5

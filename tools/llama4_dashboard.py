@@ -421,7 +421,7 @@ def sec_recycle(new, suite):
 
 def sec_rpe(new, suite):
     tabs, panels = [], []
-    benches = [b for b in ("advbench", "harmbench", "strongreject")
+    benches = [b for b in ("sorrybench", "advbench", "harmbench", "strongreject")
                if any(c["arm"] == "rpe" and c["bench"] == b for c in suite["cells"])]
     for i, b in enumerate(benches):
         rows = []

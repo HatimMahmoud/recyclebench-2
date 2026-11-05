@@ -35,8 +35,10 @@ from recyclebench.stats import wilson_interval              # noqa: E402
 
 NEW = "llama4-scout"
 OLDS = ("llama2-7b", "llama2-13b", "llama3-8b", "llama31-8b", "llama32-1b", "llama32-3b")
-BENCHES = ("advbench", "harmbench", "strongreject")
-CANONICAL = "results/runs/20261031_1816_llama4_scout_canonical/canonical.json"
+BENCHES = ("sorrybench", "advbench", "harmbench", "strongreject")
+# 2026-11-04 screen: SORRY-Bench added (rebuilt on Pegasus, identity-checked against the lineage cache); the other
+# three benchmarks are recomputed from the same verdict stores as the 2026-10-31 report.
+CANONICAL = "results/runs/20261104_1946_llama4_scout_canonical/canonical.json"
 SUITE = "results/runs/llama4_scout"
 RECYCLE_FLOOR = 5            # ExperimentSpec.min_p_minus_for_recycle (the specs keep the default)
 
@@ -214,8 +216,6 @@ def attack(root: Path) -> dict:
 
 
 STATIC = [  # arms decided by protocol or by inputs this machine does not hold
-    ("canonical · sorrybench", B, "data/sorrybench.csv is absent on Pegasus and here (gated on Hugging Face: "
-     "HF_TOKEN + tools/prepare_sorrybench.py, or copy the registered CSV from the Mac)"),
     ("canonical · heldout_jbb_guided", NA, "registered for the confirmatory llama3-8b → llama3.1-8b replication only "
      "(Amendment 1 §A2); the CSV is absent here and must never be rebuilt"),
     ("PBR on the frozen lineage manifests", B, "the HarmBench/AdvBench/StrongREJECT lineage manifests "

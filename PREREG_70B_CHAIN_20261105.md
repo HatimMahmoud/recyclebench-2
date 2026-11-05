@@ -1,6 +1,6 @@
 # Registration: the 70B matched-scale chain on SORRY-Bench (Pegasus)
 
-**Status: DRAFT, unsigned.** Written 2026-11-05. Sign below and commit before any reply of this chain is judged.
+**Status: SIGNED 2026-11-05** (candidate and supervisor). Written 2026-11-05; signed before any reply of this chain was judged.
 
 **Blind generation before signing (disclosed).** To save cluster time, the canonical replies of the four 70B models
 were generated from 2026-11-05 (night) before this registration was signed: `tools/fill_responses.py` only, into
@@ -56,5 +56,7 @@ side; no pooling, no test against π*.
 
 ## Sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-05**
+- Supervisor (acknowledged): _signed off_  date: **2026-11-05**
+
+_Both sign-offs were given by the candidate in session on 2026-11-05, after the blind generation (jobs 3706710-13, 1,320 replies per model, none judged or read) and before any verdict._
