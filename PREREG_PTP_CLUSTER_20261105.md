@@ -1,6 +1,6 @@
 # Registration: PTP proof of concept on Pegasus, as an alternative inverter for the RPE arm
 
-**Status: DRAFT, unsigned.** Written 2026-11-05. Sign below and commit before the held-out evaluation runs.
+**Status: SIGNED 2026-11-05** (candidate and supervisor). Written 2026-11-05. Sign below and commit before the held-out evaluation runs.
 
 **Training before signing (disclosed).** To save cluster time, the build's corpus, fine-tuning pairs and model weights are
 produced from 2026-11-05 before signature (`tools/ptp_build.py` phases probe, ftdata, pretrain, finetune). Nothing in
@@ -51,5 +51,7 @@ candidates, end-of-prompt stopping, 40-token budget, greedy reported alongside.
 
 ## Sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-05**
+- Supervisor (acknowledged): _signed off_  date: **2026-11-05**
+
+_Both sign-offs were given by the candidate in session on 2026-11-05, while the build jobs were still queued (no corpus, weights or evaluation existed)._

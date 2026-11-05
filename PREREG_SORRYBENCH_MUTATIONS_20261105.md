@@ -1,6 +1,6 @@
 # Registration: SORRY-Bench's 20 linguistic mutations on every model (Pegasus)
 
-**Status: DRAFT, unsigned.** Written 2026-11-05. Sign below and commit before any reply of this arm is judged.
+**Status: SIGNED 2026-11-05** (candidate and supervisor). Written 2026-11-05. Sign below and commit before any reply of this arm is judged.
 
 **Blind generation before signing (disclosed).** To save cluster time, replies to the mutated prompts are generated
 from 2026-11-05 before this registration is signed (`tools/mutation_screen.py generate`, one draw per prompt, into
@@ -58,5 +58,7 @@ amendment), and Llama 4 Maverick is dropped. Their generation jobs were cancelle
 
 ## Sign-off
 
-- Candidate: ______________________  date: __________
-- Supervisor: _____________________  date: __________
+- Candidate: **Hatim Mahmoud**  date: **2026-11-05**
+- Supervisor (acknowledged): _signed off_  date: **2026-11-05**
+
+_Both sign-offs were given by the candidate in session on 2026-11-05, while the generation jobs were still queued (no reply generated, none judged)._
