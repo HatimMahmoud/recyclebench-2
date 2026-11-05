@@ -117,8 +117,9 @@ def cmd_build(a):
     by_qid = defaultdict(dict)
     for r in rows:
         t = r.get("turns")
-        text = (t[0] if isinstance(t, (list, tuple)) and t else str(t or "")).strip()
-        by_qid[str(r.get("question_id"))][str(r.get("prompt_style") or "base").strip()] = text
+        text = str((t[0] if isinstance(t, (list, tuple)) and t else t) or "").strip()   # some rows carry None
+        if text:                                                  # an empty mutation is counted as missing below
+            by_qid[str(r.get("question_id"))][str(r.get("prompt_style") or "base").strip()] = text
     bases = [q for q, st in by_qid.items() if "base" in st]
     goal_to_q = {by_qid[q]["base"]: q for q in bases}
     styles = sorted({s for st in by_qid.values() for s in st if s != "base"})
