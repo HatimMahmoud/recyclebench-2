@@ -139,6 +139,7 @@ def score(cands, truth, cv, tok, n_truth_tokens=None):
 
 
 def main() -> int:
+    global OUT
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tokenizer", default="Qwen/Qwen2.5-0.5B")
@@ -154,7 +155,11 @@ def main() -> int:
     ap.add_argument("--max-new-tokens", type=int, default=40)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--out-dir", default=None,
+                    help="build directory holding heldout.json (default cache/ptp, the local PoC's)")
     args = ap.parse_args()
+    if args.out_dir:
+        OUT = Path(args.out_dir) if Path(args.out_dir).is_absolute() else ROOT / args.out_dir
 
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(args.tokenizer)
