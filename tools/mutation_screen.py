@@ -146,7 +146,8 @@ def cmd_build(a):
 
 
 def load_items():
-    rows = [json.loads(l) for l in (ROOT / DATA).read_text(encoding="utf-8").splitlines() if l.strip()]
+    # split on "\n" only: prompts may hold U+2028/U+2029, which str.splitlines() would break a record on
+    rows = [json.loads(l) for l in (ROOT / DATA).read_text(encoding="utf-8").split("\n") if l.strip()]
     styles = sorted({r["style"] for r in rows})
     return rows, styles
 
@@ -193,7 +194,7 @@ class Translations:
         self.p = ROOT / path
         self.d = {}
         if self.p.exists():
-            for l in self.p.read_text(encoding="utf-8").splitlines():
+            for l in self.p.read_text(encoding="utf-8").split("\n"):
                 if l.strip():
                     x = json.loads(l)
                     self.d[x["k"]] = x["t"]
